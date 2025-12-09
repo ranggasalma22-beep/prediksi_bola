@@ -598,10 +598,11 @@
   // Engine Runner
   // ---------------------------
   V20.runPrimeZero = function(){
-    const outEl = document.getElementById('output');
-    if (!outEl) return;
+  const outEl = document.getElementById('output');
+  if (!outEl) return;
 
-    // read inputs
+  try {
+    // ---------- read inputs ----------
     const lamH  = V20.num(document.getElementById('lamH').value, 1.20);
     const lamA  = V20.num(document.getElementById('lamA').value, 1.00);
 
@@ -624,27 +625,82 @@
     if (!isFinite(simCount)) simCount = undefined;
     if (!isFinite(scoreCap)) scoreCap = undefined;
 
-    const lambda = { lamH, lamA };
+    const baseLambda = { lamH, lamA };
     const ctx = { tempo, chaos, importance };
-    const home = { stability: home_st, momentum: home_mom };
-    const away = { stability: away_st, momentum: away_mom };
+    const home = { stability: home_st, momentum: home_mom, flex: home_flex };
+    const away = { stability: away_st, momentum: away_mom, flex: away_flex };
     const tact = { home: { pressIntensity: home_press, flex: home_flex }, away: { pressIntensity: away_press, flex: away_flex } };
 
-    // models
-    const det       = V20.detSim(lambda);
-    const chaosL    = V20.chaosModel(lambda, ctx);
+    // allow preRun hooks to modify context/options
+    let hookContext = { baseLambda: baseLambda, ctx: ctx, state: null, homeProfile:{}, awayProfile:{}, tact: tact, options: {} };
+    try {
+      if(V20.hooks && Array.isArray(V20.hooks.preRun)){
+        V20.hooks.preRun.forEach(fn => {
+          try { hookContext = fn(hookContext) || hookContext; } catch(e){ /* harmless */ }
+        });
+      }
+    } catch(e){ /* ignore hook errors */ }
+
+    // ---------- Legacy calculations (keep as baseline) ----------
+    const det       = V20.detSim(baseLambda);
+    const chaosL    = V20.chaosModel(baseLambda, ctx);
     const detChaos  = V20.detSim(chaosL);
-    const mc        = V20.monteCarlo(lambda, ctx, simCount, scoreCap, home, away, tact);
 
-    const godHL  = mc.god?.hyperLambda || {lamH, lamA};
-    const godPat = mc.god?.pattern || {control:0.25,swing:0.25,stalled:0.25,chaotic:0.25};
+    // ---------- Compute final lambda via Integrator (if available) ----------
+    let finalLambda = baseLambda;
+    let integratorMeta = null;
+    try {
+      if(V20.Integrator && typeof V20.Integrator.computeFinalLambdas === 'function'){
+        // merge options from hooks: include UI-based weather/ref & team names if present
+        const options = Object.assign({}, hookContext.options || {});
+        // auto-read weather select if exists
+        const weatherEl = document.getElementById('weather') || document.getElementById('weather_select');
+        if(weatherEl && !options.weather) options.weather = weatherEl.value || 'normal';
+        // team name fields if exist
+        if(document.getElementById('home_team')) options.homeTeamName = options.homeTeamName || document.getElementById('home_team').value;
+        if(document.getElementById('away_team')) options.awayTeamName = options.awayTeamName || document.getElementById('away_team').value;
+        // referee (optional) if UI exists
+        if(document.getElementById('ref_profile')) {
+          try { options.referee = JSON.parse(document.getElementById('ref_profile').value); } catch(e){}
+        }
+        // include prior/bayes settings if present in hookContext.options
+        Object.assign(options, hookContext.options || {});
 
+        // compute final lambda
+        const integr = V20.Integrator.computeFinalLambdas(baseLambda, hookContext.ctx || ctx, hookContext.state || null, hookContext.homeProfile || {}, hookContext.awayProfile || {}, hookContext.tact || tact, options);
+        if(integr && integr.lamH !== undefined){
+          finalLambda = { lamH: integr.lamH || baseLambda.lamH, lamA: integr.lamA || baseLambda.lamA };
+          integratorMeta = integr;
+        }
+      }
+    } catch(e){
+      // integrator failed — fallback to base
+      console.error('Integrator error', e);
+      finalLambda = baseLambda;
+    }
+
+    // ---------- Monte Carlo & related models use finalLambda ----------
+    const mc = (function(){
+      try {
+        return V20.monteCarlo(finalLambda, ctx, simCount, scoreCap, home, away, tact);
+      } catch(err){
+        // fallback try with base lambda
+        console.error('MC error with finalLambda, fallback to baseLambda', err);
+        return V20.monteCarlo(baseLambda, ctx, simCount, scoreCap, home, away, tact);
+      }
+    })();
+
+    const godHL  = mc.god?.hyperLambda || (integratorMeta?.hyperLambda || { lamH: finalLambda.lamH, lamA: finalLambda.lamA });
+    const godPat = mc.god?.pattern || (integratorMeta?.pattern || {control:0.25,swing:0.25,stalled:0.25,chaotic:0.25});
+
+    // blend baseline probabilities (kept for stability)
     const base = {
       pH: (det.pH + detChaos.pH + mc.pH)/3,
       pD: (det.pD + detChaos.pD + mc.pD)/3,
       pA: (det.pA + detChaos.pA + mc.pA)/3
     };
 
+    // ---------- Fusion / meta metrics (use existing logic) ----------
     const risk01   = V20.computeRisk(ctx, tact);
     const frag01   = V20.computeFragility(ctx, home, away);
     const sdi      = V20.computeSDI(godHL);
@@ -669,8 +725,8 @@
     // OU analytic blend
     const totalLamBase = godHL.lamH + godHL.lamA;
     let lamEff = totalLamBase;
-    const chaosF_local = (chaos - 5)/5;
-    const tempoF_local = (tempo - 5)/5;
+    const chaosF_local = (ctx.chaos - 5)/5;
+    const tempoF_local = (ctx.tempo - 5)/5;
     lamEff *= (1 + chaosF_local*0.10 + tempoF_local*0.05);
     lamEff = V20.clamp(lamEff, 0.5, 5.8);
 
@@ -710,13 +766,13 @@
       ouBlend[k] = { over: ou[k].over*wAN + ouMC[k].over*wMC, under: ou[k].under*wAN + ouMC[k].under*wMC };
     });
 
-    // Build output
+    // Build output (include integrator metadata if present)
     let text = "";
-    text += "=== PRIME SINGULARITY ZERO — REPORT ===\n\n";
+    text += "=== PRIME SINGULARITY ZERO — REPORT (INTEGRATED) ===\n\n";
     text += `[ENGINE STATUS] ${engineStatus}\n\n`;
     text += "[INPUT]\n";
-    text += `λH : ${lamH.toFixed(3)} | λA : ${lamA.toFixed(3)}\n`;
-    text += `Tempo/Chaos/Imp : ${tempo.toFixed(1)} / ${chaos.toFixed(1)} / ${importance.toFixed(1)}\n`;
+    text += `λ base : ${lamH.toFixed(3)} | ${lamA.toFixed(3)}  → λ final : ${finalLambda.lamH.toFixed(3)} | ${finalLambda.lamA.toFixed(3)}\n`;
+    text += `Tempo/Chaos/Imp : ${ctx.tempo.toFixed(1)} / ${ctx.chaos.toFixed(1)} / ${ctx.importance.toFixed(1)}\n`;
     text += `Home St/Mom : ${home_st.toFixed(1)} / ${home_mom.toFixed(1)}\n`;
     text += `Away St/Mom : ${away_st.toFixed(1)} / ${away_mom.toFixed(1)}\n\n`;
 
@@ -734,11 +790,36 @@
     Object.keys(ouBlend).forEach(k=>{
       text += `O/U ${k} -> Over ${(ouBlend[k].over*100).toFixed(1)}% | Under ${(ouBlend[k].under*100).toFixed(1)}%\n`;
     });
+
+    // optionally include integrator metadata (if available)
+    if(integratorMeta){
+      try {
+        text += "\n[INTEGRATOR]\n";
+        text += " - hyperLambda (final): " + (integratorMeta.lamH||integratorMeta.hyperLambda?.lamH||finalLambda.lamH).toFixed(3) + " | " + (integratorMeta.lamA||integratorMeta.hyperLambda?.lamA||finalLambda.lamA).toFixed(3) + "\n";
+        if(integratorMeta.pattern) text += " - pattern: " + JSON.stringify(integratorMeta.pattern) + "\n";
+        if(integratorMeta.scenarioStats) text += " - scenarios: " + (integratorMeta.scenarioStats.scenarios?.map(s=>s.name).join(",") || "-") + "\n";
+      } catch(e){}
+    }
+
     text += "\n[NOTES]\n";
     text += " - Match Type template: " + (window._V20_MATCH_TEMPLATE?.name || "none") + "\n\n";
 
     outEl.value = text;
-  };
+
+    // postRun hooks
+    try {
+      if(V20.hooks && Array.isArray(V20.hooks.postRun)){
+        V20.hooks.postRun.forEach(fn=>{
+          try{ fn({ baseLambda, finalLambda, ctx, home, away, tact, mc, fused }); } catch(e){}
+        });
+      }
+    } catch(e){}
+  } catch(e){
+    // top-level error handling: keep original behavior by reporting error
+    alert("Engine fatal error: " + (e && e.message || e));
+    console.error(e);
+  }
+};
 // ---------------------------
   // V20.Auto - tidy auto helpers (centralized)
   // ---------------------------
