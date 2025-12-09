@@ -930,6 +930,562 @@
     document.getElementById('press_style_home')?.addEventListener('change', function(){ /* no-op — rely on button */ });
     document.getElementById('press_style_away')?.addEventListener('change', function(){ /* no-op */ });
   });
+    <!-- === START: V20 ADVANCED UPGRADES (GSAL, EMC, Weather, TPM, DCM, RII, SQM, Bayes, MSS) === -->
+<script>
+(function(){ 
+  if(!window.V20) window.V20 = {};
+  const V20 = window.V20;
+
+  // -------------------------
+  // Helper small utilities
+  // -------------------------
+  V20._nowMs = function(){ return Date.now(); };
+  V20._clamp = function(v,min,max){ return Math.min(max, Math.max(min, v)); };
+  V20._safeNum = function(x,def=0){ const n=Number(x); return isFinite(n)?n:def; };
+
+  // =========================
+  // 1) GSAL — Game-State Adaptive Lambda
+  // =========================
+  V20.GSAL = {
+    // state = {scoreH, scoreA, minute, redCardsH, redCardsA, subsH, subsA}
+    adaptLambda: function(baseLam, ctx, state, home, away, tact){
+      // baseLam: {lamH, lamA}
+      state = state || {scoreH:0, scoreA:0, minute:0, redH:0, redA:0};
+      const lamH = V20._safeNum(baseLam.lamH,1);
+      const lamA = V20._safeNum(baseLam.lamA,1);
+
+      let modH = 1.0, modA = 1.0;
+
+      // 1) leading/trailing behavior
+      if(state.scoreH > state.scoreA){
+        // home leading -> tends to control (reduce lambda), but if behind late -> push
+        const lead = state.scoreH - state.scoreA;
+        modH *= (1 - 0.12 * V20._clamp(lead,0,3)); // reduce home attacking
+        modA *= (1 + 0.18 * V20._clamp(lead,0,3)); // away push
+      } else if(state.scoreA > state.scoreH){
+        const lead = state.scoreA - state.scoreH;
+        modA *= (1 - 0.12 * V20._clamp(lead,0,3));
+        modH *= (1 + 0.18 * V20._clamp(lead,0,3));
+      }
+
+      // 2) minute-based fatigue or desperation
+      const m = V20._safeNum(state.minute,0);
+      if(m >= 75){
+        // desperation late -> trailing team aggression
+        if(state.scoreH < state.scoreA) modH *= 1.25;
+        if(state.scoreA < state.scoreH) modA *= 1.25;
+        // fatigue reduces finishing quality overall
+        modH *= 1 - 0.06;
+        modA *= 1 - 0.06;
+      } else if(m >= 60){
+        // slight fatigue
+        modH *= 1 - 0.03;
+        modA *= 1 - 0.03;
+      }
+
+      // 3) red card effect: a red card reduces capacity to produce goals
+      if(state.redH && state.redH > 0){
+        modH *= (1 - 0.18 * state.redH); // penalize scorers from sent-off team
+        modA *= (1 + 0.12 * state.redH); // opponent benefits
+      }
+      if(state.redA && state.redA > 0){
+        modA *= (1 - 0.18 * state.redA);
+        modH *= (1 + 0.12 * state.redA);
+      }
+
+      // 4) tactical press increases attacking lambda for pressing team late
+      if(tact && tact.home && tact.away){
+        const pressDiff = (tact.home.pressIntensity || 5) - (tact.away.pressIntensity || 5);
+        if(pressDiff > 0 && m >= 60){
+          modH *= (1 + pressDiff*0.02);
+          modA *= (1 - pressDiff*0.01);
+        } else if(pressDiff < 0 && m >= 60){
+          const pd = Math.abs(pressDiff);
+          modA *= (1 + pd*0.02);
+          modH *= (1 - pd*0.01);
+        }
+      }
+
+      // 5) convert based on match importance & chaos
+      const importance = V20._safeNum(ctx.importance,5);
+      const chaos = V20._safeNum(ctx.chaos,5);
+      // high importance -> fewer random goals (dampen extreme swings)
+      const impFactor = 1 - (V20._clamp((importance-5)/10, -0.2, 0.2));
+      const chaosFactor = 1 + V20._clamp((chaos-5)/10, -0.25, 0.6);
+
+      const outH = V20._clamp(lamH * modH * impFactor * chaosFactor, 0.05, 8.0);
+      const outA = V20._clamp(lamA * modA * impFactor * chaosFactor, 0.05, 8.0);
+
+      return { lamH: outH, lamA: outA };
+    },
+
+    // Utility to update state after an event
+    applyEvent: function(state, event){
+      // event: {type:'goal'|'red'|'sub'|'tactic', team:'home'|'away', minute: int, payload: {}}
+      state = state || {scoreH:0, scoreA:0, minute:0, redH:0, redA:0};
+      const e = event || {};
+      state.minute = e.minute || state.minute;
+      if(e.type === 'goal' && e.team === 'home') state.scoreH++;
+      if(e.type === 'goal' && e.team === 'away') state.scoreA++;
+      if(e.type === 'red' && e.team === 'home') state.redH = (state.redH||0)+1;
+      if(e.type === 'red' && e.team === 'away') state.redA = (state.redA||0)+1;
+      return state;
+    }
+  };
+
+  // =========================
+  // 2) EMC — Expected Momentum Curve
+  // =========================
+  V20.EMC = {
+    // produce hazard multipliers across minute windows (1..90)
+    // returns array length 90 of hazard multipliers (multiplies base minute rate)
+    buildCurve: function(ctx, home, away, tact){
+      // ctx contains tempo, chaos, importance
+      const tempo = V20._safeNum(ctx.tempo,5);
+      const chaos = V20._safeNum(ctx.chaos,5);
+      const impo  = V20._safeNum(ctx.importance,5);
+      const base = 1.0;
+
+      const curve = new Array(90).fill(base);
+      // early: 1-15 slight low hazard
+      for(let i=0;i<15;i++){
+        curve[i] *= (0.9 + (tempo-5)/25 + (chaos-5)/80);
+      }
+      // 15-35: development, slightly higher
+      for(let i=15;i<35;i++){
+        curve[i] *= (1.02 + (tempo-5)/20 + (chaos-5)/60);
+      }
+      // 35-55: control / half - mid, variable
+      for(let i=35;i<55;i++){
+        curve[i] *= (1.00 + (tempo-5)/30 + (chaos-5)/80);
+      }
+      // 55-70: fatigue window tendency
+      for(let i=55;i<70;i++){
+        curve[i] *= (0.95 + (chaos-5)/40 - (tempo-5)/80);
+      }
+      // 70-90: desperation / chaotic surge
+      for(let i=70;i<90;i++){
+        curve[i] *= (1.08 + (chaos-5)/25 + (impo-5)/40);
+      }
+
+      // team-specific adjustments: pressing intensity bumps in mid-late phases
+      const ph = (tact?.home?.pressIntensity || 5);
+      const pa = (tact?.away?.pressIntensity || 5);
+      const pressGap = ph - pa;
+      if(pressGap > 2){
+        // home presses a lot -> more hazards in 15-35 and 70-90
+        for(let i=15;i<35;i++) curve[i] *= 1 + pressGap*0.01;
+        for(let i=70;i<90;i++) curve[i] *= 1 + pressGap*0.015;
+      } else if(pressGap < -2){
+        const pg = Math.abs(pressGap);
+        for(let i=15;i<35;i++) curve[i] *= 1 + pg*0.01;
+        for(let i=70;i<90;i++) curve[i] *= 1 + pg*0.015;
+      }
+
+      // normalize so mean ~1
+      const mean = curve.reduce((a,b)=>a+b,0)/curve.length;
+      for(let i=0;i<curve.length;i++) curve[i] = curve[i]/mean;
+
+      return curve;
+    },
+
+    // compute probability of at least one goal in minute windows given per-minute lambda
+    minuteSample: function(minuteLambdaArray){
+      // minuteLambdaArray length 90, lambda per minute
+      const pm = [];
+      for(let i=0;i<minuteLambdaArray.length;i++){
+        const lam = minuteLambdaArray[i];
+        // probabilty of >=1 in a minute = 1 - e^-lam
+        pm[i] = 1 - Math.exp(-Math.max(0,lam));
+      }
+      return pm;
+    }
+  };
+
+  // =========================
+  // 3) Weather & Pitch Condition Engine
+  // =========================
+  V20.Weather = {
+    presets: {
+      normal: {chaos:0, tempo:0, finishing:0, error:0},
+      rain:   {chaos:0.8, tempo:-0.4, finishing:-0.05, error:0.12},
+      heavy_rain:{chaos:1.6, tempo:-1.0, finishing:-0.12, error:0.24},
+      hot:    {chaos:0.2, tempo:-0.6, finishing:-0.02, error:0.06},
+      cold:   {chaos:0.1, tempo:-0.2, finishing:0, error:0.02},
+      poor_pitch:{chaos:1.0, tempo:-0.8, finishing:-0.08, error:0.30}
+    },
+
+    applyToContext: function(ctx, presetName){
+      if(!ctx) ctx = {};
+      const p = this.presets[presetName] || this.presets['normal'];
+      ctx.chaos = V20._safeNum(ctx.chaos,5) + p.chaos;
+      ctx.tempo = V20._safeNum(ctx.tempo,5) + p.tempo;
+      // finishingBias to apply to hyperLambda finished lam multipliers
+      ctx.weatherFinishing = p.finishing;
+      ctx.weatherError = p.error;
+      return ctx;
+    }
+  };
+
+  // =========================
+  // 4) TPM — Tactical Pattern Memory (Team DNA)
+  // =========================
+  // Simple in-memory DB. In production, load from file or API.
+  V20.TPM = {
+    db: {}, // key: teamName -> profile
+    addProfile: function(teamName, profile){
+      // profile fields: tempoBias, pressBias, stabilityBias, comebackBoost, collapseRisk, lateSurge
+      this.db[teamName.toLowerCase()] = profile;
+    },
+    getProfile: function(teamName){
+      if(!teamName) return null;
+      return this.db[teamName.toLowerCase()] || null;
+    },
+    applyToTact: function(teamName, tactObj){
+      const p = this.getProfile(teamName);
+      if(!p) return tactObj;
+      tactObj = tactObj || {};
+      // map profile to tactical adjustments
+      tactObj.pressIntensity = (tactObj.pressIntensity || 5) + (p.pressBias || 0);
+      tactObj.flex = V20._clamp((tactObj.flex||0.5) + (p.flexBias || 0), 0, 1);
+      tactObj.comebackBoost = (tactObj.comebackBoost || 0) + (p.comebackBoost || 0);
+      tactObj.collapseRisk = (tactObj.collapseRisk || 0) + (p.collapseRisk || 0);
+      tactObj.lateSurge = (tactObj.lateSurge || 0) + (p.lateSurge || 0);
+      return tactObj;
+    }
+  };
+
+  // sample pre-filled team DNA (you can extend)
+  V20.TPM.addProfile('man city', {pressBias:0.2, flexBias:0.05, comebackBoost:0.06, collapseRisk:-0.03, lateSurge:0.10});
+  V20.TPM.addProfile('man united', {pressBias:0.1, flexBias:0.02, comebackBoost:0.08, collapseRisk:0.05, lateSurge:0.02});
+  V20.TPM.addProfile('arsenal', {pressBias:0.15, flexBias:0.03, comebackBoost:0.05, collapseRisk:-0.02, lateSurge:0.06});
+  V20.TPM.addProfile('atletico madrid', {pressBias:-0.2, flexBias:-0.05, comebackBoost:0.02, collapseRisk:-0.08, lateSurge:0.01});
+  V20.TPM.addProfile('liverpool', {pressBias:0.05, flexBias:0.02, comebackBoost:0.12, collapseRisk:0.02, lateSurge:0.12});
+
+  // =========================
+  // 5) DCM — Deep Chaos Model
+  // =========================
+  V20.DCM = {
+    decompose: function(ctx, home, away){
+      // ctx has chaos (1-10) and other inputs
+      const chaos = V20._safeNum(ctx.chaos,5);
+      const importance = V20._safeNum(ctx.importance,5);
+      const flexAvg = ((home?.flex||0.5) + (away?.flex||0.5))/2;
+
+      // base contributions
+      const defensive = 0.18 * (chaos/5) + 0.12 * (1 - ((home?.stability||5 + away?.stability||5)/10));
+      const structural = 0.12 * (chaos/5) + 0.09 * (flexAvg);
+      const transition = 0.22 * (chaos/5) + 0.08 * (Math.abs((home?.momentum||5)-(away?.momentum||5))/5);
+      const emotional = 0.28 * ( (importance-5)/10 + ( (ctx.isDerby||0)?0.9:0 ) );
+
+      // normalize to 0..1
+      const raw = {defensive, structural, transition, emotional};
+      const sum = defensive + structural + transition + emotional;
+      return {
+        defensive: defensive/sum,
+        structural: structural/sum,
+        transition: transition/sum,
+        emotional: emotional/sum
+      };
+    },
+
+    // compute a single chaos multiplier to feed into hyperLambda or montecarlo
+    chaosMultiplier: function(ctx, home, away){
+      const parts = this.decompose(ctx, home, away);
+      // emphasis: defensive & emotional increase randomness more than structural
+      const mult = 1 + parts.defensive*0.28 + parts.transition*0.20 + parts.emotional*0.30 + parts.structural*0.12;
+      return V20._clamp(mult, 0.7, 2.2);
+    }
+  };
+
+  // =========================
+  // 6) RII — Referee Impact Index
+  // =========================
+  V20.RII = {
+    // referee profile: {cardsPerGame, foulsPerGame, penaltyFreq, homeBias}
+    score: function(refProfile, ctx){
+      if(!refProfile) refProfile = {cardsPerGame:2.5, foulsPerGame:24, penaltyFreq:0.08, homeBias:0};
+      const cards = V20._safeNum(refProfile.cardsPerGame,2.5);
+      const fouls = V20._safeNum(refProfile.foulsPerGame,24);
+      const pen = V20._safeNum(refProfile.penaltyFreq,0.08);
+      const homeBias = V20._safeNum(refProfile.homeBias,0);
+
+      // rough referee impact score 0..1
+      let score = ( (cards/5) * 0.35 + (fouls/40) * 0.25 + (pen/0.2) * 0.25 + homeBias*0.15 );
+      return V20._clamp(score, 0, 1);
+    },
+
+    applyToCtx: function(ctx, refProfile){
+      ctx = ctx || {};
+      const s = this.score(refProfile, ctx);
+      // if ref is strict -> more cards -> more chaos (stoppage + set piece)
+      ctx.chaos = V20._safeNum(ctx.chaos,5) + (s-0.5) * 0.9;
+      // penalty frequency increases importance of single vars
+      ctx.refPenalty = s * 0.18;
+      return ctx;
+    }
+  };
+
+  // =========================
+  // 7) SQM — Shot Quality Model (light)
+  // =========================
+  V20.SQM = {
+    // compute finishing multiplier from expected-shot-quality inputs
+    finishingBias: function(teamProfile){
+      // teamProfile: {xGperShot, postxGoffset, finishingForm, keeperBias}
+      // baseline finishingBias ~= 1.0
+      const xgShot = V20._safeNum(teamProfile?.xGperShot, 0.12); // typical xG per shot
+      const postx = V20._safeNum(teamProfile?.postxGoffset, 0);   // >0 more clinical
+      const form = V20._safeNum(teamProfile?.finishingForm, 0);   // -0.2..+0.2
+      const keeperBias = V20._safeNum(teamProfile?.keeperBias, 0); // -0.2..+0.2 (negative means keeper weak)
+
+      // combine: higher xgShot and positive postx increase finishing
+      let fb = 1 + ( (xgShot - 0.12) * 1.8 ) + postx + form - keeperBias*0.7;
+      return V20._clamp(fb, 0.7, 1.35);
+    },
+
+    applyToLambda: function(lambda, teamProfileH, teamProfileA){
+      const fh = this.finishingBias(teamProfileH);
+      const fa = this.finishingBias(teamProfileA);
+      return { lamH: lambda.lamH * fh, lamA: lambda.lamA * fa };
+    }
+  };
+
+  // =========================
+  // 8) Bayesian Lambda Calibration (light)
+  // =========================
+  V20.Bayes = {
+    // Bayes update for lambda with a Gamma prior (alpha,beta)
+    // prior ~ Gamma(alpha0, beta0) -> posterior alpha = alpha0 + goals, beta = beta0 + minutes
+    // Here we use minutes normalized to 90 as exposure
+    calibrateFromXG: function(prior, observedGoals, exposureMinutes){
+      prior = prior || {alpha:1.5,beta:1.0}; // weak prior (mean = alpha/beta)
+      observedGoals = V20._safeNum(observedGoals,0);
+      exposureMinutes = V20._safeNum(exposureMinutes,90);
+      const alphaPost = prior.alpha + observedGoals;
+      const betaPost = prior.beta + (exposureMinutes/90);
+      const posteriorMean = alphaPost / betaPost;
+      // credible interval (approx) using gamma quantiles could be computed, but return mean+var
+      const posteriorVar = alphaPost / (betaPost*betaPost);
+      return {alpha:alphaPost, beta:betaPost, mean:posteriorMean, var:posteriorVar};
+    },
+
+    // helper to combine two calibrations for H/A
+    calibratePair: function(priorH, observedH, expH, priorA, observedA, expA){
+      const h = this.calibrateFromXG(priorH, observedH, expH);
+      const a = this.calibrateFromXG(priorA, observedA, expA);
+      return { h, a };
+    }
+  };
+
+  // =========================
+  // 9) MSS — Match Story Simulator (summary & minute-by-minute sampling)
+  // =========================
+  V20.MSS = {
+    // builds minute-based lambda arrays using base lambda and EMC curve & GSAL state
+    buildMinuteLambdas: function(baseLambda, ctx, tact, teamProfiles, state){
+      // baseLambda: {lamH, lamA} per 90 minutes -> we convert to per-minute by dividing by 90*scale
+      const totalLamH = V20._safeNum(baseLambda.lamH,1.0);
+      const totalLamA = V20._safeNum(baseLambda.lamA,1.0);
+
+      // EMC curve
+      const curve = V20.EMC.buildCurve(ctx, {}, {}, tact); // normalized to mean=1
+      // convert total lambda to per-minute baseline via curve normalization
+      // target total per-minute sum should be totalLam
+      const curveSum = curve.reduce((s,v)=>s+v,0);
+      const minuteLamH = new Array(90);
+      const minuteLamA = new Array(90);
+      for(let i=0;i<90;i++){
+        minuteLamH[i] = (curve[i]/curveSum) * totalLamH;
+        minuteLamA[i] = (curve[i]/curveSum) * totalLamA;
+      }
+
+      // GSAL dynamic adaptation: if there's an initial state with goals, apply slight redistribution
+      // For simulation, we may update per-minute lambdas on the fly when events happen,
+      // but pre-adjust late minutes if state shows heavy reds or early leads
+      if(state && (state.redH || state.redA)){
+        const redImpact = (state.redH || 0) - (state.redA || 0);
+        for(let i=0;i<90;i++){
+          minuteLamH[i] *= 1 - 0.12*(state.redH||0);
+          minuteLamA[i] *= 1 - 0.12*(state.redA||0);
+          minuteLamH[i] *= 1 + 0.08*(state.redA||0);
+          minuteLamA[i] *= 1 + 0.08*(state.redH||0);
+        }
+      }
+
+      return { minuteLamH, minuteLamA };
+    },
+
+    // run a quick minute-by-minute simulation (stochastic)
+    runMinuteSim: function(minuteLamH, minuteLamA, options){
+      options = options || {};
+      const simCount = options.simCount || 2000;
+      const record = {scorelines:{}, goalsByMinute:[]};
+      // We'll sample per sim by Poisson per minute (approx)
+      for(let s=0;s<simCount;s++){
+        let h=0,a=0;
+        for(let m=0;m<90;m++){
+          // sample number of goals in minute m for each team (0 or 1 mostly)
+          const ph = 1 - Math.exp(-Math.max(0, minuteLamH[m]));
+          const pa = 1 - Math.exp(-Math.max(0, minuteLamA[m]));
+          if(Math.random() < ph) h++;
+          if(Math.random() < pa) a++;
+        }
+        const key = h + '-' + a;
+        record.scorelines[key] = (record.scorelines[key] || 0) + 1;
+      }
+      return {simCount, record};
+    },
+
+    // produce a match story summary from MC results
+    summarizeMCMatrix: function(mcResult){
+      // mcResult contains matrix and probabilities from V20.monteCarlo
+      // We'll produce common metrics: most likely scorelines, comeback prob, blowout prob
+      const matrix = mcResult.matrix;
+      const cap = mcResult.scoreCap;
+      const counts = {};
+      for(let h=0; h<=cap; h++){
+        for(let a=0; a<=cap; a++){
+          const key = `${h}-${a}`;
+          counts[key] = (counts[key] || 0) + (matrix[h] && matrix[h][a] ? matrix[h][a] : 0);
+        }
+      }
+      // sorted by frequency
+      const arr = Object.keys(counts).map(k=>({score:k, val:counts[k]}));
+      arr.sort((A,B)=>B.val-A.val);
+      const top = arr.slice(0,8);
+      // basic derived metrics
+      const blowout = arr.filter(it=>{
+        const [h,a]=it.score.split('-').map(x=>Number(x));
+        return Math.abs(h-a) >= 3;
+      }).reduce((s,it)=>s+it.val,0) / mcResult.simCount;
+
+      // comeback probability approx: probability that trailing at half becomes winning at full
+      // (we don't have half-time matrix here; approximate by patterns)
+      const comeback = Math.min(0.45, (mcResult.pH < mcResult.pA ? (mcResult.pH*0.5 + mcResult.pA*0.2) : (mcResult.pA*0.5 + mcResult.pH*0.2)));
+
+      return {topScorelines:top, blowoutProb:blowout, expectedComeback:comeback};
+    }
+  };
+
+  // =========================
+  // Integration helpers: a wrapper to compute final lambdas using all modules
+  // =========================
+  V20.Integrator = {
+    // compute final lam pair considering all modules (Bayes, SQM, TPM, Weather, DCM, GSAL)
+    computeFinalLambdas: function(baseLambda, ctx, state, homeProfile, awayProfile, tact, options){
+      options = options || {};
+      let ctxCopy = Object.assign({}, ctx || {});
+      // apply weather modifications if requested
+      if(options.weather) ctxCopy = V20.Weather.applyToContext(ctxCopy, options.weather);
+
+      // apply referee if supplied
+      if(options.referee) ctxCopy = V20.RII.applyToCtx(ctxCopy, options.referee);
+
+      // apply tactical memory (team DNA)
+      if(options.homeTeamName) tact.home = V20.TPM.applyToTact(options.homeTeamName, tact.home || {});
+      if(options.awayTeamName) tact.away = V20.TPM.applyToTact(options.awayTeamName, tact.away || {});
+
+      // base hyper-lambda (use existing V20.hyperLambda if available)
+      let hyper;
+      try {
+        hyper = V20.hyperLambda(baseLambda, ctxCopy, homeProfile||{}, awayProfile||{}, tact);
+      } catch(e){
+        // fallback: simple scaling
+        hyper = { lamH: baseLambda.lamH, lamA: baseLambda.lamA };
+      }
+
+      // apply depth chaos multiplier
+      const dmult = V20.DCM.chaosMultiplier(ctxCopy, homeProfile, awayProfile);
+      hyper.lamH *= dmult;
+      hyper.lamA *= dmult;
+
+      // apply GSAL dynamic adaptation for current state
+      if(state && (state.scoreH !== undefined)){
+        const gsal = V20.GSAL.adaptLambda(hyper, ctxCopy, state, homeProfile, awayProfile, tact);
+        hyper = { lamH: gsal.lamH, lamA: gsal.lamA };
+      }
+
+      // apply SQM finishing bias
+      if((homeProfile && Object.keys(homeProfile).length) || (awayProfile && Object.keys(awayProfile).length)){
+        const sqm = V20.SQM.applyToLambda(hyper, homeProfile, awayProfile);
+        hyper = { lamH: sqm.lamH, lamA: sqm.lamA };
+      }
+
+      // optional Bayes calibration if prior data provided
+      if(options.priorH || options.priorA){
+        try {
+          const priorH = options.priorH || {alpha:1.5,beta:1.0};
+          const priorA = options.priorA || {alpha:1.5,beta:1.0};
+          const obsH = options.observedGoalsH || 0;
+          const obsA = options.observedGoalsA || 0;
+          const expH = options.exposureH || 90;
+          const expA = options.exposureA || 90;
+          const post = V20.Bayes.calibratePair(priorH, obsH, expH, priorA, obsA, expA);
+          // blend posterior mean with hyper
+          const blend = options.bayesBlend || 0.35;
+          const hmean = post.h.mean;
+          const amean = post.a.mean;
+          hyper.lamH = hyper.lamH*(1-blend) + hmean*blend;
+          hyper.lamA = hyper.lamA*(1-blend) + amean*blend;
+        } catch(e){}
+      }
+
+      // final clamp
+      hyper.lamH = V20._clamp(hyper.lamH, 0.02, 8.5);
+      hyper.lamA = V20._clamp(hyper.lamA, 0.02, 8.5);
+
+      return hyper;
+    }
+  };
+// =========================
+  // Optional: automatic integration into runPrimeZero if available
+  // We'll add a safe hook: V20.hooks = { preRun:[], postRun:[] } and auto-call if present
+  // =========================
+  V20.hooks = V20.hooks || { preRun: [], postRun: [] };
+
+  // default hook: before run, auto-apply weather if UI has select (non-invasive)
+  V20.hooks.preRun.push(function(context){
+    try {
+      // if there is a weather select input in DOM
+      const el = document.getElementById('weather_select') || document.getElementById('weather');
+      if(el){
+        const ws = el.value || 'normal';
+        context.ctx = V20.Weather.applyToContext(context.ctx || {}, ws);
+      }
+    } catch(e){}
+    return context;
+  });
+
+  // public helper to run integrated pipeline easily (safe)
+  V20.runIntegrated = function(options){
+    // options may include baseLambda, ctx, state, profiles, tact, uiOutputFlag
+    options = options || {};
+    const baseLambda = options.baseLambda || { lamH: V20._safeNum(document.getElementById('lamH')?.value,1.2), lamA: V20._safeNum(document.getElementById('lamA')?.value,1.0) };
+    const ctx = options.ctx || { tempo: V20._safeNum(document.getElementById('tempo')?.value,5), chaos: V20._safeNum(document.getElementById('chaos')?.value,5), importance: V20._safeNum(document.getElementById('importance')?.value,5) };
+    const state = options.state || null;
+    const tact = options.tact || { home:{pressIntensity: V20._safeNum(document.getElementById('home_press')?.value,5), flex: V20._safeNum(document.getElementById('home_flex')?.value,0.5) }, away:{ pressIntensity: V20._safeNum(document.getElementById('away_press')?.value,5), flex: V20._safeNum(document.getElementById('away_flex')?.value,0.5) } };
+    const homeProfile = options.homeProfile || {};
+    const awayProfile = options.awayProfile || {};
+    const integr = V20.Integrator.computeFinalLambdas(baseLambda, ctx, state, homeProfile, awayProfile, tact, options);
+
+    // return an object with final lambdas and metadata to be used by the engine
+    return { finalLambda: integr, ctxUsed: ctx, tactUsed: tact };
+  };
+
+  // Attach small UI bindings for optional new inputs (graceful)
+  document.addEventListener('DOMContentLoaded', function(){
+    // add quick-weather select if missing (non-destructive)
+    if(!document.getElementById('weather') && !document.getElementById('weather_select')){
+      // we don't inject UI by default; keep non-invasive
+    }
+  });
+
+  // Expose modules for external use
+  V20._modules = V20._modules || {};
+  Object.assign(V20._modules, { GSAL: V20.GSAL, EMC: V20.EMC, Weather: V20.Weather, TPM: V20.TPM, DCM: V20.DCM, RII: V20.RII, SQM: V20.SQM, Bayes: V20.Bayes, MSS: V20.MSS, Integrator: V20.Integrator });
+
+})(); 
   </script>
   <!-- END SCRIPT -->
 </body>
