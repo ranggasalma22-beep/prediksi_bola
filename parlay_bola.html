@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Prime Singularity Zero — MAX</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:18px;background:#fafafa;color:#111}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:1100px}
+  label{display:block;font-size:12px;margin-top:6px}
+  input,select,textarea,button{padding:6px;font-size:14px;border:1px solid #ccc;border-radius:6px}
+  textarea{width:100%;height:340px}
+  header h1{margin:0 0 8px 0}
+  .small{font-size:12px;color:#555}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .muted{opacity:0.8;font-size:13px}
+  .section{background:#fff;padding:12px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,0.03);margin-bottom:12px}
+</style>
+</head>
+<body>
+<header class="section">
+  <h1>Prime Singularity Zero — MAX (v3.2)</h1>
+  <div class="small">Integrated engine: GSAL / EMC / DCM / TPM / RII / SQM / Bayes / MSS</div>
+</header>
+
+<section class="section grid">
+  <div>
+    <label>Home team (optional)</label>
+    <input id="home_team" placeholder="Team name">
+    <label>Away team (optional)</label>
+    <input id="away_team" placeholder="Team name">
+
+    <label>λ Home (base)</label>
+    <input id="lamH" type="number" step="0.01" value="1.20">
+    <label>λ Away (base)</label>
+    <input id="lamA" type="number" step="0.01" value="1.00">
+
+    <label>Tempo (1–10)</label>
+    <input id="tempo" type="number" step="0.1" value="5">
+    <label>Chaos (1–10)</label>
+    <input id="chaos" type="number" step="0.1" value="5">
+    <label>Importance (1–10)</label>
+    <input id="importance" type="number" step="0.1" value="5">
+
+    <label>Home press (1–10)</label>
+    <input id="home_press" type="number" step="0.1" value="5">
+    <label>Away press (1–10)</label>
+    <input id="away_press" type="number" step="0.1" value="5">
+
+    <label>Home flex (0–1)</label>
+    <input id="home_flex" type="number" step="0.01" value="0.5">
+    <label>Away flex (0–1)</label>
+    <input id="away_flex" type="number" step="0.01" value="0.5">
+
+    <label>Home Stability (1–10)</label>
+    <input id="home_st" type="number" step="0.1" value="5">
+    <label>Away Stability (1–10)</label>
+    <input id="away_st" type="number" step="0.1" value="5">
+
+    <label>Home Momentum (1–10)</label>
+    <input id="home_mom" type="number" step="0.1" value="5">
+    <label>Away Momentum (1–10)</label>
+    <input id="away_mom" type="number" step="0.1" value="5">
+  </div>
+
+  <div>
+    <label>Sim Count (leave blank = auto)</label>
+    <input id="simCount" type="number" placeholder="50000">
+    <label>Score Cap (leave blank = auto)</label>
+    <input id="scoreCap" type="number" placeholder="6">
+
+    <label>Weather</label>
+    <select id="weather">
+      <option value="normal">Normal</option>
+      <option value="rain">Rain</option>
+      <option value="heavy_rain">Heavy rain</option>
+      <option value="hot">Hot</option>
+      <option value="cold">Cold</option>
+      <option value="poor_pitch">Poor pitch</option>
+    </select>
+
+    <label>Referee Profile (JSON, optional)</label>
+    <textarea id="ref_profile" style="height:60px">{ "cardsPerGame": 2.6, "foulsPerGame": 24, "penaltyFreq": 0.08, "homeBias": 0 }</textarea>
+
+    <label>Team Profiles (JSON, optional) — home</label>
+    <textarea id="home_profile" style="height:60px">{ "xGperShot": 0.12, "postxGoffset": 0, "finishingForm": 0, "keeperBias": 0 }</textarea>
+
+    <label>Team Profiles (JSON, optional) — away</label>
+    <textarea id="away_profile" style="height:60px">{ "xGperShot": 0.11, "postxGoffset": 0, "finishingForm": 0, "keeperBias": 0 }</textarea>
+
+    <div class="controls">
+      <button id="btn_auto_internal">AUTO ALL INTERNAL</button>
+      <button id="btn_auto_ppda">AUTO PPDA</button>
+      <button id="btn_apply_type">APPLY MATCH TYPE</button>
+      <button id="btn_analyze">RUN ENGINE</button>
+      <button id="btn_export">EXPORT CONFIG</button>
+      <button id="btn_clear">CLEAR OUTPUT</button>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <label>Output</label>
+  <textarea id="output" readonly></textarea>
+</section>
+
+<!-- UI end; scripts follow in Part 2 -->
+<script>
+// -------------------- CORE V20 Baseline --------------------
+window.V20 = window.V20 || {};
+const V20 = window.V20;
+
+// small utils
+V20.num = function(v, d){ const n = Number(v); return isFinite(n) ? n : d; };
+V20.clamp = function(v, a, b){ return Math.min(b, Math.max(a, v)); };
+
+// simple poisson pmf
+V20.poissonPMF = function(lambda, k){
+  lambda = Math.max(0, Number(lambda) || 0);
+  k = Math.max(0, Math.floor(k||0));
+  return Math.exp(-lambda) * Math.pow(lambda, k) / (function(n){ let r=1; for(let i=2;i<=n;i++) r*=i; return r; })(k);
+};
+
+// Deterministic analytic sim (approx from lambda)
+V20.detSim = function(lambda){
+  const lamH = Math.max(0.01, V20.num(lambda.lamH,1));
+  const lamA = Math.max(0.01, V20.num(lambda.lamA,1));
+  // Use Skellam approximations for win/draw probs: for simplicity, use Poisson scoring
+  const maxK = 8;
+  let pH=0,pD=0,pA=0;
+  for(let h=0; h<=maxK; h++){
+    for(let a=0; a<=maxK; a++){
+      const ph = V20.poissonPMF(lamH,h);
+      const pa = V20.poissonPMF(lamA,a);
+      const p = ph*pa;
+      if(h>a) pH+=p; else if(h===a) pD+=p; else pA+=p;
+    }
+  }
+  // normalize
+  const s = pH+pD+pA;
+  if(s>0){ pH/=s; pD/=s; pA/=s; }
+  return { pH,pD,pA };
+};
+
+// simple clamp wrapper for final outputs
+V20.clampOut = function(p){
+  if(!p) return p;
+  const s = p.pH+p.pD+p.pA;
+  if(Math.abs(s-1) < 1e-6) return p;
+  return { pH: p.pH/s, pD: p.pD/s, pA: p.pA/s };
+};
+
+// fallback hyperLambda (in case advanced hyperLambda is not present)
+V20.hyperLambda = V20.hyperLambda || function(lambda, ctx, home, away, tact){
+  // simple scaling: adjust lambda by tempo and pressing
+  const tempo = V20.num(ctx.tempo,5);
+  const chaos = V20.num(ctx.chaos,5);
+  const tF = 1 + (tempo-5)/10;
+  const cF = 1 + (chaos-5)/15;
+  let lamH = Math.max(0.02, lambda.lamH * tF * cF * (1 + ((tact?.home?.pressIntensity||5)-5)/50));
+  let lamA = Math.max(0.02, lambda.lamA * tF * cF * (1 + ((tact?.away?.pressIntensity||5)-5)/50));
+  // pattern placeholder
+  return { lamH: V20.clamp(lamH,0.02,10), lamA: V20.clamp(lamA,0.02,10), pattern: {control:0.25,swing:0.25,stalled:0.25,chaotic:0.25} };
+};
+
+// simple monteCarlo (non-worker) - keep safe defaults to avoid locking browser
+V20.monteCarlo = V20.monteCarlo || function(lambda, ctx, simCount, scoreCap, home, away, tact){
+  lambda = lambda || {lamH:1, lamA:1};
+  ctx = ctx || {};
+  home = home || {}; away = away || {}; tact = tact || {};
+  const HL = V20.hyperLambda(lambda, ctx, home, away, tact);
+  const lamH = HL.lamH, lamA = HL.lamA;
+  const baseSim = isFinite(simCount) ? Math.max(1000, Math.min(simCount, 200000)) : 50000;
+  const cap = isFinite(scoreCap) ? Math.max(3, Math.min(scoreCap, 8)) : ((lamH+lamA)>3?6:5);
+
+  // minimal matrix
+  const matrix = [];
+  for(let h=0; h<=cap; h++){ matrix[h] = Array(cap+1).fill(0); }
+
+  let winsH=0,winsA=0,draws=0,totalGoals=0;
+  for(let s=0; s<baseSim; s++){
+    // sample goals with Poisson for each
+    // Use per-minute splitting optional later; here simple sample
+    const gh = poissonSample(lamH);
+    const ga = poissonSample(lamA);
+    const hh = Math.min(gh, cap);
+    const aa = Math.min(ga, cap);
+    matrix[hh][aa] += 1;
+    if(hh>aa) winsH++; else if(hh<aa) winsA++; else draws++;
+    totalGoals += hh + aa;
+  }
+  function poissonSample(lambdaVal){
+    const L = Math.exp(-Math.max(0, lambdaVal));
+    let k=0, p=1;
+    while(p > L && k < 20){
+      p *= Math.random();
+      k++;
+    }
+    return k-1;
+  }
+
+  // normalize matrix frequencies
+  const simCountUsed = baseSim;
+  for(let h=0; h<=cap; h++){
+    for(let a=0; a<=cap; a++){
+      matrix[h][a] = matrix[h][a] / simCountUsed;
+    }
+  }
+  const pH = winsH / simCountUsed;
+  const pD = draws / simCountUsed;
+  const pA = winsA / simCountUsed;
+  const avgGoals = totalGoals / simCountUsed;
+
+  return { matrix, scoreCap: cap, simCount: simCountUsed, pH, pD, pA, avgGoals, god: { hyperLambda: HL, pattern: HL.pattern } };
+};
+
+// simple fuseOutputs fallback (averaging method)
+V20.fuseOutputs = function(det, detChaos, mc, zeroProb){
+  const pH = (det.pH + detChaos.pH + mc.pH)/3;
+  const pD = (det.pD + detChaos.pD + mc.pD)/3;
+  const pA = (det.pA + detChaos.pA + mc.pA)/3;
+  const norm = pH+pD+pA;
+  return { final: { pH: pH/norm, pD: pD/norm, pA: pA/norm }, raw: { det, detChaos, mc, zeroProb } };
+};
+
+// computeRisk / computeFragility / computeFlow / computeMomentumSwing / computeSDI minimal placeholders
+V20.computeRisk = function(ctx, tact){ return Math.min(1, Math.max(0, ((ctx.chaos||5)-3)/6 + ((tact.home?.pressIntensity||5)-(tact.away?.pressIntensity||5))/40)); };
+V20.computeFragility = function(ctx, home, away){ return Math.min(1, Math.max(0, (5 - ((home.stability||5) + (away.stability||5))/2)/6 )); };
+V20.computeFlow = function(ctx, home, away, tact, pat){ return 0.5 + ((home.momentum||5) - (away.momentum||5))/20; };
+V20.computeMomentumSwing = function(home, away){ return Math.abs((home.momentum||5)-(away.momentum||5))/10; };
+V20.computeSDI = function(godHL){ return ((godHL.lamH||1)-(godHL.lamA||1))/2; };
+V20.computeMeta = V20.computeMeta || null; // allow override
+
+V20.computeUncertainty = function(pH,pD,pA){
+  const ent = -([pH,pD,pA].map(p=> p>0 ? p*Math.log(p) : 0).reduce((a,b)=>a+b,0));
+  const maxEnt = Math.log(3);
+  return { score: (ent/maxEnt)*100 };
+};
+
+V20.computeBTTS = function(godHL){
+  // simplified btts estimate: higher both lambdas increases BTTS
+  const s = (godHL.lamH + godHL.lamA) / 6;
+  return V20.clamp(0.25 + s*0.45, 0.08, 0.95);
+};
+
+// MatchType apply (some default templates)
+V20.MatchType = V20.MatchType || { templates: {}, apply: function(k){} };
+V20.Auto = V20.Auto || { autoInternal: function(){ alert('Auto internal not implemented'); }, autoPPDA: function(){ alert('Auto PPDA not implemented'); } };
+
+// Export helper (safe)
+function exportConfig(){
+  const cfg = {
+    inputs: {
+      lamH: document.getElementById('lamH').value,
+      lamA: document.getElementById('lamA').value
+    },
+    tactical: {
+      tempo: document.getElementById('tempo').value,
+      chaos: document.getElementById('chaos').value,
+      importance: document.getElementById('importance').value
+    },
+    matchType: window._V20_MATCH_TEMPLATE || null
+  };
+  const a = document.createElement('a');
+  a.href = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(cfg,null,2));
+  a.download = 'psz_config.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+// DOM bindings (safe)
+document.addEventListener('DOMContentLoaded', function(){
+  document.getElementById('btn_analyze')?.addEventListener('click', function(){ try{ V20.runPrimeZero(); } catch(e){ alert('Engine error: ' + e.message); console.error(e); } });
+  document.getElementById('btn_export')?.addEventListener('click', exportConfig);
+  document.getElementById('btn_clear')?.addEventListener('click', function(){ document.getElementById('output').value = ''; });
+  document.getElementById('btn_auto_internal')?.addEventListener('click', function(){ try{ V20.Auto.autoInternal(); } catch(e){ alert('Auto internal failed: '+e.message); } });
+  document.getElementById('btn_auto_ppda')?.addEventListener('click', function(){ try{ V20.Auto.autoPPDA(); } catch(e){ alert('Auto PPDA failed: '+e.message); } });
+  document.getElementById('btn_apply_type')?.addEventListener('click', function(){ const sel = document.getElementById('match_type_expanded')?.value; if(!sel) return alert('Pilih Match Type dulu'); V20.MatchType.apply(sel); });
+});
+</script>
+<script>
+// -------------------- ADVANCED MODULES --------------------
+V20._nowMs = V20._nowMs || function(){ return Date.now(); };
+V20._clamp = V20._clamp || function(v,min,max){ return Math.min(max, Math.max(min, v)); };
+V20._safeNum = V20._safeNum || function(x,def=0){ const n=Number(x); return isFinite(n)?n:def; };
+
+// 1) GSAL
+V20.GSAL = V20.GSAL || {
+  adaptLambda: function(baseLam, ctx, state, home, away, tact){
+    state = state || {scoreH:0, scoreA:0, minute:0, redH:0, redA:0};
+    const lamH = V20._safeNum(baseLam.lamH,1);
+    const lamA = V20._safeNum(baseLam.lamA,1);
+    let modH = 1.0, modA = 1.0;
+    if(state.scoreH > state.scoreA){
+      const lead = state.scoreH - state.scoreA;
+      modH *= (1 - 0.12 * V20._clamp(lead,0,3));
+      modA *= (1 + 0.18 * V20._clamp(lead,0,3));
+    } else if(state.scoreA > state.scoreH){
+      const lead = state.scoreA - state.scoreH;
+      modA *= (1 - 0.12 * V20._clamp(lead,0,3));
+      modH *= (1 + 0.18 * V20._clamp(lead,0,3));
+    }
+    const m = V20._safeNum(state.minute,0);
+    if(m >= 75){
+      if(state.scoreH < state.scoreA) modH *= 1.25;
+      if(state.scoreA < state.scoreH) modA *= 1.25;
+      modH *= 1 - 0.06; modA *= 1 - 0.06;
+    } else if(m >= 60){ modH *= 1 - 0.03; modA *= 1 - 0.03; }
+    if(state.redH && state.redH > 0){ modH *= (1 - 0.18 * state.redH); modA *= (1 + 0.12 * state.redH); }
+    if(state.redA && state.redA > 0){ modA *= (1 - 0.18 * state.redA); modH *= (1 + 0.12 * state.redA); }
+    const pressDiff = (tact?.home?.pressIntensity || 5) - (tact?.away?.pressIntensity || 5);
+    if(pressDiff > 0 && m >= 60){ modH *= (1 + pressDiff*0.02); modA *= (1 - pressDiff*0.01); }
+    else if(pressDiff < 0 && m >= 60){ const pd = Math.abs(pressDiff); modA *= (1 + pd*0.02); modH *= (1 - pd*0.01); }
+    const importance = V20._safeNum(ctx.importance,5);
+    const chaos = V20._safeNum(ctx.chaos,5);
+    const impFactor = 1 - (V20._clamp((importance-5)/10, -0.2, 0.2));
+    const chaosFactor = 1 + V20._clamp((chaos-5)/10, -0.25, 0.6);
+    const outH = V20._clamp(lamH * modH * impFactor * chaosFactor, 0.05, 8.0);
+    const outA = V20._clamp(lamA * modA * impFactor * chaosFactor, 0.05, 8.0);
+    return { lamH: outH, lamA: outA };
+  },
+  applyEvent: function(state, event){
+    state = state || {scoreH:0, scoreA:0, minute:0, redH:0, redA:0};
+    const e = event || {};
+    state.minute = e.minute || state.minute;
+    if(e.type === 'goal' && e.team === 'home') state.scoreH++;
+    if(e.type === 'goal' && e.team === 'away') state.scoreA++;
+    if(e.type === 'red' && e.team === 'home') state.redH = (state.redH||0)+1;
+    if(e.type === 'red' && e.team === 'away') state.redA = (state.redA||0)+1;
+    return state;
+  }
+};
+
+// 2) EMC
+V20.EMC = V20.EMC || {
+  buildCurve: function(ctx, home, away, tact){
+    const tempo = V20._safeNum(ctx.tempo,5);
+    const chaos = V20._safeNum(ctx.chaos,5);
+    const impo  = V20._safeNum(ctx.importance,5);
+    const base = 1.0;
+    const curve = new Array(90).fill(base);
+    for(let i=0;i<15;i++) curve[i] *= (0.9 + (tempo-5)/25 + (chaos-5)/80);
+    for(let i=15;i<35;i++) curve[i] *= (1.02 + (tempo-5)/20 + (chaos-5)/60);
+    for(let i=35;i<55;i++) curve[i] *= (1.00 + (tempo-5)/30 + (chaos-5)/80);
+    for(let i=55;i<70;i++) curve[i] *= (0.95 + (chaos-5)/40 - (tempo-5)/80);
+    for(let i=70;i<90;i++) curve[i] *= (1.08 + (chaos-5)/25 + (impo-5)/40);
+    const ph = (tact?.home?.pressIntensity || 5);
+    const pa = (tact?.away?.pressIntensity || 5);
+    const pressGap = ph - pa;
+    if(pressGap > 2){ for(let i=15;i<35;i++) curve[i] *= 1 + pressGap*0.01; for(let i=70;i<90;i++) curve[i] *= 1 + pressGap*0.015; }
+    else if(pressGap < -2){ const pg = Math.abs(pressGap); for(let i=15;i<35;i++) curve[i] *= 1 + pg*0.01; for(let i=70;i<90;i++) curve[i] *= 1 + pg*0.015; }
+    const mean = curve.reduce((a,b)=>a+b,0)/curve.length;
+    for(let i=0;i<curve.length;i++) curve[i] = curve[i]/mean;
+    return curve;
+  },
+  minuteSample: function(minuteLambdaArray){
+    const pm = [];
+    for(let i=0;i<minuteLambdaArray.length;i++){
+      const lam = minuteLambdaArray[i];
+      pm[i] = 1 - Math.exp(-Math.max(0,lam));
+    }
+    return pm;
+  }
+};
+
+// 3) Weather
+V20.Weather = V20.Weather || {
+  presets: {
+    normal: {chaos:0, tempo:0, finishing:0, error:0},
+    rain:   {chaos:0.8, tempo:-0.4, finishing:-0.05, error:0.12},
+    heavy_rain:{chaos:1.6, tempo:-1.0, finishing:-0.12, error:0.24},
+    hot:    {chaos:0.2, tempo:-0.6, finishing:-0.02, error:0.06},
+    cold:   {chaos:0.1, tempo:-0.2, finishing:0, error:0.02},
+    poor_pitch:{chaos:1.0, tempo:-0.8, finishing:-0.08, error:0.30}
+  },
+  applyToContext: function(ctx, presetName){
+    if(!ctx) ctx = {};
+    const p = this.presets[presetName] || this.presets['normal'];
+    ctx.chaos = V20._safeNum(ctx.chaos,5) + p.chaos;
+    ctx.tempo = V20._safeNum(ctx.tempo,5) + p.tempo;
+    ctx.weatherFinishing = p.finishing;
+    ctx.weatherError = p.error;
+    return ctx;
+  }
+};
+
+// 4) TPM
+V20.TPM = V20.TPM || { db: {}, addProfile: function(n,p){ this.db[n.toLowerCase()] = p; }, getProfile: function(n){ if(!n) return null; return this.db[n.toLowerCase()]||null; }, applyToTact: function(teamName, tactObj){ const p=this.getProfile(teamName); if(!p) return tactObj; tactObj = tactObj||{}; tactObj.pressIntensity = (tactObj.pressIntensity||5) + (p.pressBias||0); tactObj.flex = V20._clamp((tactObj.flex||0.5) + (p.flexBias||0),0,1); tactObj.comebackBoost = (tactObj.comebackBoost||0) + (p.comebackBoost||0); tactObj.collapseRisk = (tactObj.collapseRisk||0) + (p.collapseRisk||0); tactObj.lateSurge = (tactObj.lateSurge||0) + (p.lateSurge||0); return tactObj; } };
+V20.TPM.addProfile('man city', {pressBias:0.2, flexBias:0.05, comebackBoost:0.06, collapseRisk:-0.03, lateSurge:0.10});
+V20.TPM.addProfile('liverpool', {pressBias:0.05, flexBias:0.02, comebackBoost:0.12, collapseRisk:0.02, lateSurge:0.12});
+V20.TPM.addProfile('arsenal', {pressBias:0.15, flexBias:0.03, comebackBoost:0.05, collapseRisk:-0.02, lateSurge:0.06});
+V20.TPM.addProfile('atletico madrid', {pressBias:-0.2, flexBias:-0.05, comebackBoost:0.02, collapseRisk:-0.08, lateSurge:0.01});
+
+// 5) DCM
+V20.DCM = V20.DCM || {
+  decompose: function(ctx, home, away){
+    const chaos = V20._safeNum(ctx.chaos,5);
+    const importance = V20._safeNum(ctx.importance,5);
+    const flexAvg = ((home?.flex||0.5) + (away?.flex||0.5))/2;
+    const defensive = 0.18 * (chaos/5) + 0.12 * (1 - ((home?.stability||5 + away?.stability||5)/10));
+    const structural = 0.12 * (chaos/5) + 0.09 * (flexAvg);
+    const transition = 0.22 * (chaos/5) + 0.08 * (Math.abs((home?.momentum||5)-(away?.momentum||5))/5);
+    const emotional = 0.28 * ( (importance-5)/10 + ((ctx.isDerby||0)?0.9:0) );
+    const sum = defensive + structural + transition + emotional;
+    return { defensive: defensive/sum, structural: structural/sum, transition: transition/sum, emotional: emotional/sum };
+  },
+  chaosMultiplier: function(ctx, home, away){
+    const parts = this.decompose(ctx, home, away);
+    const mult = 1 + parts.defensive*0.28 + parts.transition*0.20 + parts.emotional*0.30 + parts.structural*0.12;
+    return V20._clamp(mult, 0.7, 2.2);
+  }
+};
+
+// 6) RII
+V20.RII = V20.RII || {
+  score: function(refProfile, ctx){
+    if(!refProfile) refProfile = {cardsPerGame:2.5, foulsPerGame:24, penaltyFreq:0.08, homeBias:0};
+    const cards = V20._safeNum(refProfile.cardsPerGame,2.5);
+    const fouls = V20._safeNum(refProfile.foulsPerGame,24);
+    const pen = V20._safeNum(refProfile.penaltyFreq,0.08);
+    const homeBias = V20._safeNum(refProfile.homeBias,0);
+    let score = ( (cards/5) * 0.35 + (fouls/40) * 0.25 + (pen/0.2) * 0.25 + homeBias*0.15 );
+    return V20._clamp(score, 0, 1);
+  },
+  applyToCtx: function(ctx, refProfile){
+    ctx = ctx || {};
+    const s = this.score(refProfile, ctx);
+    ctx.chaos = V20._safeNum(ctx.chaos,5) + (s-0.5) * 0.9;
+    ctx.refPenalty = s * 0.18;
+    return ctx;
+  }
+};
+
+// 7) SQM
+V20.SQM = V20.SQM || {
+  finishingBias: function(teamProfile){
+    const xgShot = V20._safeNum(teamProfile?.xGperShot, 0.12);
+    const postx = V20._safeNum(teamProfile?.postxGoffset, 0);
+    const form = V20._safeNum(teamProfile?.finishingForm, 0);
+    const keeperBias = V20._safeNum(teamProfile?.keeperBias, 0);
+    let fb = 1 + ( (xgShot - 0.12) * 1.8 ) + postx + form - keeperBias*0.7;
+    return V20._clamp(fb, 0.7, 1.35);
+  },
+  applyToLambda: function(lambda, teamProfileH, teamProfileA){
+    const fh = this.finishingBias(teamProfileH);
+    const fa = this.finishingBias(teamProfileA);
+    return { lamH: lambda.lamH * fh, lamA: lambda.lamA * fa };
+  }
+};
+
+// 8) Bayes
+V20.Bayes = V20.Bayes || {
+  calibrateFromXG: function(prior, observedGoals, exposureMinutes){
+    prior = prior || {alpha:1.5,beta:1.0};
+    observedGoals = V20._safeNum(observedGoals,0);
+    exposureMinutes = V20._safeNum(exposureMinutes,90);
+    const alphaPost = prior.alpha + observedGoals;
+    const betaPost = prior.beta + (exposureMinutes/90);
+    const posteriorMean = alphaPost / betaPost;
+    const posteriorVar = alphaPost / (betaPost*betaPost);
+    return {alpha:alphaPost, beta:betaPost, mean:posteriorMean, var:posteriorVar};
+  },
+  calibratePair: function(priorH, observedH, expH, priorA, observedA, expA){
+    const h = this.calibrateFromXG(priorH, observedH, expH);
+    const a = this.calibrateFromXG(priorA, observedA, expA);
+    return { h, a };
+  }
+};
+
+// 9) MSS
+V20.MSS = V20.MSS || {
+  buildMinuteLambdas: function(baseLambda, ctx, tact, teamProfiles, state){
+    const totalLamH = V20._safeNum(baseLambda.lamH,1.0);
+    const totalLamA = V20._safeNum(baseLambda.lamA,1.0);
+    const curve = V20.EMC.buildCurve(ctx, {}, {}, tact);
+    const curveSum = curve.reduce((s,v)=>s+v,0);
+    const minuteLamH = new Array(90);
+    const minuteLamA = new Array(90);
+    for(let i=0;i<90;i++){
+      minuteLamH[i] = (curve[i]/curveSum) * totalLamH;
+      minuteLamA[i] = (curve[i]/curveSum) * totalLamA;
+    }
+    if(state && (state.redH || state.redA)){
+      for(let i=0;i<90;i++){
+        minuteLamH[i] *= 1 - 0.12*(state.redH||0);
+        minuteLamA[i] *= 1 - 0.12*(state.redA||0);
+        minuteLamH[i] *= 1 + 0.08*(state.redA||0);
+        minuteLamA[i] *= 1 + 0.08*(state.redH||0);
+      }
+    }
+    return { minuteLamH, minuteLamA };
+  },
+  runMinuteSim: function(minuteLamH, minuteLamA, options){
+    options = options || {};
+    const simCount = options.simCount || 2000;
+    const record = {scorelines:{}, goalsByMinute:[]};
+    for(let s=0;s<simCount;s++){
+      let h=0,a=0;
+      for(let m=0;m<90;m++){
+        const ph = 1 - Math.exp(-Math.max(0, minuteLamH[m]));
+        const pa = 1 - Math.exp(-Math.max(0, minuteLamA[m]));
+        if(Math.random() < ph) h++;
+        if(Math.random() < pa) a++;
+      }
+      const key = h + '-' + a;
+      record.scorelines[key] = (record.scorelines[key] || 0) + 1;
+    }
+    return {simCount, record};
+  },
+  summarizeMCMatrix: function(mcResult){
+    const matrix = mcResult.matrix;
+    const cap = mcResult.scoreCap;
+    const counts = {};
+    for(let h=0; h<=cap; h++){
+      for(let a=0; a<=cap; a++){
+        const key = `${h}-${a}`;
+        counts[key] = (counts[key] || 0) + (matrix[h] && matrix[h][a] ? matrix[h][a] : 0);
+      }
+    }
+    const arr = Object.keys(counts).map(k=>({score:k, val:counts[k]}));
+    arr.sort((A,B)=>B.val-A.val);
+    const top = arr.slice(0,8);
+    const blowout = arr.filter(it=>{
+      const [h,a]=it.score.split('-').map(x=>Number(x));
+      return Math.abs(h-a) >= 3;
+    }).reduce((s,it)=>s+it.val,0) / mcResult.simCount;
+    const comeback = Math.min(0.45, (mcResult.pH < mcResult.pA ? (mcResult.pH*0.5 + mcResult.pA*0.2) : (mcResult.pA*0.5 + mcResult.pH*0.2)));
+    return {topScorelines:top, blowoutProb:blowout, expectedComeback:comeback};
+  }
+};
+
+// 10) Integrator
+V20.Integrator = V20.Integrator || {
+  computeFinalLambdas: function(baseLambda, ctx, state, homeProfile, awayProfile, tact, options){
+    options = options || {};
+    let ctxCopy = Object.assign({}, ctx || {});
+    if(options.weather) ctxCopy = V20.Weather.applyToContext(ctxCopy, options.weather);
+    if(options.referee) ctxCopy = V20.RII.applyToCtx(ctxCopy, options.referee);
+    if(options.homeTeamName) tact.home = V20.TPM.applyToTact(options.homeTeamName, tact.home || {});
+    if(options.awayTeamName) tact.away = V20.TPM.applyToTact(options.awayTeamName, tact.away || {});
+    let hyper;
+    try { hyper = V20.hyperLambda(baseLambda, ctxCopy, homeProfile||{}, awayProfile||{}, tact); } catch(e){ hyper = { lamH: baseLambda.lamH, lamA: baseLambda.lamA }; }
+    const dmult = V20.DCM.chaosMultiplier(ctxCopy, homeProfile, awayProfile);
+    hyper.lamH *= dmult; hyper.lamA *= dmult;
+    if(state && (state.scoreH !== undefined)){
+      const gsal = V20.GSAL.adaptLambda(hyper, ctxCopy, state, homeProfile, awayProfile, tact);
+      hyper = { lamH: gsal.lamH, lamA: gsal.lamA };
+    }
+    if((homeProfile && Object.keys(homeProfile).length) || (awayProfile && Object.keys(awayProfile).length)){
+      const sqm = V20.SQM.applyToLambda(hyper, homeProfile, awayProfile);
+      hyper = { lamH: sqm.lamH, lamA: sqm.lamA };
+    }
+    if(options.priorH || options.priorA){
+      try {
+        const priorH = options.priorH || {alpha:1.5,beta:1.0};
+        const priorA = options.priorA || {alpha:1.5,beta:1.0};
+        const obsH = options.observedGoalsH || 0;
+        const obsA = options.observedGoalsA || 0;
+        const expH = options.exposureH || 90;
+        const expA = options.exposureA || 90;
+        const post = V20.Bayes.calibratePair(priorH, obsH, expH, priorA, obsA, expA);
+        const blend = options.bayesBlend || 0.35;
+        const hmean = post.h.mean;
+        const amean = post.a.mean;
+        hyper.lamH = hyper.lamH*(1-blend) + hmean*blend;
+        hyper.lamA = hyper.lamA*(1-blend) + amean*blend;
+      } catch(e){}
+    }
+    hyper.lamH = V20._clamp(hyper.lamH, 0.02, 8.5);
+    hyper.lamA = V20._clamp(hyper.lamA, 0.02, 8.5);
+    return hyper;
+  }
+};
+
+// hooks
+V20.hooks = V20.hooks || { preRun: [], postRun: [] };
+V20._modules = V20._modules || {};
+Object.assign(V20._modules, { GSAL: V20.GSAL, EMC: V20.EMC, Weather: V20.Weather, TPM: V20.TPM, DCM: V20.DCM, RII: V20.RII, SQM: V20.SQM, Bayes: V20.Bayes, MSS: V20.MSS, Integrator: V20.Integrator });
+</script>
+<script>
+V20.runPrimeZero = function(){
+  const outEl = document.getElementById('output');
+  if (!outEl) return;
+  try {
+    // read inputs
+    const lamH  = V20.num(document.getElementById('lamH').value, 1.20);
+    const lamA  = V20.num(document.getElementById('lamA').value, 1.00);
+    const tempo = V20.num(document.getElementById('tempo').value, 5);
+    const chaos = V20.num(document.getElementById('chaos').value, 5);
+    const importance = V20.num(document.getElementById('importance').value, 5);
+    const home_st  = V20.num(document.getElementById('home_st').value, 5);
+    const away_st  = V20.num(document.getElementById('away_st').value, 5);
+    const home_mom = V20.num(document.getElementById('home_mom').value, 5);
+    const away_mom = V20.num(document.getElementById('away_mom').value, 5);
+    const home_press = V20.num(document.getElementById('home_press').value, 5);
+    const away_press = V20.num(document.getElementById('away_press').value, 5);
+    const home_flex  = V20.num(document.getElementById('home_flex').value, 0.5);
+    const away_flex  = V20.num(document.getElementById('away_flex').value, 0.5);
+    let simCount  = V20.num(document.getElementById('simCount')?.value, NaN);
+    let scoreCap  = V20.num(document.getElementById('scoreCap')?.value, NaN);
+    if (!isFinite(simCount)) simCount = undefined;
+    if (!isFinite(scoreCap)) scoreCap = undefined;
+
+    // parse optional JSON profiles
+    let refProfile = null, homeProfile = {}, awayProfile = {};
+    try { refProfile = JSON.parse(document.getElementById('ref_profile')?.value || null); } catch(e){ refProfile = null; }
+    try { homeProfile = JSON.parse(document.getElementById('home_profile')?.value || '{}'); } catch(e){ homeProfile = {}; }
+    try { awayProfile = JSON.parse(document.getElementById('away_profile')?.value || '{}'); } catch(e){ awayProfile = {}; }
+
+    const baseLambda = { lamH, lamA };
+    const ctx = { tempo, chaos, importance, isDerby: false };
+    const home = { stability: home_st, momentum: home_mom, flex: home_flex };
+    const away = { stability: away_st, momentum: away_mom, flex: away_flex };
+    let tact = { home: { pressIntensity: home_press, flex: home_flex }, away: { pressIntensity: away_press, flex: away_flex } };
+
+    // preRun hooks
+    let hookContext = { baseLambda, ctx, state: null, homeProfile, awayProfile, tact, options: {} };
+    try { if(V20.hooks && Array.isArray(V20.hooks.preRun)) V20.hooks.preRun.forEach(fn=>{ try{ hookContext = fn(hookContext) || hookContext; }catch(e){} }); } catch(e){}
+
+    // apply match type global template if set
+    if(window._V20_MATCH_TEMPLATE){
+      const t = window._V20_MATCH_TEMPLATE;
+      ctx.tempo = t.tempo; ctx.chaos = t.chaos; ctx.importance = t.importance;
+    }
+
+    // Integrator options
+    const options = { weather: document.getElementById('weather')?.value || undefined, referee: refProfile, homeTeamName: document.getElementById('home_team')?.value || undefined, awayTeamName: document.getElementById('away_team')?.value || undefined };
+    Object.assign(options, hookContext.options || {});
+
+    // compute final lambda via integrator if present
+    let finalLambda = baseLambda;
+    let integratorMeta = null;
+    try {
+      if(V20.Integrator && typeof V20.Integrator.computeFinalLambdas === 'function'){
+        const integr = V20.Integrator.computeFinalLambdas(baseLambda, ctx, hookContext.state || null, homeProfile, awayProfile, tact, options);
+        integratorMeta = integr;
+        finalLambda = { lamH: integr.lamH || baseLambda.lamH, lamA: integr.lamA || baseLambda.lamA };
+      }
+    } catch(e){ console.error('Integrator failed', e); finalLambda = baseLambda; }
+
+    // run deterministic baseline and chaos baseline using baseLambda (for fusion anchor)
+    const det       = V20.detSim(baseLambda);
+    const chaosL    = V20.chaosModel(baseLambda, ctx);
+    const detChaos  = V20.detSim(chaosL);
+
+    // Monte Carlo runs with finalLambda (safe fallback implemented inside monteCarlo)
+    const mc = (function(){
+      try { return V20.monteCarlo(finalLambda, ctx, simCount, scoreCap, home, away, tact); }
+      catch(e){ console.error('MC failed with finalLambda', e); return V20.monteCarlo(baseLambda, ctx, simCount, scoreCap, home, away, tact); }
+    })();
+
+    const godHL  = mc.god?.hyperLambda || (integratorMeta && (integratorMeta.hyperLambda || integratorMeta)) || { lamH: finalLambda.lamH, lamA: finalLambda.lamA };
+    const godPat = mc.god?.pattern || (integratorMeta?.pattern || {control:0.25,swing:0.25,stalled:0.25,chaotic:0.25});
+
+    const base = { pH: (det.pH + detChaos.pH + mc.pH)/3, pD: (det.pD + detChaos.pD + mc.pD)/3, pA: (det.pA + detChaos.pA + mc.pA)/3 };
+
+    // fusion & meta
+    const risk01   = V20.computeRisk(ctx, tact);
+    const frag01   = V20.computeFragility(ctx, home, away);
+    const sdi      = V20.computeSDI(godHL);
+    const meta01   = V20.computeMeta ? V20.computeMeta(det, detChaos, sdi) : 0.5;
+    const flowVal  = V20.computeFlow(ctx, home, away, tact, godPat);
+    const swingVal = V20.computeMomentumSwing(home, away);
+    const zeroProb = V20.singularityZero ? V20.singularityZero(base, risk01, frag01, meta01, flowVal, swingVal) : base;
+    const fused    = V20.fuseOutputs ? V20.fuseOutputs(det, detChaos, mc, zeroProb) : { final: base, raw: {} };
+
+    const unc   = V20.computeUncertainty(fused.final.pH, fused.final.pD, fused.final.pA);
+    const btts  = V20.computeBTTS(godHL);
+
+    const riskScore = risk01*100;
+    const fragScore = frag01*100;
+    const metaScore = (meta01*100) || 50;
+
+    let engineStatus = "PRIME STABLE";
+    if (metaScore < 40 || riskScore > 70 || fragScore > 70) engineStatus = "PRIME CAUTION";
+    else if (metaScore < 60) engineStatus = "PRIME NEUTRAL";
+
+    // OU analytic blend
+    const totalLamBase = godHL.lamH + godHL.lamA;
+    let lamEff = totalLamBase;
+    const chaosF_local = (ctx.chaos - 5)/5;
+    const tempoF_local = (ctx.tempo - 5)/5;
+    lamEff *= (1 + chaosF_local*0.10 + tempoF_local*0.05);
+    lamEff = V20.clamp(lamEff, 0.5, 5.8);
+
+    const lines = [0.5,1.5,2.5,3.5];
+    const ou = {};
+    lines.forEach(line=>{
+      const cut = Math.floor(line);
+      let under=0;
+      for(let k=0;k<=cut;k++) under += V20.poissonPMF(lamEff,k);
+      ou[line] = { under: under, over: 1-under };
+    });
+
+    // MC OU from matrix
+    const mat = mc.matrix;
+    const cap = mc.scoreCap;
+    const ouMC = {};
+    lines.forEach(line=>{
+      const cut = Math.floor(line);
+      let under=0, over=0;
+      for(let h=0;h<=cap;h++){
+        for(let a=0;a<=cap;a++){
+          const sum = h+a;
+          const freq = (mat[h] && mat[h][a]) ? mat[h][a] : 0;
+          if(sum<=cut) under += freq;
+          else over += freq;
+        }
+      }
+      ouMC[line] = { under: under/mc.simCount, over: over/mc.simCount };
+    });
+
+    const patternChaos = (godPat.chaotic||0) + (godPat.swing||0)*0.6;
+    const wMC = 0.40 + 0.40*Math.max(0,patternChaos);
+    const wAN = 1 - wMC;
+    const ouBlend = {};
+    lines.forEach(k=>{
+      ouBlend[k] = { over: ou[k].over*wAN + ouMC[k].over*wMC, under: ou[k].under*wAN + ouMC[k].under*wMC };
+    });
+
+    // Build output text
+    let text = "";
+    text += "=== PRIME SINGULARITY ZERO — REPORT (INTEGRATED) ===\n\n";
+    text += `[ENGINE STATUS] ${engineStatus}\n\n`;
+    text += "[INPUT]\n";
+    text += `λ base : ${lamH.toFixed(3)} | ${lamA.toFixed(3)}  → λ final : ${finalLambda.lamH.toFixed(3)} | ${finalLambda.lamA.toFixed(3)}\n`;
+    text += `Tempo/Chaos/Imp : ${ctx.tempo.toFixed(1)} / ${ctx.chaos.toFixed(1)} / ${ctx.importance.toFixed(1)}\n`;
+    text += `Home St/Mom : ${home_st.toFixed(1)} / ${home_mom.toFixed(1)}\n`;
+    text += `Away St/Mom : ${away_st.toFixed(1)} / ${away_mom.toFixed(1)}\n\n`;
+
+    text += "[PROBABILITIES]\n";
+    text += `Home Win : ${(fused.final.pH*100).toFixed(1)}%\n`;
+    text += `Draw     : ${(fused.final.pD*100).toFixed(1)}%\n`;
+    text += `Away Win : ${(fused.final.pA*100).toFixed(1)}%\n\n`;
+
+    text += `[RISK/FRAG/META] Risk:${riskScore.toFixed(1)} Frag:${fragScore.toFixed(1)} Meta:${metaScore.toFixed(1)}\n`;
+    text += `Uncertainty : ${unc.score.toFixed(1)}%\n`;
+    text += `BTTS        : ${(btts*100).toFixed(1)}%\n`;
+    text += `Avg Goals (MC): ${mc.avgGoals.toFixed(3)}\n\n`;
+
+    text += "[OVER/UNDER blended]\n";
+    Object.keys(ouBlend).forEach(k=>{
+      text += `O/U ${k} -> Over ${(ouBlend[k].over*100).toFixed(1)}% | Under ${(ouBlend[k].under*100).toFixed(1)}%\n`;
+    });
+
+    if(integratorMeta){
+      try {
+        text += "\n[INTEGRATOR]\n";
+        text += " - hyperLambda (final): " + (integratorMeta.lamH||integratorMeta.hyperLambda?.lamH||finalLambda.lamH).toFixed(3) + " | " + (integratorMeta.lamA||integratorMeta.hyperLambda?.lamA||finalLambda.lamA).toFixed(3) + "\n";
+        if(integratorMeta.pattern) text += " - pattern: " + JSON.stringify(integratorMeta.pattern) + "\n";
+        if(integratorMeta.scenarioStats) text += " - scenarios: " + (integratorMeta.scenarioStats.scenarios?.map(s=>s.name).join(",") || "-") + "\n";
+      } catch(e){}
+    }
+
+    text += "\n[NOTES]\n";
+    text += " - Match Type template: " + (window._V20_MATCH_TEMPLATE?.name || "none") + "\n\n";
+
+    outEl.value = text;
+
+    // postRun hooks
+    try { if(V20.hooks && Array.isArray(V20.hooks.postRun)) V20.hooks.postRun.forEach(fn=>{ try{ fn({ baseLambda, finalLambda, ctx, home, away, tact, mc, fused }); }catch(e){} }); } catch(e){}
+  } catch(e){
+    alert("Engine fatal error: " + (e && e.message || e));
+    console.error(e);
+  }
+};
+</script>
+<footer style="margin-top:18px" class="small muted">
+  <div>PSZ MAX v3.2 — Generated patch. Modules: GSAL / EMC / DCM / TPM / RII / SQM / Bayes / MSS.</div>
+  <div>Paste order: Part1 → Part2 → Part3 → Part4 → Part5 (this footer).</div>
+  <div>If you already have an existing copy: backup file first. Replace the old V20.runPrimeZero block (and optionally old modules) with these parts.</div>
+</footer>
+</body>
+</html>
