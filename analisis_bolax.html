@@ -1,0 +1,936 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Prime Singularity Zero — Cleaned</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;line-height:1.4;padding:18px;background:#f7f8fb;color:#111}
+    .container{max-width:1100px;margin:0 auto}
+    h1{font-size:20px;margin-bottom:6px}
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:14px}
+    .card{background:#fff;border-radius:8px;padding:12px;box-shadow:0 6px 20px rgba(12,14,20,0.04)}
+    label{display:block;margin:6px 0 4px;font-size:13px;color:#333}
+    input[type=text],input[type=number],select,textarea{width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid #ddd}
+    textarea{height:220px;font-family:monospace}
+    button{padding:8px 10px;border-radius:6px;border:0;background:#2563eb;color:#fff;cursor:pointer}
+    button.secondary{background:#6b7280}
+    .row{display:flex;gap:8px;align-items:center}
+    .small{font-size:12px;color:#666}
+    .section{margin-bottom:12px}
+    .muted{color:#666;font-size:13px}
+    footer{margin-top:18px;color:#666;font-size:12px}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Prime Singularity Zero — Clean Edition</h1>
+    <p class="muted">Versi ter-rapi: engine core + auto systems + match-type + safe bindings.</p>
+
+    <div class="grid">
+      <!-- LEFT: Inputs & controls -->
+      <div class="card">
+        <div class="section">
+          <h2 style="font-size:16px;margin:0">Inputs (data / estimates)</h2>
+          <div class="small">Isi angka dari sumber yang Anda punya — sisanya bisa auto-fill.</div>
+        </div>
+
+        <div class="section">
+          <label>xG Home</label><input id="adv_xg_home" type="text" value="1.20">
+          <label>xG Away</label><input id="adv_xg_away" type="text" value="1.00">
+          <label>xGA Home</label><input id="adv_xga_home" type="text" value="1.30">
+          <label>xGA Away</label><input id="adv_xga_away" type="text" value="1.30">
+        </div>
+
+        <div class="section">
+          <label>Form Home W / D / L (last N)</label>
+          <div class="row">
+            <input id="adv_form_home_w" type="number" placeholder="W" value="2">
+            <input id="adv_form_home_d" type="number" placeholder="D" value="1">
+            <input id="adv_form_home_l" type="number" placeholder="L" value="2">
+          </div>
+
+          <label>Form Away W / D / L</label>
+          <div class="row">
+            <input id="adv_form_away_w" type="number" placeholder="W" value="1">
+            <input id="adv_form_away_d" type="number" placeholder="D" value="2">
+            <input id="adv_form_away_l" type="number" placeholder="L" value="2">
+          </div>
+        </div>
+
+        <div class="section">
+          <label>Errors per match (home / away)</label>
+          <div class="row">
+            <input id="adv_err_home" type="number" step="0.1" value="0.8">
+            <input id="adv_err_away" type="number" step="0.1" value="0.9">
+          </div>
+
+          <label>Press Style (home / away) — choose text or use pressing slider below</label>
+          <div class="row">
+            <select id="press_style_home">
+              <option value="mid">mid</option>
+              <option value="high">high</option>
+              <option value="mid_high">mid_high</option>
+              <option value="mid_low">mid_low</option>
+              <option value="low">low</option>
+            </select>
+            <select id="press_style_away">
+              <option value="mid">mid</option>
+              <option value="high">high</option>
+              <option value="mid_high">mid_high</option>
+              <option value="mid_low">mid_low</option>
+              <option value="low">low</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="section">
+          <label>Manual PPDA (optional) — jika kosong, auto-estimate akan digunakan</label>
+          <div class="row">
+            <input id="adv_ppda_home" type="text" placeholder="PPDA Home (auto)" value="">
+            <input id="adv_ppda_away" type="text" placeholder="PPDA Away (auto)" value="">
+          </div>
+        </div>
+
+        <div class="section">
+          <label>Match Type</label>
+          <select id="match_type_expanded">
+            <option value="">-- PILIH --</option>
+            <optgroup label="Leagues">
+              <option value="epl">Premier League</option>
+              <option value="laliga">La Liga</option>
+              <option value="bundesliga">Bundesliga</option>
+            </optgroup>
+            <optgroup label="Cups / Int'l">
+              <option value="ucl_group">UCL Group</option>
+              <option value="ucl_knockout">UCL Knockout</option>
+              <option value="domestic_cup_early">Domestic Cup Early</option>
+            </optgroup>
+            <optgroup label="Context">
+              <option value="derby_lvl2">Derby Level 2</option>
+              <option value="title_decider">Title Decider</option>
+              <option value="friendly">Friendly</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div class="section">
+          <label>Control Panel</label>
+          <div class="row" style="margin-top:8px">
+            <button id="btn_auto_internal">AUTO ALL INTERNAL</button>
+            <button id="btn_auto_ppda" class="secondary">AUTO PPDA</button>
+            <button id="btn_apply_type" class="secondary">APPLY TYPE</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <label>Tactical / Derived (editable)</label>
+          <div class="row">
+            <input id="tempo" type="text" placeholder="Tempo (1-10)" value="5.0">
+            <input id="chaos" type="text" placeholder="Chaos (1-10)" value="5.0">
+            <input id="importance" type="text" placeholder="Importance (1-10)" value="5.0">
+          </div>
+          <div class="row" style="margin-top:8px">
+            <input id="home_st" type="text" placeholder="Home Stability 1-10" value="5.0">
+            <input id="away_st" type="text" placeholder="Away Stability 1-10" value="5.0">
+          </div>
+          <div class="row" style="margin-top:8px">
+            <input id="home_mom" type="text" placeholder="Home Momentum 1-10" value="5.0">
+            <input id="away_mom" type="text" placeholder="Away Momentum 1-10" value="5.0">
+          </div>
+          <div class="row" style="margin-top:8px">
+            <input id="home_press" type="text" placeholder="Press Intensity 1-10" value="5.0">
+            <input id="away_press" type="text" placeholder="Press Intensity 1-10" value="5.0">
+          </div>
+          <div class="row" style="margin-top:8px">
+            <input id="home_flex" type="text" placeholder="Flex 0-1" value="0.5">
+            <input id="away_flex" type="text" placeholder="Flex 0-1" value="0.5">
+          </div>
+        </div>
+
+        <div class="section">
+          <label>Model params</label>
+          <div class="row small">
+            <input id="lamH" type="text" placeholder="lambda H" value="1.20">
+            <input id="lamA" type="text" placeholder="lambda A" value="1.00">
+          </div>
+          <div style="margin-top:8px" class="row small">
+            <input id="simCount" type="number" placeholder="Sim Count (auto)" value="50000">
+            <input id="scoreCap" type="number" placeholder="Score Cap" value="6">
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Output / info -->
+      <div class="card">
+        <div class="section">
+          <h2 style="font-size:16px;margin:0">Output</h2>
+          <div class="small">Hasil prediksi, log, dan export.</div>
+        </div>
+
+        <div class="section">
+          <textarea id="output" spellcheck="false" readonly></textarea>
+        </div>
+
+        <div class="section row">
+          <button id="btn_analyze">RUN ENGINE</button>
+          <button id="btn_export" class="secondary">EXPORT CONFIG</button>
+          <button id="btn_clear" class="secondary">CLEAR LOG</button>
+        </div>
+
+        <div class="section small muted" style="margin-top:10px">
+          <div>Tip: isi xG / xGA jika tersedia. Jika tidak ada PPDA publik, gunakan <strong>AUTO PPDA</strong>.</div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      © Prime Singularity Zero — Clean Edition. Simulations are probabilistic estimates.
+    </footer>
+  </div>
+
+  <!-- ===========================================================
+       SCRIPT: Engine (V20) Core + Auto + MatchType — SINGLE BLOCK
+       - Modular namespaces: V20, V20.Auto, V20.MatchType
+       - Event bindings at the end
+       =========================================================== -->
+  <script>
+  // ---------------------------
+  // V20 namespace
+  // ---------------------------
+  window.V20 = window.V20 || {};
+  const V20 = window.V20;
+
+  // ---------------------------
+  // Utilities
+  // ---------------------------
+  V20.num = function(v, fallback = 0){
+    const n = Number(v);
+    return isFinite(n) ? n : fallback;
+  };
+  V20.clamp = function(value, min, max){
+    if (value < min) return min;
+    if (value > max) return max;
+    return value;
+  };
+
+  // ---------------------------
+  // Poisson helpers
+  // ---------------------------
+  V20._logFactorialCache = [0];
+  V20._logFactorial = function(n){
+    const cache = V20._logFactorialCache;
+    if (cache[n] != null) return cache[n];
+    let val = cache[cache.length - 1];
+    for (let i = cache.length; i <= n; i++){
+      val += Math.log(i);
+      cache[i] = val;
+    }
+    return cache[n];
+  };
+  V20.poissonPMF = function(lambda, k){
+    lambda = Math.max(lambda, 0.00001);
+    if (k < 0) return 0;
+    return Math.exp(-lambda + k*Math.log(lambda) - V20._logFactorial(k));
+  };
+  V20.samplePoisson = function(lambda){
+    lambda = Math.max(lambda, 0.00001);
+    const L = Math.exp(-lambda);
+    let p = 1, k = 0;
+    do { p *= Math.random(); k++; } while (p > L);
+    return k - 1;
+  };
+
+  // ---------------------------
+  // Pattern Oracle
+  // ---------------------------
+  V20.patternOracle = function(ctx, home, away, tact){
+    ctx  = ctx  || {};
+    home = home || {stability:5, momentum:5};
+    away = away || {stability:5, momentum:5};
+    tact = tact || { home:{pressIntensity:5, flex:0.5}, away:{pressIntensity:5, flex:0.5} };
+
+    const tempo = ctx.tempo || 5;
+    const chaos = ctx.chaos || 5;
+    const imp   = ctx.importance || 5;
+
+    const stH = home.stability || 5;
+    const stA = away.stability || 5;
+    const stabAvg = (stH + stA)/2;
+
+    const momH = home.momentum || 5;
+    const momA = away.momentum || 5;
+    const momGap = momH - momA;
+
+    const pressH = tact.home.pressIntensity || 5;
+    const pressA = tact.away.pressIntensity || 5;
+    const pressGap = pressH - pressA;
+
+    const tempoF = (tempo - 5)/5;
+    const chaosF = (chaos - 5)/5;
+    const impF   = (imp   - 5)/5;
+    const stabF  = (stabAvg - 5)/5;
+
+    let control = 0.35 - chaosF*0.20 + stabF*0.25 + impF*0.05;
+    let swing   = 0.25 + Math.abs(momGap)*0.04 + Math.abs(pressGap)*0.05 + tempoF*0.15;
+    let stalled = 0.15 + (-tempoF)*0.20 + stabF*0.15;
+    let chaotic = 0.25 + chaosF*0.35 + tempoF*0.15 - stabF*0.10;
+
+    control = Math.max(control, 0.01);
+    swing   = Math.max(swing  , 0.01);
+    stalled = Math.max(stalled, 0.01);
+    chaotic = Math.max(chaotic, 0.01);
+
+    let sum = control + swing + stalled + chaotic;
+    const pattern = {
+      control: control/sum,
+      swing:   swing/sum,
+      stalled: stalled/sum,
+      chaotic: chaotic/sum
+    };
+
+    let dom = "control", mx = pattern.control;
+    if(pattern.swing   > mx){ dom="swing";   mx=pattern.swing; }
+    if(pattern.stalled > mx){ dom="stalled"; mx=pattern.stalled; }
+    if(pattern.chaotic > mx){ dom="chaotic"; mx=pattern.chaotic; }
+
+    return { pattern, dominant: dom };
+  };
+
+  // ---------------------------
+  // Hyper Lambda
+  // ---------------------------
+  V20.hyperLambda = function(lambda, ctx, home, away, tact){
+    lambda = lambda || {};
+    ctx    = ctx || {};
+    home   = home || {stability:5, momentum:5};
+    away   = away || {stability:5, momentum:5};
+    tact   = tact || { home:{pressIntensity:5, flex:0.5}, away:{pressIntensity:5, flex:0.5} };
+
+    let lamH = V20.num(lambda.lamH, 1.2);
+    let lamA = V20.num(lambda.lamA, 1.0);
+
+    const PO  = V20.patternOracle(ctx, home, away, tact);
+    const pat = PO.pattern;
+
+    // basic modifiers
+    lamH *= (1 - pat.control*0.05);
+    lamA *= (1 - pat.control*0.05);
+
+    const pressH = tact.home.pressIntensity || 5;
+    const pressA = tact.away.pressIntensity || 5;
+    const pressGap = pressH - pressA;
+    const momGap = (home.momentum || 5) - (away.momentum || 5);
+
+    const swingH = pat.swing*(Math.max(0,momGap)/10 + Math.max(0,pressGap)/10);
+    const swingA = pat.swing*(Math.max(0,-momGap)/10 + Math.max(0,-pressGap)/10);
+    lamH *= (1 + swingH*0.22);
+    lamA *= (1 + swingA*0.22);
+
+    lamH *= (1 - pat.stalled*0.10);
+    lamA *= (1 - pat.stalled*0.10);
+
+    lamH *= (1 + pat.chaotic*0.25);
+    lamA *= (1 + pat.chaotic*0.25);
+
+    lamH *= (1 + (pressH-5)*0.015);
+    lamA *= (1 + (pressA-5)*0.015);
+
+    lamH *= (1 + (tact.home.flex || 0.5)*0.05);
+    lamA *= (1 + (tact.away.flex || 0.5)*0.05);
+
+    // match-type finishing bias
+    try {
+      const mt = window._V20_MATCH_TEMPLATE || null;
+      if(mt && mt.finishingBias){
+        lamH *= V20.num(mt.finishingBias,1);
+        lamA *= V20.num(mt.finishingBias,1);
+      }
+    } catch(e){}
+
+    lamH = V20.clamp(lamH, 0.20, 6.00);
+    lamA = V20.clamp(lamA, 0.20, 6.00);
+
+    return { lamH, lamA, pattern: pat, dominantPattern: PO.dominant };
+  };
+
+  // ---------------------------
+  // Deterministic Poisson (analytic)
+  // ---------------------------
+  V20.detSim = function(lambda){
+    lambda = lambda || {};
+    const lamH = Math.max(V20.num(lambda.lamH,1.0), 0.01);
+    const lamA = Math.max(V20.num(lambda.lamA,1.0), 0.01);
+    let pH=0, pD=0, pA=0;
+    const maxG = 8;
+    let total = 0;
+    for (let h=0; h<=maxG; h++){
+      let pPH = V20.poissonPMF(lamH, h);
+      for (let a=0; a<=maxG; a++){
+        let pPA = V20.poissonPMF(lamA, a);
+        let p   = pPH*pPA;
+        total += p;
+        if(h > a)      pH += p;
+        else if(h==a)  pD += p;
+        else           pA += p;
+      }
+    }
+    if(total>0){ pH/=total; pD/=total; pA/=total; }
+    return {pH,pD,pA};
+  };
+
+  // ---------------------------
+  // Chaos model
+  // ---------------------------
+  V20.chaosModel = function(lambda, ctx){
+    lambda = lambda || {};
+    ctx    = ctx || {};
+    const lamH = Math.max(V20.num(lambda.lamH,1.0), 0.01);
+    const lamA = Math.max(V20.num(lambda.lamA,1.0), 0.01);
+    const chaos = ctx.chaos || 5;
+    const chaosF = (chaos - 5)/5;
+    const factor = 1 + V20.clamp(chaosF*0.24, -0.22, 0.32);
+    return { lamH: V20.clamp(lamH*factor, 0.20, 6.00), lamA: V20.clamp(lamA*factor, 0.20, 6.00) };
+  };
+
+  // ---------------------------
+  // Monte Carlo sim (hybrid)
+  // ---------------------------
+  V20.monteCarlo = function(lambda, ctx, simCount, scoreCap, home, away, tact){
+    lambda = lambda || {};
+    ctx    = ctx || {};
+    home   = home || {stability:5, momentum:5};
+    away   = away || {stability:5, momentum:5};
+    tact   = tact || { home:{pressIntensity:5, flex:0.5}, away:{pressIntensity:5, flex:0.5} };
+
+    const HL = V20.hyperLambda(lambda, ctx, home, away, tact);
+    const lamH_base = HL.lamH;
+    const lamA_base = HL.lamA;
+    const pat = HL.pattern;
+
+    const baseSim = simCount ? V20.num(simCount, 50000) : 50000;
+    // adjust simCount by pattern/chaos
+    const chaosF = (ctx.chaos - 5)/5 || 0;
+    const tempoF = (ctx.tempo - 5)/5 || 0;
+    let patternScale = 1.00 + pat.swing*0.30 + pat.chaotic*0.35 - pat.stalled*0.25;
+    let simScaled = baseSim * (1 + chaosF*0.35*0.7 + tempoF*0.25*0.7) * patternScale;
+    simScaled = V20.clamp(simScaled, 30000, 250000);
+    simCount = Math.round(simScaled);
+
+    const autoCap = (lamH_base + lamA_base) > 3.4 ? 6 : 5;
+    scoreCap = V20.clamp(scoreCap || autoCap, 3, 8);
+
+    // scenarios
+    const scenarios = [
+      {name:"base",      w:0.30, fH:1.00, fA:1.00},
+      {name:"control",   w:0.08 + 0.25*pat.control, fH:0.97, fA:0.97},
+      {name:"swing",     w:0.08 + 0.25*pat.swing,   fH:1.07, fA:1.07},
+      {name:"stalled",   w:0.06 + 0.22*pat.stalled, fH:0.78, fA:0.78},
+      {name:"chaotic",   w:0.06 + 0.22*pat.chaotic, fH:1.18, fA:1.18}
+    ];
+    let sw = 0; scenarios.forEach(s=>sw+=s.w); scenarios.forEach(s=>s.p = s.w/sw);
+    let cum=0; scenarios.forEach(s=>{ cum+=s.p; s.cum=cum; });
+
+    function pickScenario(){
+      const r = Math.random();
+      for(let s of scenarios) if(r <= s.cum) return s;
+      return scenarios[scenarios.length-1];
+    }
+
+    // sampleHybrid
+    function sampleHybrid(lambdaBase){
+      lambdaBase = Math.max(lambdaBase, 0.00001);
+      const r = Math.random();
+      if(r < 0.55) return V20.samplePoisson(lambdaBase);
+      else if(r < 0.85){
+        const factor = Math.exp((Math.random()-0.5)*0.6);
+        const lamVar = V20.clamp(lambdaBase*factor, 0.05, 6.2);
+        return V20.samplePoisson(lamVar);
+      } else {
+        const factor = Math.exp((Math.random()-0.5)*1.0);
+        const lamVar = V20.clamp(lambdaBase*factor, 0.05, 6.8);
+        return V20.samplePoisson(lamVar);
+      }
+    }
+
+    // matrix
+    const matrix = [];
+    for(let h=0;h<=scoreCap;h++){ matrix[h]=[]; for(let a=0;a<=scoreCap;a++) matrix[h][a]=0; }
+
+    let homeWins=0, draws=0, awayWins=0, total=0, goalsTotal=0;
+    for(let i=0;i<simCount;i++){
+      const sc = pickScenario();
+      const lamH_sim = lamH_base * sc.fH;
+      const lamA_sim = lamA_base * sc.fA;
+      let h = sampleHybrid(lamH_sim);
+      let a = sampleHybrid(lamA_sim);
+      total++;
+      goalsTotal += (h+a);
+      if(h>a) homeWins++; else if(h===a) draws++; else awayWins++;
+      if(h<=scoreCap && a<=scoreCap) matrix[h][a]++;
+    }
+
+    return {
+      simCount, pH: homeWins/total, pD: draws/total, pA: awayWins/total,
+      avgGoals: goalsTotal/total, matrix, scoreCap,
+      god:{ hyperLambda:{lamH:lamH_base, lamA:lamA_base}, pattern:pat },
+      scenarioStats:{ scenarios }
+    };
+  };
+
+  // ---------------------------
+  // Meta metrics: Risk, Fragility, SDI, Flow
+  // ---------------------------
+  V20.computeRisk = function(ctx, tact){
+    ctx  = ctx  || {};
+    tact = tact || {home:{flex:0.5}, away:{flex:0.5}};
+    const chaos = ctx.chaos || 5;
+    const tempo = ctx.tempo || 5;
+    const flexAvg = ((tact.home?.flex||0.5) + (tact.away?.flex||0.5))/2;
+    const chaosF = (chaos - 5)/5;
+    const tempoF = (tempo - 5)/5;
+    let risk = 0.42 + chaosF*0.33 + tempoF*0.18 + flexAvg*0.20;
+    return V20.clamp(risk, 0, 1);
+  };
+
+  V20.computeFragility = function(ctx, home, away){
+    ctx  = ctx  || {};
+    home = home || {stability:5};
+    away = away || {stability:5};
+    const chaos = ctx.chaos || 5;
+    const stabAvg = ((home.stability||5) + (away.stability||5))/2;
+    const chaosF  = (chaos - 5)/5;
+    const stabF   = (stabAvg - 5)/5;
+    let frag = 0.40 + chaosF*0.30 - stabF*0.25;
+    return V20.clamp(frag, 0, 1);
+  };
+
+  V20.computeSDI = function(lambda){
+    lambda = lambda || {};
+    const lamH = Math.max(V20.num(lambda.lamH,1.0), 0.01);
+    const lamA = Math.max(V20.num(lambda.lamA,1.0), 0.01);
+    const gap = lamH - lamA;
+    return V20.clamp(gap/2.5, -1, 1);
+  };
+
+  V20.computeFlow = function(ctx, home, away, tact, pat){
+    ctx  = ctx  || {};
+    home = home || {momentum:5};
+    away = away || {momentum:5};
+    tact = tact || {home:{pressIntensity:5}, away:{pressIntensity:5}};
+    pat  = pat  || {swing:0.25, chaotic:0.25};
+    const mg = (home.momentum || 5) - (away.momentum || 5);
+    const pg = (tact.home.pressIntensity || 5) - (tact.away.pressIntensity || 5);
+    let flow = mg*0.10 + pg*0.08;
+    flow += (pat.swing*0.10 + pat.chaotic*0.06) * (mg/7);
+    const chaosF = (ctx.chaos - 5)/5 || 0;
+    const tempoF = (ctx.tempo - 5)/5 || 0;
+    flow += chaosF*0.05 + tempoF*0.03;
+    return V20.clamp(flow, -1, 1);
+  };
+
+  V20.computeMomentumSwing = function(home, away){
+    const mH = home?.momentum || 5;
+    const mA = away?.momentum || 5;
+    const base = (mH - mA)/10;
+    return V20.clamp(base*1.1, -1, 1);
+  };
+
+  // ---------------------------
+  // Singularity Zero fusion (final corrections)
+  // ---------------------------
+  V20.singularityZero = function(raw, risk, frag, meta, flow, swing){
+    raw = raw || {};
+    let pH = raw.pH || 0.33;
+    let pD = raw.pD || 0.33;
+    let pA = raw.pA || 0.33;
+    const riskF = risk || 0;
+    const fragF = frag || 0;
+    const metaF = meta || 0.5;
+    const lowMeta  = 1 - metaF;
+    const compress = 0.50 + lowMeta*0.35 + riskF*0.30 + fragF*0.30;
+    const comp = V20.clamp(compress, 0, 0.99);
+    let center = (pH + pA)/2;
+    pH = center + (pH-center)*(1-comp);
+    pA = center + (pA-center)*(1-comp);
+    pH *= (1 + (flow||0)*0.14 + (swing||0)*0.10);
+    pA *= (1 - (flow||0)*0.14 - (swing||0)*0.10);
+
+    const addD  = Math.abs(pH - pA)*0.22;
+    pD += addD;
+    pH = Math.max(pH - pD*0.10, 0.06);
+    pA = Math.max(pA - pD*0.10, 0.06);
+    pD = Math.max(pD, 0.06);
+
+    let s = pH + pD + pA;
+    pH/=s; pD/=s; pA/=s;
+    return {pH,pD,pA};
+  };
+
+  V20.fuseOutputs = function(det, chaosM, mc, zero){
+    return {
+      raw:{ deterministic: det, chaos: chaosM, mc: mc },
+      final:{ pH: zero.pH, pD: zero.pD, pA: zero.pA }
+    };
+  };
+
+  V20.computeUncertainty = function(pH,pD,pA){
+    const probs = [pH,pD,pA];
+    let entropy = 0;
+    probs.forEach(p=>{ if(p>0) entropy -= p*Math.log2(p); });
+    const maxE = Math.log2(3);
+    const norm = maxE>0 ? entropy/maxE : 0;
+    return { entropy, norm, score: norm*100 };
+  };
+
+  V20.computeBTTS = function(lambda){
+    lambda = lambda || {};
+    const lamH = Math.max(V20.num(lambda.lamH,1.0), 0.0001);
+    const lamA = Math.max(V20.num(lambda.lamA,1.0), 0.0001);
+    const pH0 = Math.exp(-lamH);
+    const pA0 = Math.exp(-lamA);
+    const p00 = Math.exp(-(lamH+lamA));
+    const pBTTS = 1 - (pH0 + pA0 - p00);
+    return V20.clamp(pBTTS, 0, 1);
+  };
+// ---------------------------
+  // Engine Runner
+  // ---------------------------
+  V20.runPrimeZero = function(){
+    const outEl = document.getElementById('output');
+    if (!outEl) return;
+
+    // read inputs
+    const lamH  = V20.num(document.getElementById('lamH').value, 1.20);
+    const lamA  = V20.num(document.getElementById('lamA').value, 1.00);
+
+    const tempo = V20.num(document.getElementById('tempo').value, 5);
+    const chaos = V20.num(document.getElementById('chaos').value, 5);
+    const importance = V20.num(document.getElementById('importance').value, 5);
+
+    const home_st  = V20.num(document.getElementById('home_st').value, 5);
+    const away_st  = V20.num(document.getElementById('away_st').value, 5);
+    const home_mom = V20.num(document.getElementById('home_mom').value, 5);
+    const away_mom = V20.num(document.getElementById('away_mom').value, 5);
+
+    const home_press = V20.num(document.getElementById('home_press').value, 5);
+    const away_press = V20.num(document.getElementById('away_press').value, 5);
+    const home_flex  = V20.num(document.getElementById('home_flex').value, 0.5);
+    const away_flex  = V20.num(document.getElementById('away_flex').value, 0.5);
+
+    let simCount  = V20.num(document.getElementById('simCount')?.value, NaN);
+    let scoreCap  = V20.num(document.getElementById('scoreCap')?.value, NaN);
+    if (!isFinite(simCount)) simCount = undefined;
+    if (!isFinite(scoreCap)) scoreCap = undefined;
+
+    const lambda = { lamH, lamA };
+    const ctx = { tempo, chaos, importance };
+    const home = { stability: home_st, momentum: home_mom };
+    const away = { stability: away_st, momentum: away_mom };
+    const tact = { home: { pressIntensity: home_press, flex: home_flex }, away: { pressIntensity: away_press, flex: away_flex } };
+
+    // models
+    const det       = V20.detSim(lambda);
+    const chaosL    = V20.chaosModel(lambda, ctx);
+    const detChaos  = V20.detSim(chaosL);
+    const mc        = V20.monteCarlo(lambda, ctx, simCount, scoreCap, home, away, tact);
+
+    const godHL  = mc.god?.hyperLambda || {lamH, lamA};
+    const godPat = mc.god?.pattern || {control:0.25,swing:0.25,stalled:0.25,chaotic:0.25};
+
+    const base = {
+      pH: (det.pH + detChaos.pH + mc.pH)/3,
+      pD: (det.pD + detChaos.pD + mc.pD)/3,
+      pA: (det.pA + detChaos.pA + mc.pA)/3
+    };
+
+    const risk01   = V20.computeRisk(ctx, tact);
+    const frag01   = V20.computeFragility(ctx, home, away);
+    const sdi      = V20.computeSDI(godHL);
+    const meta01   = V20.computeMeta ? V20.computeMeta(det, detChaos, sdi) : 0.5;
+    const flowVal  = V20.computeFlow(ctx, home, away, tact, godPat);
+    const swingVal = V20.computeMomentumSwing(home, away);
+
+    const zeroProb = V20.singularityZero(base, risk01, frag01, meta01, flowVal, swingVal);
+    const fused    = V20.fuseOutputs(det, detChaos, mc, zeroProb);
+
+    const unc   = V20.computeUncertainty(fused.final.pH, fused.final.pD, fused.final.pA);
+    const btts  = V20.computeBTTS(godHL);
+
+    const riskScore = risk01*100;
+    const fragScore = frag01*100;
+    const metaScore = (meta01*100) || 50;
+
+    let engineStatus = "PRIME STABLE";
+    if (metaScore < 40 || riskScore > 70 || fragScore > 70) engineStatus = "PRIME CAUTION";
+    else if (metaScore < 60) engineStatus = "PRIME NEUTRAL";
+
+    // OU analytic blend
+    const totalLamBase = godHL.lamH + godHL.lamA;
+    let lamEff = totalLamBase;
+    const chaosF_local = (chaos - 5)/5;
+    const tempoF_local = (tempo - 5)/5;
+    lamEff *= (1 + chaosF_local*0.10 + tempoF_local*0.05);
+    lamEff = V20.clamp(lamEff, 0.5, 5.8);
+
+    const lines = [0.5,1.5,2.5,3.5];
+    const ou = {};
+    lines.forEach(line=>{
+      const cut = Math.floor(line);
+      let under=0;
+      for(let k=0;k<=cut;k++) under += V20.poissonPMF(lamEff,k);
+      ou[line] = { under: under, over: 1-under };
+    });
+
+    // MC OU from matrix
+    const mat = mc.matrix;
+    const cap = mc.scoreCap;
+    const ouMC = {};
+    lines.forEach(line=>{
+      const cut = Math.floor(line);
+      let under=0, over=0;
+      for(let h=0;h<=cap;h++){
+        for(let a=0;a<=cap;a++){
+          const sum = h+a;
+          const freq = (mat[h] && mat[h][a]) ? mat[h][a] : 0;
+          if(sum<=cut) under += freq;
+          else over += freq;
+        }
+      }
+      ouMC[line] = { under: under/mc.simCount, over: over/mc.simCount };
+    });
+
+    const patternChaos = godPat.chaotic + godPat.swing*0.6;
+    const wMC = 0.40 + 0.40*Math.max(0,patternChaos);
+    const wAN = 1 - wMC;
+
+    const ouBlend = {};
+    lines.forEach(k=>{
+      ouBlend[k] = { over: ou[k].over*wAN + ouMC[k].over*wMC, under: ou[k].under*wAN + ouMC[k].under*wMC };
+    });
+
+    // Build output
+    let text = "";
+    text += "=== PRIME SINGULARITY ZERO — REPORT ===\n\n";
+    text += `[ENGINE STATUS] ${engineStatus}\n\n`;
+    text += "[INPUT]\n";
+    text += `λH : ${lamH.toFixed(3)} | λA : ${lamA.toFixed(3)}\n`;
+    text += `Tempo/Chaos/Imp : ${tempo.toFixed(1)} / ${chaos.toFixed(1)} / ${importance.toFixed(1)}\n`;
+    text += `Home St/Mom : ${home_st.toFixed(1)} / ${home_mom.toFixed(1)}\n`;
+    text += `Away St/Mom : ${away_st.toFixed(1)} / ${away_mom.toFixed(1)}\n\n`;
+
+    text += "[PROBABILITIES]\n";
+    text += `Home Win : ${(fused.final.pH*100).toFixed(1)}%\n`;
+    text += `Draw     : ${(fused.final.pD*100).toFixed(1)}%\n`;
+    text += `Away Win : ${(fused.final.pA*100).toFixed(1)}%\n\n`;
+
+    text += `[RISK/FRAG/META] Risk:${riskScore.toFixed(1)} Frag:${fragScore.toFixed(1)} Meta:${metaScore.toFixed(1)}\n`;
+    text += `Uncertainty : ${unc.score.toFixed(1)}%\n`;
+    text += `BTTS        : ${(btts*100).toFixed(1)}%\n`;
+    text += `Avg Goals (MC): ${mc.avgGoals.toFixed(3)}\n\n`;
+
+    text += "[OVER/UNDER blended]\n";
+    Object.keys(ouBlend).forEach(k=>{
+      text += `O/U ${k} -> Over ${(ouBlend[k].over*100).toFixed(1)}% | Under ${(ouBlend[k].under*100).toFixed(1)}%\n`;
+    });
+    text += "\n[NOTES]\n";
+    text += " - Match Type template: " + (window._V20_MATCH_TEMPLATE?.name || "none") + "\n\n";
+
+    outEl.value = text;
+  };
+// ---------------------------
+  // V20.Auto - tidy auto helpers (centralized)
+  // ---------------------------
+  V20.Auto = {
+    // auto-fill derived internal values from available stats
+    autoInternal: function(){
+      const xgH = V20.num(document.getElementById('adv_xg_home').value, 1.3);
+      const xgA = V20.num(document.getElementById('adv_xg_away').value, 1.2);
+      const errH = V20.num(document.getElementById('adv_err_home').value, 1);
+      const errA = V20.num(document.getElementById('adv_err_away').value, 1);
+
+      const wH = V20.num(document.getElementById('adv_form_home_w').value, 0);
+      const dH = V20.num(document.getElementById('adv_form_home_d').value, 0);
+      const lH = V20.num(document.getElementById('adv_form_home_l').value, 0);
+      const wA = V20.num(document.getElementById('adv_form_away_w').value, 0);
+      const dA = V20.num(document.getElementById('adv_form_away_d').value, 0);
+      const lA = V20.num(document.getElementById('adv_form_away_l').value, 0);
+
+      // Tempo: depends on avg xG + form wins
+      let tempo = 4.5 + (xgH + xgA) * 0.6 + ((wH + wA) * 0.15);
+      tempo = V20.clamp(tempo,1,10);
+      document.getElementById('tempo').value = tempo.toFixed(1);
+
+      // Chaos: errors + flex
+      const flexH = V20.num(document.getElementById('home_flex').value, 0.5);
+      const flexA = V20.num(document.getElementById('away_flex').value, 0.5);
+      let chaos = 4 + (errH + errA) * 0.9 + ((flexH + flexA) * 2);
+      chaos = V20.clamp(chaos,1,10);
+      document.getElementById('chaos').value = chaos.toFixed(1);
+
+      // Importance: small function of xG gap and form
+      let importance = 5 + (Math.abs(xgH - xgA) * 0.8) - ((errH + errA) * 0.2);
+      importance = V20.clamp(importance,1,10);
+      document.getElementById('importance').value = importance.toFixed(1);
+
+      // Momentum: crude conversion from W/D/L
+      const momentumH = V20.clamp(1 + (3*wH + 1*dH - 2*lH)/3, 1, 10);
+      const momentumA = V20.clamp(1 + (3*wA + 1*dA - 2*lA)/3, 1, 10);
+      document.getElementById('home_mom').value = momentumH.toFixed(1);
+      document.getElementById('away_mom').value = momentumA.toFixed(1);
+
+      // Stability from xGA + errors
+      let stH = 10 - ((V20.num(document.getElementById('adv_xga_home').value,1.3) - 1.0) * 2.5 + errH * 1.2);
+      let stA = 10 - ((V20.num(document.getElementById('adv_xga_away').value,1.3) - 1.0) * 2.5 + errA * 1.2);
+      stH = V20.clamp(stH,1,10); stA = V20.clamp(stA,1,10);
+      document.getElementById('home_st').value = stH.toFixed(1);
+      document.getElementById('away_st').value = stA.toFixed(1);
+
+      // Late-game strength (derived)
+      const lateH = V20.clamp((stH + momentumH)/2, 1, 10);
+      const lateA = V20.clamp((stA + momentumA)/2, 1, 10);
+      // stored to hidden / adv fields if exist (keep compatibility)
+      if(document.getElementById('adv_late_home')) document.getElementById('adv_late_home').value = lateH.toFixed(1);
+      if(document.getElementById('adv_late_away')) document.getElementById('adv_late_away').value = lateA.toFixed(1);
+
+      alert('Auto-internal variables applied.');
+    },
+
+    // auto-estimate PPDA from pressing style or pressing intensity
+    autoPPDA: function(){
+      // if adv_ppda_x filled, respect them
+      const filledH = (document.getElementById('adv_ppda_home').value || '').trim();
+      const filledA = (document.getElementById('adv_ppda_away').value || '').trim();
+      if(filledH && filledA){
+        alert('PPDA manual terisi, auto-PPDA dilewati.');
+        return;
+      }
+
+      const styleH = (document.getElementById('press_style_home') || {}).value || 'mid';
+      const styleA = (document.getElementById('press_style_away') || {}).value || 'mid';
+
+      function basePPDA(style){
+        switch(style){
+          case "high":     return 6.5;
+          case "mid_high": return 9.0;
+          case "mid":      return 12.0;
+          case "mid_low":  return 15.0;
+          case "low":      return 18.0;
+          default:         return 12.0;
+        }
+      }
+      let ppdaH = basePPDA(styleH);
+      let ppdaA = basePPDA(styleA);
+
+      // refine with defensive errors & xGA if present
+      const xgaH = V20.num(document.getElementById('adv_xga_home').value, NaN);
+      const xgaA = V20.num(document.getElementById('adv_xga_away').value, NaN);
+      const errH = V20.num(document.getElementById('adv_err_home').value, NaN);
+      const errA = V20.num(document.getElementById('adv_err_away').value, NaN);
+
+      function refine(ppda, xga, err){
+        let v = ppda;
+        if (isFinite(xga)){
+          if (xga < 1.0)      v -= 0.8;
+          else if (xga > 1.6) v += 0.8;
+        }
+        if (isFinite(err)){
+          if (err > 1.0) v += 0.8;
+          else if (err < 0.5) v -= 0.4;
+        }
+        return V20.clamp(v, 4.0, 22.0);
+      }
+
+      ppdaH = refine(ppdaH, xgaH, errH);
+      ppdaA = refine(ppdaA, xgaA, errA);
+
+      document.getElementById('adv_ppda_home').value = ppdaH.toFixed(2);
+      document.getElementById('adv_ppda_away').value = ppdaA.toFixed(2);
+
+      alert('PPDA otomatis selesai.');
+    }
+  };
+// ---------------------------
+  // V20.MatchType - templates & apply
+  // ---------------------------
+  V20.MatchType = {
+    templates: {
+      epl:{name:'epl', tempo:6.0, chaos:5.5, importance:5.0, finishingBias:1.02, variance:1.05},
+      laliga:{name:'laliga', tempo:5.8, chaos:5.2, importance:5.0, finishingBias:1.03, variance:1.02},
+      bundesliga:{name:'bundesliga', tempo:6.3, chaos:6.0, importance:5.0, finishingBias:1.04, variance:1.15},
+      ucl_group:{name:'ucl_group', tempo:6.0, chaos:5.4, importance:6.0, finishingBias:1.04, variance:1.06},
+      ucl_knockout:{name:'ucl_knockout', tempo:5.4, chaos:5.7, importance:8.0, finishingBias:1.02, variance:1.12},
+      domestic_cup_early:{name:'domestic_cup_early', tempo:5.3, chaos:6.4, importance:3.5, finishingBias:0.98, variance:1.30},
+      derby_lvl2:{name:'derby_lvl2', tempo:6.6, chaos:7.9, importance:9.3, finishingBias:1.07, variance:1.55},
+      title_decider:{name:'title_decider', tempo:5.4, chaos:5.0, importance:9.7, finishingBias:1.03, variance:1.18},
+      friendly:{name:'friendly', tempo:4.0, chaos:4.0, importance:2.2, finishingBias:0.95, variance:0.90}
+    },
+    apply: function(key){
+      const t = this.templates[key];
+      if(!t) return alert('Template tidak ditemukan.');
+      document.getElementById('tempo').value = t.tempo.toFixed(1);
+      document.getElementById('chaos').value = t.chaos.toFixed(1);
+      document.getElementById('importance').value = t.importance.toFixed(1);
+      // store globally for hyperLambda usage
+      window._V20_MATCH_TEMPLATE = t;
+      alert('Match Type applied: ' + t.name);
+    }
+  };
+
+  // ---------------------------
+  // EXPORT utility
+  // ---------------------------
+  function exportConfig(){
+    const cfg = {
+      inputs: {
+        adv_xg_home: document.getElementById('adv_xg_home').value,
+        adv_xg_away: document.getElementById('adv_xg_away').value,
+        adv_xga_home: document.getElementById('adv_xga_home').value,
+        adv_xga_away: document.getElementById('adv_xga_away').value
+      },
+      tactical: {
+        tempo: document.getElementById('tempo').value,
+        chaos: document.getElementById('chaos').value,
+        importance: document.getElementById('importance').value
+      },
+      matchType: window._V20_MATCH_TEMPLATE || null
+    };
+    const a = document.createElement('a');
+    a.href = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(cfg,null,2));
+    a.download = 'psz_config.json';
+    try { a.click(); } catch(e){ alert('Export failed: ' + e.message); }
+  }
+// ---------------------------
+  // Safe bindings & event handlers
+  // ---------------------------
+  document.addEventListener('DOMContentLoaded', function(){
+    // Buttons
+    document.getElementById('btn_auto_internal')?.addEventListener('click', function(){ V20.Auto.autoInternal(); });
+    document.getElementById('btn_auto_ppda')?.addEventListener('click', function(){ V20.Auto.autoPPDA(); });
+    document.getElementById('btn_apply_type')?.addEventListener('click', function(){
+      const sel = document.getElementById('match_type_expanded').value;
+      if(!sel) return alert('Pilih Match Type dahulu.');
+      V20.MatchType.apply(sel);
+    });
+
+    document.getElementById('btn_analyze')?.addEventListener('click', function(){
+      try {
+        V20.runPrimeZero();
+      } catch(e){
+        alert('Engine error: ' + e.message);
+        console.error(e);
+      }
+    });
+
+    document.getElementById('btn_export')?.addEventListener('click', function(){ exportConfig(); });
+    document.getElementById('btn_clear')?.addEventListener('click', function(){ document.getElementById('output').value = ''; });
+
+    // small UX: when changing pressing select, auto-estimate PPDA preview (non-destructive)
+    document.getElementById('press_style_home')?.addEventListener('change', function(){ /* no-op — rely on button */ });
+    document.getElementById('press_style_away')?.addEventListener('change', function(){ /* no-op */ });
+  });
+  </script>
+  <!-- END SCRIPT -->
+</body>
+</html>
