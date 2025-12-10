@@ -319,7 +319,76 @@ window.autoFill = function(){
     }catch(e){}
   }catch(e){console.warn('autoFill fail',e);}
 };
+/* ---------- Ultra: Pressing Match Interaction (NEW MODULE) ---------- */
+V20.Ultra.computePressingMatch = function(homeProfile, awayProfile, tact){
+  try{
+    // Base pressing intensities
+    const pH = V20._safeNum(tact?.home?.pressIntensity, V20._safeNum(homeProfile.press,5));
+    const pA = V20._safeNum(tact?.away?.pressIntensity, V20._safeNum(awayProfile.press,5));
 
+    // Defensive line affects PPDA effectiveness
+    const dH = V20._safeNum(homeProfile.defLine,5);
+    const dA = V20._safeNum(awayProfile.defLine,5);
+
+    // Momentum increases ability to press consistently
+    const mH = V20._safeNum(homeProfile.momentum,5);
+    const mA = V20._safeNum(awayProfile.momentum,5);
+
+    // Team style inference from press + defline
+    function inferStyle(press, def){
+      if (press >= 7 && def >= 6) return "high_press";
+      if (press <= 4 && def <= 4) return "deep_block";
+      if (press >= 6 && def <= 4) return "counter_press";
+      if (press <= 4 && def >= 6) return "possession";
+      return "balanced";
+    }
+
+    const styleH = inferStyle(pH, dH);
+    const styleA = inferStyle(pA, dA);
+
+    // PPDA estimation (better than old one)
+    function estimatePPDA(press, momentum, defline, style){
+      let pp = 14 - (press-1) * 1.25;
+      pp -= (momentum-5) * 0.25;
+      pp -= (defline-5) * 0.20;
+      if (style === "high_press") pp -= 1.4;
+      if (style === "counter_press") pp -= 0.8;
+      if (style === "deep_block") pp += 1.0;
+      return V20.clamp(pp, 3.2, 18);
+    }
+
+    const homePPDA = estimatePPDA(pH, mH, dH, styleH);
+    const awayPPDA = estimatePPDA(pA, mA, dA, styleA);
+
+    // Pressing difference → impacts tempo, chaos, lambda
+    const pressDiff = V20.clamp((pH - pA) / 10, -1, 1);
+    const ppdaDiff = V20.clamp((awayPPDA - homePPDA) / 18, -1, 1);
+
+    // Match Pressing Factor (combined)
+    const pressMatchFactor =
+      (pressDiff * 0.55) +
+      (ppdaDiff * 0.35) +
+      ((mH - mA) / 20); // small momentum tilt
+
+    return {
+      homePPDA,
+      awayPPDA,
+      styleH,
+      styleA,
+      pressMatchFactor: V20.clamp(pressMatchFactor, -0.65, 0.65)
+    };
+
+  } catch (e) {
+    console.warn("computePressingMatch error", e);
+    return {
+      homePPDA: 12,
+      awayPPDA: 12,
+      styleH: "balanced",
+      styleA: "balanced",
+      pressMatchFactor: 0
+    };
+  }
+};
 /* ---------- ULTRA: league presets, TCI, PPDA estimator ---------- */
 V20.Ultra = {};
 V20.Ultra.leaguePresets = {
