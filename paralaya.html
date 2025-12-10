@@ -55,7 +55,11 @@
 
     <label>Sim Count (optional)</label><input id="simCount" type="number" value="2000" />
     <label>Score Cap</label><input id="scoreCap" type="number" value="6" />
+<label>PPDA Home</label>
+<input id="ppda_home" type="number" step="0.1" value="12">
 
+<label>PPDA Away</label>
+<input id="ppda_away" type="number" step="0.1" value="12">
     <label>JSON Config (optional)</label>
     <textarea id="json_config" placeholder='{"xg_home":1.8,"xg_away":1.1,...}'></textarea>
 
@@ -142,107 +146,7 @@
     <label>Finishing Override (Away)</label>
     <input id="finishing_override_away" type="number" min="-3" max="3" step="0.1" value="0">
   </div>
-<div class="row">
-
-  <div class="card" style="flex:1 1 420px">
-
-    <label>Home Team</label>
-    <input id="home_team" type="text" value="Home FC"/>
-
-    <label>Away Team</label>
-    <input id="away_team" type="text" value="Away United"/>
-
-    <label>League (key)</label>
-    <input id="league" type="text" value="epl"/>
-
-    <label>Match Type</label>
-    <select id="match_type">
-      <option value="normal">Normal</option>
-      <option value="derby">Derby</option>
-      <option value="relegation">Relegation</option>
-      <option value="title">Title</option>
-      <option value="cup">Cup</option>
-      <option value="ucl">UCL</option>
-      <option value="ucl_knockout">UCL KO</option>
-    </select>
-
-    <label>λ Home</label>
-    <input id="lamH" type="number" step="0.01" value="1.20"/>
-
-    <label>λ Away</label>
-    <input id="lamA" type="number" step="0.01" value="1.00"/>
-
-    <label>Tempo</label>
-    <input id="tempo" type="number" value="5" step="1"/>
-
-    <label>Chaos</label>
-    <input id="chaos" type="number" value="5" step="1"/>
-
-    <label>Importance</label>
-    <input id="importance" type="number" value="5" step="1"/>
-
-    <label>Home Stability</label>
-    <input id="home_st" type="number" value="5" step="1"/>
-
-    <label>Away Stability</label>
-    <input id="away_st" type="number" value="5" step="1"/>
-
-    <label>Home Momentum</label>
-    <input id="home_mom" type="number" value="5" step="1"/>
-
-    <label>Away Momentum</label>
-    <input id="away_mom" type="number" value="5" step="1"/>
-
-    <label>Home Press</label>
-    <input id="home_press" type="number" value="5" step="1"/>
-
-    <label>Away Press</label>
-    <input id="away_press" type="number" value="5" step="1"/>
-
-    <label>Home Flex</label>
-    <input id="home_flex" type="number" value="0.5" step="0.1"/>
-
-    <label>Away Flex</label>
-    <input id="away_flex" type="number" value="0.5" step="0.1"/>
-
-    <label>Sim Count</label>
-    <input id="simCount" type="number" value="2000"/>
-
-    <label>Score Cap</label>
-    <input id="scoreCap" type="number" value="6"/>
-
-    <label>JSON Config (optional)</label>
-    <textarea id="json_config" placeholder='{"xg_home":1.8,"xg_away":1.1}'></textarea>
-
-    <div style="margin-top:8px;display:flex;gap:8px">
-      <button id="btn_auto">AUTO INPUT (FULL)</button>
-      <button id="btn_apply_mt">APPLY MATCH TYPE</button>
-      <button id="btn_run">RUN INTEGRATED</button>
-    </div>
-
-  </div>
-  </div>
-  <div class="card" style="width:300px">
-    <label>Probability Wheel</label>
-    <div id="prob_wheel"></div>
-
-    <label>Bars</label>
-    <div class="bars"><div id="bar_home" class="bar" style="background:linear-gradient(90deg,#06b6d4,#06b6d4)"></div></div>
-    <div class="bars"><div id="bar_draw" class="bar" style="background:linear-gradient(90deg,#4ade80,#4ade80)"></div></div>
-    <div class="bars"><div id="bar_away" class="bar" style="background:linear-gradient(90deg,#8b5cf6,#8b5cf6)"></div></div>
-
-    <label style="margin-top:12px">Output</label>
-    <textarea id="output"></textarea>
-  </div>
-</div>
-
-<script>
-/* ============================================================
-   PSZ MAX — FINAL REBUILD (single clean engine)
-   Modules inline, ordered, single runner
-   ============================================================ */
-
-/* ---------- BOOTSTRAP UTIL & SAFETY ---------- */
+------- */
 window.V20 = window.V20 || {};
 (function(){
   if(!V20._safeNum) V20._safeNum = function(x,d=0){ const n = Number(x); return isFinite(n)?n:d; };
@@ -440,41 +344,168 @@ V20.singularityZero = function(raw, risk, frag, meta, flow, swing){
   s = pH+pD+pA; if(!isFinite(s)||s<=0){pH=pD=pA=1/3;s=1;} pH/=s;pD/=s;pA/=s;
   return { pH: V20.clamp(pH,0.0001,0.9999), pD: V20.clamp(pD,0.0001,0.9999), pA: V20.clamp(pA,0.0001,0.9999) };
 };
+/* ============================================================
+      AUTO INPUT ENGINE — ADVANCED VERSION (FULL PACK)
+   ============================================================ */
 
-/* ---------- AUTO / MatchType / TeamDNA integration ---------- */
-V20.Auto = {};
-V20.Auto.autoTempo = function(teamDNA){ return V20.clamp(V20._safeNum(teamDNA?.tempo,5),1,10); };
-V20.Auto.autoChaos = function(teamDNA, matchType){ let c = V20._safeNum(teamDNA?.chaos,5); if(matchType==='derby') c+=1; return V20.clamp(c,1,10); };
-V20.Auto.autoImportance = function(matchType){ const map={normal:5,derby:6,relegation:8,title:9,cup:7,ucl:8,ucl_knockout:9}; return map[matchType]||5; };
-V20.Auto.autoTPM = function(name){ const dna=V20.TeamDNA.get(name)||{}; if(!dna) return {}; return { stability:dna.stability||5,momentum:dna.momentum||5,press:dna.press||5,flex:dna.flex||0.5 }; };
-V20.Auto.applyAll = function(homeName, awayName, matchType){
-  const hDNA=V20.TeamDNA.get(homeName)||{}, aDNA=V20.TeamDNA.get(awayName)||{};
-  const tempo = Math.round((V20.Auto.autoTempo(hDNA)+V20.Auto.autoTempo(aDNA))/2);
-  const chaos = Math.round((V20.Auto.autoChaos(hDNA,matchType)+V20.Auto.autoChaos(aDNA,matchType))/2);
-  const importance = V20.Auto.autoImportance(matchType);
-  const home = V20.Auto.autoTPM(homeName), away = V20.Auto.autoTPM(awayName);
-  return { ctx:{tempo,chaos,importance}, home, away };
+V20.Auto = V20.Auto || {};
+
+V20.Auto.estimateFinishing = function(teamName, override=0){
+    const prof = V20.TPM.fetchProfile(teamName) || {};
+    let base = 5;
+
+    // If team DNA has xG or finishing hint
+    if (prof.xg || prof.finishingBias) {
+        base += (prof.finishingBias || 0) * 1.2;
+    }
+
+    // Style effect
+    if (prof.style === 'possession') base += 0.4;
+    if (prof.style === 'direct') base -= 0.3;
+
+    // Manual override
+    base += override;
+
+    return V20.clamp(base, 1, 10);
 };
+
+
+V20.Auto.estimateInjury = function(teamName, matchImportance){
+    const prof = V20.TPM.fetchProfile(teamName) || {};
+    let inj = -0.2; 
+
+    // High intensity leagues have more small injuries
+    if (prof.league === 'epl') inj -= 0.3;
+
+    inj -= (matchImportance - 5) * 0.05;
+
+    return V20.clamp(inj, -3, 3);
+};
+
+
+V20.Auto.estimateAggression = function(teamName, press){
+    const prof = V20.TPM.fetchProfile(teamName) || {};
+    let base = 5;
+
+    if (press >= 7) base += 1;
+    if (press <= 3) base -= 1;
+
+    if (prof.style === 'gegenpress') base += 1.5;
+    if (prof.style === 'possession') base -= 0.5;
+
+    return V20.clamp(base, 1, 10);
+};
+
+
+V20.Auto.estimateDefLine = function(press, aggression, matchType){
+    let dl = 5;
+
+    dl += (press - 5) * 0.4;
+    dl += (aggression - 5) * 0.3;
+
+    if (matchType === 'cup' || matchType === 'ucl_knockout')
+        dl -= 0.8;
+
+    return V20.clamp(dl, 1, 10);
+};
+
+
+/* --------------------------------------------
+      PPDA AUTO (from pressing + def line)
+   -------------------------------------------- */
+
+V20.Auto.estimatePPDA = function(press, defline, momentum){
+    // low ppda = high pressure
+    let pp = 14;
+
+    pp -= (press - 5) * 1.2;
+    pp -= (defline - 5) * 0.6;
+    pp -= (momentum - 5) * 0.15;
+
+    return V20.clamp(pp, 3.2, 18);
+};
+
+
+/* --------------------------------------------
+       WEATHER AUTO
+   -------------------------------------------- */
+V20.Auto.estimateWeather = function(matchType){
+    let wind = (Math.random()*2).toFixed(1);
+    let vis = 10;
+    let err = 0.1;
+
+    if (matchType === 'derby') err = 0.2;
+    if (matchType === 'cup') err = 0.25;
+
+    return {
+        wind: wind,
+        visibility: vis,
+        error: err
+    };
+};
+
+
+/* --------------------------------------------
+      AUTO INPUT MAIN FUNCTION (connects all)
+   -------------------------------------------- */
+
 window.autoFill = function(){
-  try{
-    const home = document.getElementById('home_team')?.value || '', away = document.getElementById('away_team')?.value || '';
-    const mt = document.getElementById('match_type')?.value || 'normal';
-    const res = V20.Auto.applyAll(home, away, mt);
-    document.getElementById('tempo').value = res.ctx.tempo;
-    document.getElementById('chaos').value = res.ctx.chaos;
-    document.getElementById('importance').value = res.ctx.importance;
-    try{
-      document.getElementById('home_st').value = res.home.stability || 5;
-      document.getElementById('home_mom').value = res.home.momentum || 5;
-      document.getElementById('home_press').value = res.home.press || 5;
-      document.getElementById('home_flex').value = res.home.flex || 0.5;
-      document.getElementById('away_st').value = res.away.stability || 5;
-      document.getElementById('away_mom').value = res.away.momentum || 5;
-      document.getElementById('away_press').value = res.away.press || 5;
-      document.getElementById('away_flex').value = res.away.flex || 0.5;
-    }catch(e){}
-  }catch(e){console.warn('autoFill fail',e);}
+
+    const home = document.getElementById('home_team').value;
+    const away = document.getElementById('away_team').value;
+    const mt = document.getElementById('match_type').value;
+
+    // Read pressing first
+    const pH = Number(document.getElementById('home_press').value || 5);
+    const pA = Number(document.getElementById('away_press').value || 5);
+
+    /* FINISHING */
+    document.getElementById('finishing_quality_home').value =
+        V20.Auto.estimateFinishing(home, Number(document.getElementById('finishing_override_home').value||0));
+
+    document.getElementById('finishing_quality_away').value =
+        V20.Auto.estimateFinishing(away, Number(document.getElementById('finishing_override_away').value||0));
+
+    /* INJURY */
+    document.getElementById('injury_home').value =
+        V20.Auto.estimateInjury(home, Number(document.getElementById('importance').value||5));
+
+    document.getElementById('injury_away').value =
+        V20.Auto.estimateInjury(away, Number(document.getElementById('importance').value||5));
+
+    /* MANAGER AGGRESSION */
+    const aggH = V20.Auto.estimateAggression(home, pH);
+    const aggA = V20.Auto.estimateAggression(away, pA);
+
+    document.getElementById('manager_agg_home').value = aggH;
+    document.getElementById('manager_agg_away').value = aggA;
+
+    /* DEFENSIVE LINE */
+    document.getElementById('defline_home').value = 
+        V20.Auto.estimateDefLine(pH, aggH, mt);
+
+    document.getElementById('defline_away').value = 
+        V20.Auto.estimateDefLine(pA, aggA, mt);
+
+    /* PPDA AUTO */
+    document.getElementById('ppda_home').value =
+        V20.Auto.estimatePPDA(pH, Number(document.getElementById('defline_home').value), 
+                                      Number(document.getElementById('home_mom').value||5));
+
+    document.getElementById('ppda_away').value =
+        V20.Auto.estimatePPDA(pA, Number(document.getElementById('defline_away').value), 
+                                      Number(document.getElementById('away_mom').value||5));
+
+    /* WEATHER */
+    const w = V20.Auto.estimateWeather(mt);
+
+    document.getElementById('weather_wind').value = w.wind;
+    document.getElementById('weather_visibility').value = w.visibility;
+    document.getElementById('weather_error').value = w.error;
+
+    alert("AUTO INPUT (ADVANCED) COMPLETE ✔");
 };
+
 /* ---------- Ultra: Pressing Match Interaction (NEW MODULE) ---------- */
 V20.Ultra.computePressingMatch = function(homeProfile, awayProfile, tact){
   try{
