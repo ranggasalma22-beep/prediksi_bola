@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Analisis PSZ MAX — Final Rebuild</title>
+<style>
+  body{font-family:Inter,system-ui,Segoe UI,Arial;margin:18px;background:#0b1220;color:#e6eef8}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .card{background:#071021;padding:12px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.6);min-width:260px}
+  label{display:block;font-size:12px;color:#9fb3d4;margin-bottom:6px}
+  input[type=number],input[type=text],select,textarea{width:100%;padding:6px;border-radius:6px;border:1px solid #17314a;background:#041423;color:#dff;}
+  button{padding:8px 12px;background:#06b6d4;border:none;border-radius:8px;color:#042;cursor:pointer}
+  .bars{width:260px;height:14px;background:#062230;border-radius:999px;overflow:hidden;margin:6px 0}
+  .bar{height:100%;background:linear-gradient(90deg,#06b6d4,#8b5cf6);width:0%}
+  #prob_wheel{width:220px;height:220px}
+  textarea#output{width:100%;height:260px;background:#01121c;color:#bfe9ff;padding:8px;border-radius:8px;border:1px solid #153045}
+</style>
+</head>
+<body>
+<h2>Analisis PSZ MAX — Final Rebuild</h2>
+
+<div class="row">
+  <div class="card" style="flex:1 1 420px">
+    <label>Home Team</label><input id="home_team" type="text" value="Home FC" />
+    <label>Away Team</label><input id="away_team" type="text" value="Away United" />
+    <label>League (key, e.g. epl, laliga, ucl)</label><input id="league" type="text" value="epl" />
+    <label>Match Type</label>
+    <select id="match_type">
+      <option value="normal">Normal</option>
+      <option value="derby">Derby</option>
+      <option value="relegation">Relegation</option>
+      <option value="title">Title</option>
+      <option value="cup">Cup</option>
+      <option value="ucl">UCL</option>
+      <option value="ucl_knockout">UCL KO</option>
+    </select>
+
+    <label>λ Home</label><input id="lamH" type="number" step="0.01" value="1.20" />
+    <label>λ Away</label><input id="lamA" type="number" step="0.01" value="1.00" />
+
+    <label>Tempo</label><input id="tempo" type="number" value="5" step="1" />
+    <label>Chaos</label><input id="chaos" type="number" value="5" step="1" />
+    <label>Importance</label><input id="importance" type="number" value="5" step="1" />
+
+    <label>Home Stability</label><input id="home_st" type="number" value="5" step="1" />
+    <label>Away Stability</label><input id="away_st" type="number" value="5" step="1" />
+    <label>Home Momentum</label><input id="home_mom" type="number" value="5" step="1" />
+    <label>Away Momentum</label><input id="away_mom" type="number" value="5" step="1" />
+
+    <label>Home Press</label><input id="home_press" type="number" value="5" step="1" />
+    <label>Away Press</label><input id="away_press" type="number" value="5" step="1" />
+    <label>Home Flex</label><input id="home_flex" type="number" value="0.5" step="0.1" />
+    <label>Away Flex</label><input id="away_flex" type="number" value="0.5" step="0.1" />
+
+    <label>Sim Count (optional)</label><input id="simCount" type="number" value="2000" />
+    <label>Score Cap</label><input id="scoreCap" type="number" value="6" />
+
+    <label>JSON Config (optional)</label>
+    <textarea id="json_config" placeholder='{"xg_home":1.8,"xg_away":1.1,...}'></textarea>
+
+    <div style="margin-top:8px;display:flex;gap:8px">
+      <button id="btn_auto">AUTO INPUT (FULL)</button>
+      <button id="btn_apply_mt">APPLY MATCH TYPE</button>
+      <button id="btn_run">RUN INTEGRATED</button>
+    </div>
+  </div>
+
+  <div class="card" style="width:300px">
+    <label>Probability Wheel</label>
+    <div id="prob_wheel"></div>
+
+    <label>Bars</label>
+    <div class="bars"><div id="bar_home" class="bar" style="background:linear-gradient(90deg,#06b6d4,#06b6d4)"></div></div>
+    <div class="bars"><div id="bar_draw" class="bar" style="background:linear-gradient(90deg,#4ade80,#4ade80)"></div></div>
+    <div class="bars"><div id="bar_away" class="bar" style="background:linear-gradient(90deg,#8b5cf6,#8b5cf6)"></div></div>
+
+    <label style="margin-top:12px">Output</label>
+    <textarea id="output"></textarea>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   PSZ MAX — FINAL REBUILD (single clean engine)
+   Modules inline, ordered, single runner
+   ============================================================ */
+
+/* ---------- BOOTSTRAP UTIL & SAFETY ---------- */
+window.V20 = window.V20 || {};
+(function(){
+  if(!V20._safeNum) V20._safeNum = function(x,d=0){ const n = Number(x); return isFinite(n)?n:d; };
+  if(!V20.num) V20.num = function(x,d=0){ return V20._safeNum(x,d); };
+  if(!V20.clamp) V20.clamp = function(v,min,max){ if(v<min) return min; if(v>max) return max; return v; };
+  if(!V20.poissonPMF){
+    V20.poissonPMF = function(lambda,k){
+      if(lambda<=0) return k===0?1:0;
+      k = Math.max(0,Math.floor(k));
+      return Math.exp(-lambda) * Math.pow(lambda,k) / (function(f){ let r=1; for(let i=1;i<=f;i++) r*=i; return r;})(k);
+    };
+  }
+  V20._DEFAULTS = V20._DEFAULTS || { SIM_COUNT:2000, SCORE_CAP:6, MAX_SIM:8000 };
+  V20.safeRead = function(id, fallback){ try{ const el=document.getElementById(id); if(!el) return fallback; return V20._safeNum(el.value, fallback);}catch(e){return fallback;} };
+  // ensure fuseOutputs exists and stores last fused
+  if(!V20.fuseOutputs){
+    V20.fuseOutputs = function(det, detChaos, mc, zero){
+      det = det || {pH:0.33,pD:0.34,pA:0.33};
+      detChaos = detChaos || det;
+      mc = mc || {pH:det.pH,pD:det.pD,pA:det.pA};
+      zero = zero || det;
+      const base = { pH:(det.pH + detChaos.pH + mc.pH)/3, pD:(det.pD + detChaos.pD + mc.pD)/3, pA:(det.pA + detChaos.pA + mc.pA)/3 };
+      const fH = base.pH*0.55 + zero.pH*0.45;
+      const fD = base.pD*0.55 + zero.pD*0.45;
+      const fA = base.pA*0.55 + zero.pA*0.45;
+      const s = fH+fD+fA || 1;
+      const fused = { final:{ pH:fH/s, pD:fD/s, pA:fA/s }, base };
+      try{ window._V20_LAST_FUSED_RESULT = fused; }catch(e){}
+      return fused;
+    };
+  }
+})();
+
+/* ---------- TEAM DNA (small sample, can extend) ---------- */
+V20.TeamDNA = {
+  db: {
+    "home fc": { tempo:6, chaos:5, press:6, momentum:6, stability:6, flex:0.6, finishingBias:1.05 },
+    "away united": { tempo:5, chaos:5, press:5, momentum:5, stability:5, flex:0.5, finishingBias:0.98 }
+  },
+  get: function(name){ if(!name) return null; const k = String(name).toLowerCase().trim(); return V20.TeamDNA.db[k] || null; }
+};
+
+/* ---------- MATCH TYPE ---------- */
+V20.MatchType = {
+  templates:{
+    normal:{ tempo:5, chaos:5, importance:5 },
+    derby:{ tempo:6, chaos:6.5, importance:6 },
+    relegation:{ tempo:4, chaos:6, importance:8 },
+    title:{ tempo:6, chaos:5, importance:9 },
+    cup:{ tempo:5, chaos:6, importance:7 },
+    ucl:{ tempo:6, chaos:6, importance:8 },
+    ucl_knockout:{ tempo:7, chaos:7, importance:9 }
+  }
+};
+
+/* ---------- WEATHER (minimal) ---------- */
+V20.Weather = {
+  presets:{
+    normal:{ error:0, finishing:0 },
+    rain:{ error:0.6, finishing:-0.6 },
+    heavy_rain:{ error:1.2, finishing:-1.0 },
+    snow:{ error:1.4, finishing:-1.1 },
+    wind:{ error:0.5, finishing:-0.4 }
+  },
+  applyToContext: function(ctx, key){
+    if(!ctx) ctx={};
+    const p = V20.Weather.presets[key] || V20.Weather.presets.normal;
+    ctx.weatherError = p.error; ctx.weatherFinishing = p.finishing;
+    return ctx;
+  }
+};
+
+/* ---------- RII (Referee impact minimal) ---------- */
+V20.RII = {
+  applyToCtx: function(ctx, refProfile){
+    if(!ctx) ctx={}; refProfile = refProfile || {};
+    const refPenalty = V20._safeNum(refProfile.penaltyFreq, 0);
+    ctx.refPenalty = V20.clamp(refPenalty,0,1);
+    return ctx;
+  }
+};
+
+/* ---------- Deterministic simulation (Poisson baseline) ---------- */
+V20.detSim = function(lambda){
+  lambda = lambda || { lamH:1.2, lamA:1.0 };
+  const lamH = V20._safeNum(lambda.lamH,1.2), lamA = V20._safeNum(lambda.lamA,1.0);
+  // approximate draw probability via Poisson independent (simplified)
+  // compute distribution up to 6
+  const cap=6;
+  let pH=0,pA=0,pD=0;
+  for(let h=0;h<=cap;h++){
+    for(let a=0;a<=cap;a++){
+      const p = V20.poissonPMF(lamH,h)*V20.poissonPMF(lamA,a);
+      if(h>a) pH+=p; else if(h<a) pA+=p; else pD+=p;
+    }
+  }
+  const s = pH+pD+pA; if(!isFinite(s)||s<=0) return {pH:0.33,pD:0.34,pA:0.33};
+  return { pH:pH/s, pD:pD/s, pA:pA/s };
+};
+
+/* ---------- Monte Carlo (bounded, safe) ---------- */
+V20.monteCarlo = function(lambda, ctx, simCount, scoreCap, home, away, tact){
+  simCount = Number(simCount); if(!isFinite(simCount) || simCount<=0) simCount = V20._DEFAULTS.SIM_COUNT;
+  if(simCount > V20._DEFAULTS.MAX_SIM) simCount = V20._DEFAULTS.MAX_SIM;
+  scoreCap = Number(scoreCap); if(!isFinite(scoreCap) || scoreCap<=0) scoreCap = V20._DEFAULTS.SCORE_CAP;
+  lambda = lambda || {lamH:1.2, lamA:1.0};
+  const lamH = V20._safeNum(lambda.lamH,1.2), lamA = V20._safeNum(lambda.lamA,1.0);
+  const mat = Array(scoreCap+1).fill(0).map(()=>Array(scoreCap+1).fill(0));
+  let cH=0,cD=0,cA=0, goalsSumH=0, goalsSumA=0;
+  for(let i=0;i<simCount;i++){
+    // sample via Poisson
+    const sample = function(lam){
+      const L = Math.exp(-lam);
+      let k=0, p=1;
+      while(p> L){
+        k++; p *= Math.random();
+        if(k>scoreCap) break;
+      }
+      return Math.max(0,k-1);
+    };
+    const h = sample(lamH), a = sample(lamA);
+    if(h>a) cH++; else if(h<a) cA++; else cD++;
+    if(h<=scoreCap && a<=scoreCap) mat[h][a] += 1;
+    goalsSumH += h; goalsSumA += a;
+  }
+  // normalize matrix to probabilities
+  for(let h=0; h<=scoreCap; h++) for(let a=0;a<=scoreCap;a++) mat[h][a] = mat[h][a]/simCount;
+  return { pH:cH/simCount, pD:cD/simCount, pA:cA/simCount, matrix:mat, simCount:simCount, avgGoals:(goalsSumH+goalsSumA)/simCount };
+};
+
+/* ---------- chaosModel (stable) ---------- */
+V20.chaosModel = function(baseLambda, ctx){
+  baseLambda = baseLambda || {}; ctx = ctx || {};
+  const lamH = V20._safeNum(baseLambda.lamH,1.2), lamA = V20._safeNum(baseLambda.lamA,1.0);
+  const chaos = V20._safeNum(ctx.chaos,5);
+  const chaosF = (chaos-5)/5;
+  const factor = 1 + V20.clamp(chaosF*0.18 + ((ctx.tempo||5)-5)/60, -0.3, 0.45);
+  return { lamH: V20.clamp(lamH*factor,0.12,7.5), lamA: V20.clamp(lamA*factor,0.12,7.5) };
+};
+
+/* ---------- Risk / Fragility / Flow / SDI / Meta ---------- */
+V20.computeRisk = function(ctx, tact){
+  ctx = ctx||{}; tact=tact||{};
+  const chaos=V20._safeNum(ctx.chaos,5), ph=V20._safeNum(tact.home?.pressIntensity,5), pa=V20._safeNum(tact.away?.pressIntensity,5);
+  const chaosPart = V20.clamp((chaos-4)/6,0,1);
+  const pressPart = V20.clamp(Math.abs(ph-pa)/10,0,1);
+  return V20.clamp(0.5*chaosPart + 0.35*pressPart,0,1);
+};
+V20.computeFragility = function(ctx, home, away){
+  home=home||{}; away=away||{}; ctx=ctx||{};
+  const stH=V20._safeNum(home.stability,5), stA=V20._safeNum(away.stability,5);
+  const avgSt=(stH+stA)/2, chaos=V20._safeNum(ctx.chaos,5);
+  return V20.clamp(((6-avgSt)/6)*0.7 + ((chaos-5)/10)*0.3,0,1);
+};
+V20.computeFlow = function(ctx, home, away, tact, pattern){
+  ctx=ctx||{}; home=home||{}; away=away||{};
+  const momH=V20._safeNum(home.momentum,5), momA=V20._safeNum(away.momentum,5);
+  const pressH=V20._safeNum(tact?.home?.pressIntensity,5), pressA=V20._safeNum(tact?.away?.pressIntensity,5);
+  let flow = 0.5 + ((momH-momA)/40) + ((pressH-pressA)/200);
+  flow += V20._safeNum(pattern?.control,0)*0.02;
+  return V20.clamp(flow,0,1);
+};
+V20.computeMomentumSwing = function(home, away){
+  return V20.clamp(Math.abs(V20._safeNum(home.momentum,5)-V20._safeNum(away.momentum,5))/10,0,1);
+};
+V20.computeSDI = function(godHL){
+  godHL = godHL || {}; const lamH=V20._safeNum(godHL.lamH,1), lamA=V20._safeNum(godHL.lamA,1);
+  return V20.clamp(Math.abs(lamH-lamA)/Math.max(1, (lamH+lamA)/2), 0, 2);
+};
+V20.computeMeta = function(det, chaosDet, sdi){
+  if(!det||!chaosDet) return 0.5;
+  const detGap = (det.pH||0)-(det.pA||0), chaosGap=(chaosDet.pH||0)-(chaosDet.pA||0);
+  const gapDiff = Math.abs(detGap-chaosGap);
+  sdi = V20._safeNum(sdi,0);
+  let meta = 1 - (gapDiff*0.45 + Math.abs(sdi)*0.20);
+  return V20.clamp(meta,0,1);
+};
+
+/* ---------- singularityZero (final corrector) ---------- */
+V20.singularityZero = function(raw, risk, frag, meta, flow, swing){
+  raw = raw || {}; let pH=V20._safeNum(raw.pH,1/3), pD=V20._safeNum(raw.pD,1/3), pA=V20._safeNum(raw.pA,1/3);
+  let s = pH+pD+pA; if(!isFinite(s)||s<=0){pH=pD=pA=1/3;s=1;} pH/=s;pD/=s;pA/=s;
+  risk = V20._safeNum(risk,0.5); frag = V20._safeNum(frag,0.5); meta = V20._safeNum(meta,0.5); flow = V20._safeNum(flow,0.5); swing = V20._safeNum(swing,0);
+  const flowTilt = V20.clamp((flow-0.5)*0.18 + (swing*0.06), -0.25,0.25);
+  const fragPull = V20.clamp((frag-0.5)*0.36, -0.25,0.4);
+  const metaDrawBoost = V20.clamp((0.5-meta)*0.65, -0.2,0.7);
+  const riskSpread = V20.clamp((risk-0.5)*0.28, -0.15,0.3);
+  const gap = pH - pA;
+  pH = pH + gap*flowTilt; pA = pA - gap*flowTilt;
+  pH = pH * (1-fragPull); pA = pA * (1-fragPull); pD = pD + (fragPull*0.9);
+  pD = pD + metaDrawBoost * (1 - pD);
+  pH = pH * (1-riskSpread) + (1/3)*riskSpread;
+  pD = pD * (1-riskSpread) + (1/3)*riskSpread;
+  pA = pA * (1-riskSpread) + (1/3)*riskSpread;
+  s = pH+pD+pA; if(!isFinite(s)||s<=0){pH=pD=pA=1/3;s=1;} pH/=s;pD/=s;pA/=s;
+  return { pH: V20.clamp(pH,0.0001,0.9999), pD: V20.clamp(pD,0.0001,0.9999), pA: V20.clamp(pA,0.0001,0.9999) };
+};
+
+/* ---------- AUTO / MatchType / TeamDNA integration ---------- */
+V20.Auto = {};
+V20.Auto.autoTempo = function(teamDNA){ return V20.clamp(V20._safeNum(teamDNA?.tempo,5),1,10); };
+V20.Auto.autoChaos = function(teamDNA, matchType){ let c = V20._safeNum(teamDNA?.chaos,5); if(matchType==='derby') c+=1; return V20.clamp(c,1,10); };
+V20.Auto.autoImportance = function(matchType){ const map={normal:5,derby:6,relegation:8,title:9,cup:7,ucl:8,ucl_knockout:9}; return map[matchType]||5; };
+V20.Auto.autoTPM = function(name){ const dna=V20.TeamDNA.get(name)||{}; if(!dna) return {}; return { stability:dna.stability||5,momentum:dna.momentum||5,press:dna.press||5,flex:dna.flex||0.5 }; };
+V20.Auto.applyAll = function(homeName, awayName, matchType){
+  const hDNA=V20.TeamDNA.get(homeName)||{}, aDNA=V20.TeamDNA.get(awayName)||{};
+  const tempo = Math.round((V20.Auto.autoTempo(hDNA)+V20.Auto.autoTempo(aDNA))/2);
+  const chaos = Math.round((V20.Auto.autoChaos(hDNA,matchType)+V20.Auto.autoChaos(aDNA,matchType))/2);
+  const importance = V20.Auto.autoImportance(matchType);
+  const home = V20.Auto.autoTPM(homeName), away = V20.Auto.autoTPM(awayName);
+  return { ctx:{tempo,chaos,importance}, home, away };
+};
+window.autoFill = function(){
+  try{
+    const home = document.getElementById('home_team')?.value || '', away = document.getElementById('away_team')?.value || '';
+    const mt = document.getElementById('match_type')?.value || 'normal';
+    const res = V20.Auto.applyAll(home, away, mt);
+    document.getElementById('tempo').value = res.ctx.tempo;
+    document.getElementById('chaos').value = res.ctx.chaos;
+    document.getElementById('importance').value = res.ctx.importance;
+    try{
+      document.getElementById('home_st').value = res.home.stability || 5;
+      document.getElementById('home_mom').value = res.home.momentum || 5;
+      document.getElementById('home_press').value = res.home.press || 5;
+      document.getElementById('home_flex').value = res.home.flex || 0.5;
+      document.getElementById('away_st').value = res.away.stability || 5;
+      document.getElementById('away_mom').value = res.away.momentum || 5;
+      document.getElementById('away_press').value = res.away.press || 5;
+      document.getElementById('away_flex').value = res.away.flex || 0.5;
+    }catch(e){}
+  }catch(e){console.warn('autoFill fail',e);}
+};
+
+/* ---------- ULTRA: league presets, TCI, PPDA estimator ---------- */
+V20.Ultra = {};
+V20.Ultra.leaguePresets = {
+  default:{tempo:5,chaos:5,importance:5}, epl:{tempo:6.2,chaos:5.4,importance:6}, laliga:{tempo:5.6,chaos:4.6,importance:5.5},
+  bundesliga:{tempo:6.5,chaos:5.6,importance:5.8}, seriea:{tempo:5,chaos:4.2,importance:5.2}, ucl:{tempo:6.3,chaos:5.8,importance:8},
+  asia:{tempo:5.4,chaos:6.0,importance:4.8}, lower:{tempo:4.2,chaos:6.4,importance:3.8}
+};
+V20.Ultra.getLeaguePreset = function(k){ if(!k) return V20.Ultra.leaguePresets.default; k=String(k).toLowerCase(); return V20.Ultra.leaguePresets[k] || V20.Ultra.leaguePresets.default; };
+
+V20.Ultra.detectTierFromName = function(name){
+  if(!name) return "normal"; const s = String(name).toLowerCase();
+  if(/\b(u|u21|u23|u19|u18)\b/.test(s)) return "youth";
+  if(/\b(ii|b team|b-team|reserves|reserva|reserves)\b/.test(s)) return "bteam";
+  return "normal";
+};
+
+V20.Ultra.estimatePPDA = function(pressIntensity, teamStyle){
+  const p = V20._safeNum(pressIntensity,5);
+  let base = 14 - (p-1)*1.05;
+  if(teamStyle==='possession') base += 1.2;
+  else if(teamStyle==='direct') base -= 0.8;
+  else if(teamStyle==='counter') base += 0.6;
+  return V20.clamp(base,3.5,18);
+};
+
+V20.Ultra.computeTCI = function(opts){
+  opts = opts || {}; const home = opts.home||{}, away=opts.away||{}, tact=opts.tact||{}, ctxIn=opts.ctx||{};
+  const leaguePreset = V20.Ultra.getLeaguePreset(opts.leagueKey);
+  let tempo = V20._safeNum(ctxIn.tempo, leaguePreset.tempo), chaos = V20._safeNum(ctxIn.chaos, leaguePreset.chaos), importance = V20._safeNum(ctxIn.importance, leaguePreset.importance);
+  const pressH = V20._safeNum(tact.home?.pressIntensity || home.press,5), pressA = V20._safeNum(tact.away?.pressIntensity || away.press,5);
+  const flexAvg = (V20._safeNum(home.flex,0.5) + V20._safeNum(away.flex,0.5))/2;
+  const momDiff = (V20._safeNum(home.momentum,5) - V20._safeNum(away.momentum,5))/10;
+  tempo += (flexAvg - 0.5)*1.2 + momDiff*0.8; chaos += (pressH-pressA)/10*0.9 + Math.abs(momDiff)*0.5 + ((6 - ((V20._safeNum(home.stability,5)+V20._safeNum(away.stability,5))/2))/6)*1.1;
+  if(ctxIn.weatherError) chaos += V20._safeNum(ctxIn.weatherError,0)*1.6;
+  if(ctxIn.weatherFinishing) tempo += V20._safeNum(ctxIn.weatherFinishing,0)*-0.6;
+  if(opts.matchTypeKey && V20.MatchType.templates[opts.matchTypeKey]){
+    const mt = V20.MatchType.templates[opts.matchTypeKey];
+    tempo = (tempo*0.5) + (V20._safeNum(mt.tempo,tempo)*0.5);
+    chaos = (chaos*0.6) + (V20._safeNum(mt.chaos,chaos)*0.4);
+    importance = Math.max(importance, V20._safeNum(mt.importance,importance));
+  }
+  const tier = opts.tierHint || "normal";
+  if(tier==="youth"){ tempo-=0.7; chaos+=0.9; importance-=0.5; } else if(tier==="bteam"){ tempo-=0.9; chaos+=1.1; importance-=0.8; } else if(tier==="lowtier"){ tempo-=1.0; chaos+=1.6; importance-=1.0; }
+  tempo = V20.clamp(tempo,1,10); chaos = V20.clamp(chaos,1,10); importance = V20.clamp(importance,1,10);
+  return { tempo, chaos, importance, note:{pressDiff: +( ((pressH-pressA)/10).toFixed(3) ), flexAvg:+(flexAvg.toFixed(3)), momDiff:+(momDiff.toFixed(3))} };
+};
+
+/* ---------- Extra Inputs (finishing, injury, manager, defline, weather details) ---------- */
+V20.Inputs = {};
+V20.Inputs.defaults = { finishingQuality:5, injuryImpact:0, managerAggression:5, defensiveLine:5, weatherWind:0, weatherVisibility:1 };
+V20.Inputs.getMatchAddons = function(){
+  try{
+    // read UI if exists else use JSON fallback then defaults
+    const txt = document.getElementById('json_config')?.value || '';
+    let parsed = {};
+    try{ if(txt && txt.trim()) parsed = JSON.parse(txt) || {}; }catch(e){ parsed = {}; }
+    const fqH = document.getElementById('finishing_quality_home')?.value || parsed.form_home || V20.Inputs.defaults.finishingQuality;
+    const fqA = document.getElementById('finishing_quality_away')?.value || parsed.form_away || V20.Inputs.defaults.finishingQuality;
+    const injH = document.getElementById('injury_home')?.value || parsed.injury_home || V20.Inputs.defaults.injuryImpact;
+    const injA = document.getElementById('injury_away')?.value || parsed.injury_away || V20.Inputs.defaults.injuryImpact;
+    const mgH = document.getElementById('manager_agg_home')?.value || parsed.manager_agg_home || V20.Inputs.defaults.managerAggression;
+    const mgA = document.getElementById('manager_agg_away')?.value || parsed.manager_agg_away || V20.Inputs.defaults.managerAggression;
+    const dlH = document.getElementById('defline_home')?.value || parsed.defline_home || V20.Inputs.defaults.defensiveLine;
+    const dlA = document.getElementById('defline_away')?.value || parsed.defline_away || V20.Inputs.defaults.defensiveLine;
+    const wind = document.getElementById('weather_wind')?.value || parsed.weather_wind || V20.Inputs.defaults.weatherWind;
+    const vis = document.getElementById('weather_visibility')?.value || parsed.weather_visibility || V20.Inputs.defaults.weatherVisibility;
+    // normalize
+    return {
+      finishingQualityHome: V20.clamp(V20._safeNum(fqH,5),1,10),
+      finishingQualityAway: V20.clamp(V20._safeNum(fqA,5),1,10),
+      injuryHome: V20.clamp(Number(injH) || 0,0,1),
+      injuryAway: V20.clamp(Number(injA) || 0,0,1),
+      managerAggHome: V20.clamp(V20._safeNum(mgH,5),1,10),
+      managerAggAway: V20.clamp(V20._safeNum(mgA,5),1,10),
+      defLineHome: V20.clamp(V20._safeNum(dlH,5),1,10),
+      defLineAway: V20.clamp(V20._safeNum(dlA,5),1,10),
+      weatherWind: V20.clamp(V20._safeNum(wind,0),0,1),
+      weatherVisibility: V20.clamp(V20._safeNum(vis,1),0,1)
+    };
+  }catch(e){
+    return Object.assign({}, V20.Inputs.defaults);
+  }
+};
+V20.Inputs.applyToProfiles = function(homeProfile, awayProfile, addons){
+  try{
+    homeProfile = Object.assign({}, homeProfile||{});
+    awayProfile = Object.assign({}, awayProfile||{});
+    addons = addons || V20.Inputs.getMatchAddons();
+    homeProfile.finishingBias = V20.clamp(1 + ((addons.finishingQualityHome-5)/5)*0.08,0.8,1.2);
+    awayProfile.finishingBias = V20.clamp(1 + ((addons.finishingQualityAway-5)/5)*0.08,0.8,1.2);
+    homeProfile.stability = V20.clamp((V20._safeNum(homeProfile.stability,5)*(1 - addons.injuryHome*0.45)),1,10);
+    awayProfile.stability = V20.clamp((V20._safeNum(awayProfile.stability,5)*(1 - addons.injuryAway*0.45)),1,10);
+    homeProfile.momentum = V20.clamp((V20._safeNum(homeProfile.momentum,5)*(1 - addons.injuryHome*0.35)),1,10);
+    awayProfile.momentum = V20.clamp((V20._safeNum(awayProfile.momentum,5)*(1 - addons.injuryAway*0.35)),1,10);
+    homeProfile.press = V20.clamp((V20._safeNum(homeProfile.press,5) + (addons.managerAggHome-5)*0.28),1,10);
+    awayProfile.press = V20.clamp((V20._safeNum(awayProfile.press,5) + (addons.managerAggAway-5)*0.28),1,10);
+    homeProfile.defLine = addons.defLineHome; awayProfile.defLine = addons.defLineAway;
+    homeProfile.weather = { wind:addons.weatherWind, visibility:addons.weatherVisibility }; awayProfile.weather = { wind:addons.weatherWind, visibility:addons.weatherVisibility };
+    homeProfile._addons = Object.assign({}, addons); awayProfile._addons = Object.assign({}, addons);
+    return { home: homeProfile, away: awayProfile };
+  }catch(e){ return { home: homeProfile||{}, away: awayProfile||{} }; }
+};
+/* ---------- Accuracy (xG/form/H2H) ---------- */
+V20.Accuracy = {};
+V20.Accuracy.formIndex = function(r){ const f = V20._safeNum(r,5); const delta=(f-5)/5; return V20.clamp(1 + delta*0.08,0.85,1.15); };
+V20.Accuracy.xgAdjustment = function(xg, leagueXG){ leagueXG = V20._safeNum(leagueXG,1.35); const t=V20._safeNum(xg,leagueXG); const ratio=t/Math.max(0.05,leagueXG); return V20.clamp(Math.sqrt(ratio),0.75,1.35); };
+V20.Accuracy.shotQualityMultiplier = function(q){ const v=V20._safeNum(q,0.12); const delta=(v-0.12)/0.12; return V20.clamp(1 + delta*0.25,0.8,1.25); };
+V20.Accuracy.h2hAdjustment = function(adv){ const a=V20._safeNum(adv,0); return V20.clamp(1 + V20.clamp(a,-0.25,0.25)*0.9,0.8,1.2); };
+V20.Accuracy.buildLambdaModifiers = function(opts){
+  opts = opts||{}; const leagueXG = V20._safeNum(opts.leagueXG,1.35);
+  const mXGH = opts.xg_home?V20.Accuracy.xgAdjustment(opts.xg_home,leagueXG):1;
+  const mXGA = opts.xg_away?V20.Accuracy.xgAdjustment(opts.xg_away,leagueXG):1;
+  const mFormH = opts.form_home?V20.Accuracy.formIndex(opts.form_home):1;
+  const mFormA = opts.form_away?V20.Accuracy.formIndex(opts.form_away):1;
+  const mSQH = opts.shots_quality_home?V20.Accuracy.shotQualityMultiplier(opts.shots_quality_home):1;
+  const mSQA = opts.shots_quality_away?V20.Accuracy.shotQualityMultiplier(opts.shots_quality_away):1;
+  const mH2H = V20.Accuracy.h2hAdjustment(opts.h2h_home_adv||0);
+  const mH2H_A = 1/Math.max(0.6,mH2H);
+  const lamMulH = V20.clamp(((mXGH*0.6 + mFormH*0.3 + mSQH*0.2)/(0.6+0.3+0.2))*mH2H,0.7,1.45);
+  const lamMulA = V20.clamp(((mXGA*0.6 + mFormA*0.3 + mSQA*0.2)/(0.6+0.3+0.2))*mH2H_A,0.7,1.45);
+  return { lamMulH, lamMulA, parts:{mXGH,mXGA,mFormH,mFormA,mSQH,mSQA,mH2H} };
+};
+V20.Accuracy.applyBayesBlend = function(hyper, opts){
+  if(!V20.Bayes) return hyper;
+  try{
+    opts = opts||{};
+    const blend = V20._safeNum(opts.bayesBlend,0.25);
+    const post = V20.Bayes.calibratePair ? V20.Bayes.calibratePair(opts.priorH||{alpha:1.5,beta:1}, opts.observedGoalsH||0, opts.exposureH||90, opts.priorA||{alpha:1.5,beta:1}, opts.observedGoalsA||0, opts.exposureA||90) : {h:{mean:hyper.lamH}, a:{mean:hyper.lamA}};
+    const outH = V20.clamp(hyper.lamH*(1-blend) + (post.h.mean||hyper.lamH)*blend,0.02,8.5);
+    const outA = V20.clamp(hyper.lamA*(1-blend) + (post.a.mean||hyper.lamA)*blend,0.02,8.5);
+    return { lamH: outH, lamA: outA };
+  }catch(e){ return hyper; }
+};
+
+/* ---------- GSAL placeholder (small adapt) ---------- */
+V20.GSAL = { adaptLambda:function(hyper, ctx, state, home, away, tact){ return { lamH: V20._safeNum(hyper.lamH,1.2), lamA: V20._safeNum(hyper.lamA,1.0) }; } };
+
+/* ---------- Hybrid (adjusted lambda + probabilities) ---------- */
+V20.Hybrid = {};
+V20.Hybrid.computeAdjustedLambda = function(baseLambda, homeProfile, awayProfile, ctx, tact, options){
+  options = options||{};
+  try{
+    baseLambda = baseLambda||{lamH:1.2,lamA:1.0};
+    let lamH = V20._safeNum(baseLambda.lamH,1.2), lamA = V20._safeNum(baseLambda.lamA,1.0);
+    // accuracy
+    if(V20.Accuracy){
+      const parsed = {};
+      try{ const txt=document.getElementById('json_config')?.value||''; if(txt.trim()) Object.assign(parsed,JSON.parse(txt)); }catch(e){}
+      const mods = V20.Accuracy.buildLambdaModifiers(parsed);
+      lamH *= mods.lamMulH; lamA *= mods.lamMulA;
+    }
+    // finishing
+    lamH *= V20._safeNum(homeProfile.finishingBias,1); lamA *= V20._safeNum(awayProfile.finishingBias,1);
+    // PPDA
+    let pp= null;
+    try{ pp = V20.Ultra.computePressingMatch ? V20.Ultra.computePressingMatch(homeProfile, awayProfile, tact||{}) : null; }catch(e){}
+    const ppMulH = pp ? V20.clamp(1 + ((12 - pp.homePPDA)/30),0.85,1.18) : 1;
+    const ppMulA = pp ? V20.clamp(1 + ((12 - pp.awayPPDA)/30),0.85,1.18) : 1;
+    lamH *= ppMulH; lamA *= ppMulA;
+    // tempo and press adjustments
+    const tempoF = (V20._safeNum(ctx.tempo,5)-5)/5;
+    const pressFactor = pp ? pp.pressMatchFactor : 0;
+    lamH *= (1 + tempoF*0.06 + pressFactor*0.06); lamA *= (1 + tempoF*0.06 + pressFactor*0.06);
+    // defLine & injury
+    lamH *= (1 - V20._safeNum(homeProfile._addons?.injuryHome,0)*0.28); lamA *= (1 - V20._safeNum(awayProfile._addons?.injuryAway,0)*0.28);
+    lamH = V20.clamp(lamH,0.05,8.5); lamA = V20.clamp(lamA,0.05,8.5);
+    // GSAL adapt
+    if(V20.GSAL && V20.GSAL.adaptLambda){ const g=V20.GSAL.adaptLambda({lamH,lamA},ctx,{},homeProfile,awayProfile,tact); lamH=g.lamH; lamA=g.lamA; }
+    return { lamH, lamA, parts:{ppMulH,ppMulA} };
+  }catch(e){ return { lamH: V20._safeNum(baseLambda.lamH,1.2), lamA: V20._safeNum(baseLambda.lamA,1.0), parts:{} }; }
+};
+V20.Hybrid.computeUltraProbabilities = function(adjustedLambda, ctx, homeProfile, awayProfile, options){
+  options = options||{};
+  const det = V20.detSim ? V20.detSim(adjustedLambda) : {pH:0.33,pD:0.34,pA:0.33};
+  let mc = null;
+  if(options.mcUse !== false && V20.monteCarlo) mc = V20.monteCarlo(adjustedLambda, ctx, options.mcSimCount||1200, options.scoreCap||6, homeProfile, awayProfile, {home:{pressIntensity:homeProfile.press},away:{pressIntensity:awayProfile.press}});
+  const wMC = mc ? V20._safeNum(options.mcWeight,0.45) : 0;
+  const wDet = 1 - wMC;
+  const pH = V20.clamp((det.pH*wDet) + (mc?mc.pH*wMC:0),0.0001,0.9999);
+  const pD = V20.clamp((det.pD*wDet) + (mc?mc.pD*wMC:0),0.0001,0.9999);
+  const pA = V20.clamp((det.pA*wDet) + (mc?mc.pA*wMC:0),0.0001,0.9999);
+  const s = pH+pD+pA; return { probabilities:{pH:pH/s,pD:pD/s,pA:pA/s}, mc, det };
+};
+
+V20.Hybrid.computeMatchHybrid = function(baseLambda, homeName, awayName, ctx, tact, options){
+  try{
+    const hDNA = V20.TeamDNA.get(homeName)||{}; const aDNA = V20.TeamDNA.get(awayName)||{};
+    const addons = V20.Inputs.getMatchAddons ? V20.Inputs.getMatchAddons() : {};
+    const applied = V20.Inputs.applyToProfiles ? V20.Inputs.applyToProfiles(hDNA,aDNA,addons) : {home:hDNA,away:aDNA};
+    const homeProfile = applied.home, awayProfile = applied.away;
+    // compute TCI and merge
+    const tci = V20.Ultra.computeTCI({home:homeProfile,away:awayProfile,tact,ctx,leagueKey:document.getElementById('league')?.value, tierHint: V20.Ultra.detectTierFromName(homeName)||'normal', matchTypeKey:document.getElementById('match_type')?.value});
+    ctx = Object.assign({}, ctx, { tempo: tci.tempo, chaos: tci.chaos, importance: tci.importance });
+    const adjusted = V20.Hybrid.computeAdjustedLambda(baseLambda, homeProfile, awayProfile, ctx, tact, options);
+    const probs = V20.Hybrid.computeUltraProbabilities(adjusted, ctx, homeProfile, awayProfile, options);
+    // predicted score (from mc if available else poisson)
+    let predicted = {home: adjusted.lamH, away: adjusted.lamA, method:'poisson'};
+    if(probs.mc){
+      // matrix mean
+      const mat = probs.mc.matrix || []; let mh=0, ma=0;
+      for(let h=0; h<mat.length; h++){ for(let a=0; a<mat[h].length; a++){ const p=mat[h][a]||0; mh+=h*p; ma+=a*p; } }
+      if(isFinite(mh)&&isFinite(ma)){ predicted={home: Number(mh.toFixed(3)), away: Number(ma.toFixed(3)), method:'mc_matrix'}; }
+    }
+    // confidence heuristic
+    const sdi = V20.computeSDI(adjusted);
+    const meta = V20.computeMeta ? V20.computeMeta(probs.det, probs.det, sdi) : 0.6;
+    const agree = probs.mc ? 1 - Math.abs((probs.det.pH-probs.mc.pH)+(probs.det.pA-probs.mc.pA)) : 1;
+    const conf = V20.clamp(0.25*meta + 0.45*V20.clamp(agree,0,1) + 0.30*(1 - V20.clamp(Math.abs(sdi)/2,0,1)), 0.05,0.98);
+    return { adjustedLambda: adjusted, probabilities: probs.probabilities, predictedScore: predicted, confidence: Number(conf.toFixed(3)), components:{det:probs.det,mc:probs.mc} };
+  }catch(e){ return { probabilities:{pH:0.33,pD:0.34,pA:0.33}, predictedScore:{home:baseLambda.lamH,away:baseLambda.lamA}}; }
+};
+
+/* ---------- Infinity (score model) ---------- */
+V20.Infinity = {};
+V20.Infinity.adjustForContext = function(adjustedLambda, ctx, pressInfo, homeProfile, awayProfile){
+  try{
+    const lamH = V20._safeNum(adjustedLambda.lamH,1.2), lamA = V20._safeNum(adjustedLambda.lamA,1.0);
+    const tempoF = (V20._safeNum(ctx.tempo,5)-5)/5;
+    const tempoScale = 1 + tempoF*0.08;
+    const ppdaHome = V20._safeNum(pressInfo?.homePPDA,null), ppdaAway = V20._safeNum(pressInfo?.awayPPDA,null);
+    const ppdaEffectH = ppdaHome?V20.clamp(1+((12-ppdaHome)/40),0.88,1.15):1;
+    const ppdaEffectA = ppdaAway?V20.clamp(1+((12-ppdaAway)/40),0.88,1.15):1;
+    const finishH = V20._safeNum(homeProfile.finishingBias,1), finishA = V20._safeNum(awayProfile.finishingBias,1);
+    return { lamH: V20.clamp(lamH*tempoScale*ppdaEffectH*finishH,0.02,9.5), lamA: V20.clamp(lamA*tempoScale*ppdaEffectA*finishA,0.02,9.5), chaosVar: 1 + ((V20._safeNum(ctx.chaos,5)-5)/5)*0.45 };
+  }catch(e){ return { lamH:adjustedLambda.lamH, lamA:adjustedLambda.lamA, chaosVar:1 }; }
+};
+V20.Infinity.ouFromLambda = function(lh,la){
+  try{
+    const lamEff = V20.clamp(lh+la,0.2,12); const lines=[0.5,1.5,2.5,3.5]; const out={};
+    lines.forEach(line=>{ let under=0; const cut=Math.floor(line); for(let k=0;k<=cut;k++) under+=V20.poissonPMF(lamEff,k); out[line]={under:under, over:1-under}; });
+    return out;
+  }catch(e){ return null; }
+};
+V20.Infinity.estimateBTTS = function(lh,la,homeProfile,awayProfile,pressInfo){
+  try{
+    const base = 1 - V20.poissonPMF(lh,0) - V20.poissonPMF(la,0) + V20.poissonPMF(lh,0)*V20.poissonPMF(la,0);
+    const finAdj = (V20._safeNum(homeProfile.finishingBias,1)+V20._safeNum(awayProfile.finishingBias,1))/2;
+    const ppdaAdj = pressInfo && pressInfo.homePPDA && pressInfo.awayPPDA ? (((12-pressInfo.homePPDA)+(12-pressInfo.awayPPDA))/24) : 0;
+    return V20.clamp(base*(0.85 + (finAdj-1)*0.12 + ppdaAdj*0.12),0,1);
+  }catch(e){ return 0.5; }
+};
+V20.Infinity.computeScoreModel = function(adjustedLambda, ctx, homeProfile, awayProfile, pressInfo, options){
+  try{
+    const adj = V20.Infinity.adjustForContext(adjustedLambda, ctx, pressInfo, homeProfile, awayProfile);
+    const lamH=V20._safeNum(adj.lamH,adjustedLambda.lamH), lamA=V20._safeNum(adj.lamA,adjustedLambda.lamA);
+    const ou = V20.Infinity.ouFromLambda(lamH,lamA);
+    const btts = V20.Infinity.estimateBTTS(lamH,lamA,homeProfile,awayProfile,pressInfo);
+    const meanH = lamH, meanA = lamA;
+    let mc = null;
+    if(options?.mcUse && V20.monteCarlo) mc = V20.monteCarlo({lamH,lamA}, ctx, options.mcSimCount||1000, options.scoreCap||6, homeProfile, awayProfile, {home:{pressIntensity:homeProfile.press},away:{pressIntensity:awayProfile.press}});
+    const dominance = (mc && mc.matrix) ? (function(){ let mh=0, ma=0; for(let h=0;h<mc.matrix.length;h++) for(let a=0;a<mc.matrix[h].length;a++){ const p=mc.matrix[h][a]||0; mh+=h*p; ma+=a*p; } return V20.clamp(0.5 + ((mh/(mh+ma||1))-0.5)*1.5, 0,1); })() : V20.clamp(lamH/(lamH+lamA||1),0,1);
+    return { lamH, lamA, meanGoals:{home: Number(meanH.toFixed(3)), away: Number(meanA.toFixed(3)) }, ou, btts: Number((btts).toFixed(3)), dominance: Number((dominance).toFixed(3)), mc };
+  }catch(e){ return { lamH:adjustedLambda.lamH, lamA:adjustedLambda.lamA, meanGoals:{home:adjustedLambda.lamH, away:adjustedLambda.lamA}, ou:null, btts:0.5, dominance:0.5, mc:null }; }
+};
+/* ---------- Composite (fuse signals) ---------- */
+V20.Composite = {};
+V20.Composite.fuseSignals = function(pszFused, hybrid, infinityModel){
+  pszFused = pszFused || { final:{pH:0.33,pD:0.34,pA:0.33} }; hybrid = hybrid || { probabilities:{pH:0.33,pD:0.34,pA:0.33}, confidence:0.5 }; infinityModel = infinityModel || { meanGoals:{home:1.2,away:1.0}, btts:0.5, ou:V20.Infinity.ouFromLambda(1.2,1.0) };
+  const wPSZ=0.45, wHY=0.35, wIN=0.20;
+  const pH = V20.clamp((pszFused.final.pH*wPSZ) + (hybrid.probabilities.pH*wHY) + ((infinityModel.meanGoals.home/(infinityModel.meanGoals.home+infinityModel.meanGoals.away||1))*wIN),0.0001,0.9999);
+  const pA = V20.clamp((pszFused.final.pA*wPSZ) + (hybrid.probabilities.pA*wHY) + ((infinityModel.meanGoals.away/(infinityModel.meanGoals.home+infinityModel.meanGoals.away||1))*wIN),0.0001,0.9999);
+  const pD = V20.clamp((pszFused.final.pD*wPSZ) + (hybrid.probabilities.pD*wHY) + ((1 - ((infinityModel.meanGoals.home+infinityModel.meanGoals.away)/((infinityModel.meanGoals.home+infinityModel.meanGoals.away)+2)))*wIN),0.0001,0.9999);
+  const s = pH+pD+pA; const npH = pH/s, npD=pD/s, npA=pA/s;
+  const confPSZ = 1 - (V20.computeUncertainty ? V20.computeUncertainty(pszFused.final.pH, pszFused.final.pD, pszFused.final.pA).score/100 : 0.4);
+  const confHY = V20._safeNum(hybrid.confidence,0.55); const confIN = 1 - Math.abs(infinityModel.dominance - 0.5)*2;
+  const combinedConf = V20.clamp(wPSZ*confPSZ + wHY*confHY + wIN*confIN,0.05,0.98);
+  // pick
+  let outcome='draw'; if(npH>npA && npH>npD) outcome='home'; else if(npA>npH && npA>npD) outcome='away';
+  const scoreH = Number((hybrid.predictedScore.home || infinityModel.meanGoals.home || 1.0).toFixed(2));
+  const scoreA = Number((hybrid.predictedScore.away || infinityModel.meanGoals.away || 1.0).toFixed(2));
+  const ouPick = (infinityModel.ou) ? (function(){ let best=null; Object.keys(infinityModel.ou).forEach(k=>{ const o=infinityModel.ou[k]; const pick = o.over>o.under?{line:k,pick:'over',conf:o.over}:{line:k,pick:'under',conf:o.under}; if(!best||pick.conf>best.conf) best=pick; }); return best; })() : {line:2.5,pick:'under',conf:0.5};
+  const bttsPick = (infinityModel.btts > 0.55) ? 'yes':'no';
+  return { probabilities:{pH:npH,pD:npD,pA:npA}, outcome, confidence:Number((combinedConf).toFixed(3)), scoreLine:{home:scoreH,away:scoreA}, ouPick, bttsPick, reason:{psz:pszFused.final, hybrid:hybrid.probabilities, infinity:infinityModel.meanGoals} };
+};
+
+/* ---------- Uncertainty & BTTS helpers ---------- */
+V20.computeUncertainty = function(pH,pD,pA){ const ent = -((pH*Math.log(pH||1)) + (pD*Math.log(pD||1)) + (pA*Math.log(pA||1))); const max = Math.log(3); const score = (ent/max)*100; return {ent,score}; };
+V20.computeBTTS = function(godHL){ // fallback simple
+  const lamH = V20._safeNum(godHL.lamH,1.2), lamA = V20._safeNum(godHL.lamA,1.0);
+  return 1 - (V20.poissonPMF(lamH,0) + V20.poissonPMF(lamA,0) - V20.poissonPMF(lamH,0)*V20.poissonPMF(lamA,0));
+};
+
+/* ---------- Final single runPrimeZero (clean, integrated) ---------- */
+V20.runPrimeZero = function(){
+  const outEl = document.getElementById('output'); if(!outEl) return;
+  try{
+    // read UI
+    const homeName = (document.getElementById('home_team')?.value || '').trim();
+    const awayName = (document.getElementById('away_team')?.value || '').trim();
+    const lamH = V20._safeNum(document.getElementById('lamH')?.value,1.2);
+    const lamA = V20._safeNum(document.getElementById('lamA')?.value,1.0);
+    let tempo = V20._safeNum(document.getElementById('tempo')?.value,5);
+    let chaos = V20._safeNum(document.getElementById('chaos')?.value,5);
+    let importance = V20._safeNum(document.getElementById('importance')?.value,5);
+    const home_st = V20._safeNum(document.getElementById('home_st')?.value,5), away_st = V20._safeNum(document.getElementById('away_st')?.value,5);
+    const home_mom = V20._safeNum(document.getElementById('home_mom')?.value,5), away_mom = V20._safeNum(document.getElementById('away_mom')?.value,5);
+    const home_press = V20._safeNum(document.getElementById('home_press')?.value,5), away_press = V20._safeNum(document.getElementById('away_press')?.value,5);
+    const home_flex = V20._safeNum(document.getElementById('home_flex')?.value,0.5), away_flex = V20._safeNum(document.getElementById('away_flex')?.value,0.5);
+    let simCount = V20._safeNum(document.getElementById('simCount')?.value, V20._DEFAULTS.SIM_COUNT); if(simCount>V20._DEFAULTS.MAX_SIM) simCount=V20._DEFAULTS.MAX_SIM;
+    let scoreCap = V20._safeNum(document.getElementById('scoreCap')?.value, V20._DEFAULTS.SCORE_CAP);
+    const leagueKey = (document.getElementById('league')?.value || '').trim();
+    const matchTypeKey = (document.getElementById('match_type')?.value || 'normal');
+    // base objects
+    const baseLambda = { lamH, lamA };
+    let ctx = { tempo, chaos, importance, isDerby: (matchTypeKey==='derby') };
+    const home = { stability:home_st, momentum:home_mom, press:home_press, flex:home_flex };
+    const away = { stability:away_st, momentum:away_mom, press:away_press, flex:away_flex };
+    const tact = { home:{ pressIntensity: home_press }, away:{ pressIntensity: away_press } };
+    // apply match type/league/weather/referee
+    const mt = V20.MatchType.templates[matchTypeKey] || V20.MatchType.templates.normal;
+    ctx.tempo = (ctx.tempo*0.5) + (mt.tempo*0.5); ctx.chaos = (ctx.chaos*0.6) + (mt.chaos*0.4); ctx.importance = Math.max(ctx.importance, mt.importance);
+    ctx = V20.Weather.applyToContext(ctx, 'normal'); // default normal; user can add weather in json_config
+// apply TeamDNA overrides
+    const hDNA = V20.TeamDNA.get(homeName) || {}; const aDNA = V20.TeamDNA.get(awayName) || {};
+    if(hDNA.stability) home.stability = hDNA.stability; if(hDNA.momentum) home.momentum = hDNA.momentum; if(hDNA.press) home.press = hDNA.press;
+    if(aDNA.stability) away.stability = aDNA.stability; if(aDNA.momentum) away.momentum = aDNA.momentum; if(aDNA.press) away.press = aDNA.press;
+    // apply JSON config overrides (safe)
+    try{ const txt=document.getElementById('json_config')?.value || ''; if(txt.trim()){ const cfg=JSON.parse(txt); if(cfg.tempo) ctx.tempo=V20._safeNum(cfg.tempo,ctx.tempo); if(cfg.chaos) ctx.chaos=V20._safeNum(cfg.chaos,ctx.chaos); if(cfg.lamH) baseLambda.lamH=V20._safeNum(cfg.lamH,baseLambda.lamH); if(cfg.lamA) baseLambda.lamA=V20._safeNum(cfg.lamA,baseLambda.lamA); if(cfg.weather) ctx = V20.Weather.applyToContext(ctx, cfg.weather); } }catch(e){}
+    // deterministic baseline and chaos
+    const det = V20.detSim(baseLambda);
+    const chaosL = V20.chaosModel(baseLambda, ctx);
+    const detChaos = V20.detSim(chaosL);
+    // run MC for core fusion
+    const mc = V20.monteCarlo(baseLambda, ctx, simCount, scoreCap, home, away, tact);
+    // meta values
+    const risk01 = V20.computeRisk(ctx, tact); const frag01 = V20.computeFragility(ctx, home, away); const sdi = V20.computeSDI({lamH:baseLambda.lamH, lamA:baseLambda.lamA});
+    const meta01 = V20.computeMeta(det, detChaos, sdi);
+    const flowVal = V20.computeFlow(ctx, home, away, tact, {}); const swingVal = V20.computeMomentumSwing(home, away);
+    const zeroProb = V20.singularityZero({pH:det.pH,pD:det.pD,pA:det.pA}, risk01, frag01, meta01, flowVal, swingVal);
+    const fused = V20.fuseOutputs(det, detChaos, mc, zeroProb);
+    const unc = V20.computeUncertainty(fused.final.pH, fused.final.pD, fused.final.pA);
+    const btts = V20.computeBTTS({lamH:baseLambda.lamH, lamA:baseLambda.lamA});
+    // Hybrid + Infinity + Composite
+    const addons = V20.Inputs.getMatchAddons(); const applied = V20.Inputs.applyToProfiles(hDNA||{}, aDNA||{}, addons);
+    const hybrid = V20.Hybrid.computeMatchHybrid(baseLambda, homeName, awayName, ctx, tact, { mcUse:true, mcSimCount: Math.min(simCount,2000) });
+    const pressInfo = V20.Ultra.computePressingMatch ? V20.Ultra.computePressingMatch(applied.home, applied.away, tact) : null;
+    const infinity = V20.Infinity.computeScoreModel(hybrid.adjustedLambda || baseLambda, ctx, applied.home, applied.away, pressInfo, { mcUse:true, mcSimCount: Math.min(simCount,1200) });
+    const composite = V20.Composite.fuseSignals({ final: fused.final }, hybrid, infinity);
+
+    // output build
+    let txt = "=== PRIME SINGULARITY ZERO — FINAL REPORT ===\n\n";
+    txt += `[MATCH] ${homeName||'Home'} vs ${awayName||'Away'} | League:${leagueKey||'none'} | Type:${matchTypeKey}\n\n`;
+    txt += `[INPUT] λ base: ${baseLambda.lamH.toFixed(3)} | ${baseLambda.lamA.toFixed(3)} | tempo/chaos/imp: ${ctx.tempo.toFixed(1)}/${ctx.chaos.toFixed(1)}/${ctx.importance.toFixed(1)}\n\n`;
+    txt += "[PROBABILITIES] (Core fused)\n";
+    txt += `Home Win : ${(fused.final.pH*100).toFixed(1)}%\nDraw     : ${(fused.final.pD*100).toFixed(1)}%\nAway Win : ${(fused.final.pA*100).toFixed(1)}%\n\n`;
+    txt += `[RISK/FRAG/META] Risk:${Math.round(risk01*100)} Frag:${Math.round(frag01*100)} Meta:${Math.round(meta01*100)}\n`;
+    txt += `Uncertainty: ${unc.score.toFixed(1)}% | BTTS: ${(btts*100).toFixed(1)}% | AvgGoals(MC): ${mc.avgGoals.toFixed(3)}\n\n`;
+    txt += "=== ULTRA HYBRID LAYER ===\n";
+    txt += `Hybrid Conf: ${(hybrid.confidence*100).toFixed(1)}% | Hybrid Prob: H ${(hybrid.probabilities.pH*100).toFixed(1)}% D ${(hybrid.probabilities.pD*100).toFixed(1)}% A ${(hybrid.probabilities.pA*100).toFixed(1)}%\n`;
+    txt += `Hybrid Predicted Score: ${hybrid.predictedScore.home} - ${hybrid.predictedScore.away}\n\n`;
+    txt += "=== INFINITY SCORE MODEL ===\n";
+    txt += `Mean Goals: H ${infinity.meanGoals.home} | A ${infinity.meanGoals.away}\n`;
+    if(infinity.ou){ Object.keys(infinity.ou).forEach(k=>{ txt += `OU ${k} -> Over ${(infinity.ou[k].over*100).toFixed(1)}% | Under ${(infinity.ou[k].under*100).toFixed(1)}%\n`; }); }
+    txt += `Infinity BTTS: ${(infinity.btts*100).toFixed(1)}% | Dominance: ${(infinity.dominance*100).toFixed(1)}%\n\n`;
+    txt += "=== COMPOSITE PICK ===\n";
+    txt += `Outcome: ${composite.outcome.toUpperCase()} | Confidence ${(composite.confidence*100).toFixed(1)}%\n`;
+    txt += `Scoreline: ${composite.scoreLine.home} - ${composite.scoreLine.away}\n`;
+    txt += `OU Pick: ${composite.ouPick.pick.toUpperCase()} ${composite.ouPick.line} (conf ${(composite.ouPick.conf*100).toFixed(1)}%)\n`;
+    txt += `BTTS Pick: ${composite.bttsPick.toUpperCase()}\n\n`;
+    txt += `[NOTES] MatchTemplate: ${window._V20_MATCH_TEMPLATE?.name || 'none'}\n`;
+
+    outEl.value = txt;
+
+    // update bars & wheel
+    try{
+      const pH = V20._safeNum(composite.probabilities.pH, fused.final.pH);
+      const pD = V20._safeNum(composite.probabilities.pD, fused.final.pD);
+      const pA = V20._safeNum(composite.probabilities.pA, fused.final.pA);
+      document.getElementById('bar_home').style.width = Math.round(pH*100) + '%';
+      document.getElementById('bar_draw').style.width = Math.round(pD*100) + '%';
+      document.getElementById('bar_away').style.width = Math.round(pA*100) + '%';
+      // wheel render
+      renderWheel({ pH, pD, pA });
+    }catch(e){}
+    // store ultra
+    window._V20_ULTRA = { fused, hybrid, infinity, composite, pressInfo };
+    console.debug('V20 ULTRA result', window._V20_ULTRA);
+  }catch(err){
+    console.error('runPrimeZero fatal', err); alert('Engine error: '+ (err && err.message || err));
+  }
+}; // end runPrimeZero
+/* ---------- Module 9: Probability Wheel Renderer (compact) ---------- */
+function renderWheel(probs){
+  const wheel = document.getElementById('prob_wheel'); if(!wheel) return;
+  let pH = V20._safeNum(probs.pH,1/3), pD = V20._safeNum(probs.pD,1/3), pA = V20._safeNum(probs.pA,1/3);
+  let s = pH+pD+pA; if(!isFinite(s)||s<=0) s=1; pH/=s; pD/=s; pA/=s;
+  const angH = pH*360, angD = angH + pD*360, r=90;
+  function arcPath(startAng,endAng,r){
+    const rad=Math.PI/180; const x1=r*Math.cos(startAng*rad), y1=r*Math.sin(startAng*rad), x2=r*Math.cos(endAng*rad), y2=r*Math.sin(endAng*rad);
+    const large = (endAng-startAng)>180?1:0; return `M0 0 L${x1} ${y1} A${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
+  }
+  const svg = `<svg width="220" height="220" viewBox="-110 -110 220 220"><circle cx="0" cy="0" r="${r}" fill="rgba(255,255,255,0.03)"></circle><path d="${arcPath(0,angH,r)}" fill="#06b6d4"></path><path d="${arcPath(angH,angD,r)}" fill="#4ade80"></path><path d="${arcPath(angD,360,r)}" fill="#8b5cf6"></path><circle cx="0" cy="0" r="6" fill="rgba(255,255,255,0.8)"></circle><text x="0" y="-105" fill="#06b6d4" font-size="12" text-anchor="middle">Home ${(pH*100).toFixed(1)}%</text><text x="0" y="117" fill="#8b5cf6" font-size="12" text-anchor="middle">Away ${(pA*100).toFixed(1)}%</text><text x="-105" y="4" fill="#4ade80" font-size="12" text-anchor="start">Draw ${(pD*100).toFixed(1)}%</text></svg>`;
+  wheel.innerHTML = svg;
+}
+
+/* ---------- UI bindings ---------- */
+document.addEventListener('DOMContentLoaded', function(){
+  document.getElementById('btn_auto')?.addEventListener('click', function(){ try{ V20.Auto.autoTCIEnhanced ? V20.Auto.autoTCIEnhanced({fillProfiles:true}) : autoFill(); }catch(e){ autoFill(); } });
+  document.getElementById('btn_apply_mt')?.addEventListener('click', function(){ const sel=document.getElementById('match_type')?.value||'normal'; const mt=V20.MatchType.templates[sel]; if(mt){ document.getElementById('tempo').value = mt.tempo; document.getElementById('chaos').value = mt.chaos; document.getElementById('importance').value = mt.importance; window._V20_MATCH_TEMPLATE = Object.assign({name:sel},mt); alert('Match Type applied: '+sel);} else alert('Match Type not found'); });
+  document.getElementById('btn_run')?.addEventListener('click', function(){ try{ V20.runPrimeZero(); }catch(e){ alert('Run error'); console.error(e); } });
+  // initial wheel & bars
+  renderWheel({pH:0.33,pD:0.34,pA:0.33});
+  document.getElementById('bar_home').style.width='33%'; document.getElementById('bar_draw').style.width='34%'; document.getElementById('bar_away').style.width='33%';
+});
+/* ============================================================
+   END OF FINAL FILE
+   ============================================================ */
+</script>
+</body>
+</html>
