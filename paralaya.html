@@ -65,7 +65,85 @@
       <button id="btn_run">RUN INTEGRATED</button>
     </div>
   </div>
+<!-- ======================================== -->
+<!--    ADVANCED MATCH INPUTS (FULL PACK)     -->
+<!-- ======================================== -->
 
+<h2>Advanced Match Inputs</h2>
+<div class="input-grid">
+
+  <!-- FINISHING QUALITY -->
+  <div>
+    <label>Finishing Quality (Home)</label>
+    <input id="finishing_quality_home" type="number" min="1" max="10" step="0.1" value="5">
+  </div>
+
+  <div>
+    <label>Finishing Quality (Away)</label>
+    <input id="finishing_quality_away" type="number" min="1" max="10" step="0.1" value="5">
+  </div>
+
+  <!-- INJURY / AVAILABILITY -->
+  <div>
+    <label>Injury Impact (Home)</label>
+    <input id="injury_home" type="number" min="-5" max="5" step="0.1" value="0">
+  </div>
+
+  <div>
+    <label>Injury Impact (Away)</label>
+    <input id="injury_away" type="number" min="-5" max="5" step="0.1" value="0">
+  </div>
+
+  <!-- MANAGER AGGRESSION -->
+  <div>
+    <label>Manager Aggression (Home)</label>
+    <input id="manager_agg_home" type="number" min="1" max="10" step="0.1" value="5">
+  </div>
+
+  <div>
+    <label>Manager Aggression (Away)</label>
+    <input id="manager_agg_away" type="number" min="1" max="10" step="0.1" value="5">
+  </div>
+
+  <!-- DEFENSIVE LINE -->
+  <div>
+    <label>Defensive Line (Home)</label>
+    <input id="defline_home" type="number" min="1" max="10" step="0.1" value="5">
+  </div>
+
+  <div>
+    <label>Defensive Line (Away)</label>
+    <input id="defline_away" type="number" min="1" max="10" step="0.1" value="5">
+  </div>
+
+  <!-- WEATHER -->
+  <div>
+    <label>Wind Strength</label>
+    <input id="weather_wind" type="number" min="0" max="10" step="0.1" value="0">
+  </div>
+
+  <div>
+    <label>Visibility</label>
+    <input id="weather_visibility" type="number" min="0" max="10" step="0.1" value="10">
+  </div>
+
+  <div>
+    <label>Weather Error Factor (optional)</label>
+    <input id="weather_error" type="number" min="0" max="5" step="0.1" value="0">
+  </div>
+
+  <!-- OPTIONAL FINISHING OVERRIDE -->
+  <div>
+    <label>Finishing Override (Home)</label>
+    <input id="finishing_override_home" type="number" min="-3" max="3" step="0.1" value="0">
+  </div>
+
+  <div>
+    <label>Finishing Override (Away)</label>
+    <input id="finishing_override_away" type="number" min="-3" max="3" step="0.1" value="0">
+  </div>
+
+  </div>
   <div class="card" style="width:300px">
     <label>Probability Wheel</label>
     <div id="prob_wheel"></div>
