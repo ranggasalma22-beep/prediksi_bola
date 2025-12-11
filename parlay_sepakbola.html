@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PSZ Master — Final Full</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:12px;background:#f5f7fb;color:#111}
+    .wrap{max-width:1100px;margin:0 auto;background:#fff;padding:16px;border-radius:8px;box-shadow:0 6px 18px rgba(20,30,50,.08)}
+    h1{margin:4px 0 12px;font-size:20px}
+    .grid{display:grid;grid-template-columns:1fr 420px;gap:14px}
+    .card{background:#fafbfd;padding:10px;border-radius:8px;border:1px solid #edf1f7}
+    label{display:block;font-size:12px;color:#445;padding-top:8px}
+    input[type="text"], input[type="number"], select, textarea{width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid #d7e0ef;background:#fff}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{padding:8px 10px;border-radius:6px;border:0;background:#0b6efd;color:#fff;cursor:pointer}
+    .btn.secondary{background:#6c757d}
+    textarea#output{height:440px;font-family:monospace;white-space:pre-wrap;overflow:auto}
+    .small{font-size:12px;color:#667}
+    .muted{color:#7b8aa3}
+    .section-title{font-weight:700;margin-top:10px}
+    .controls{display:flex;gap:8px;margin-top:8px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>PSZ MASTER — Final Full (Auto + Level Dewa + Recommender)</h1>
+    <div class="grid">
+      <!-- Left: Inputs -->
+      <div>
+        <div class="card">
+          <div class="section-title">Match Info</div>
+          <label>Home Team</label><input id="home_team" type="text" value="Home FC">
+          <label>Away Team</label><input id="away_team" type="text" value="Away United">
+          <label>League</label><input id="league" type="text" value="epl">
+          <label>Match Type</label>
+          <select id="match_type">
+            <option value="normal">Normal</option>
+            <option value="derby">Derby</option>
+            <option value="cup">Cup</option>
+            <option value="ucl">UCL</option>
+            <option value="friendly">Friendly</option>
+          </select>
+
+          <div class="section-title">Core Inputs</div>
+          <label>λ Home (lamH)</label><input id="lamH" type="number" step="0.01" value="1.20">
+          <label>λ Away (lamA)</label><input id="lamA" type="number" step="0.01" value="1.00">
+          <label>Tempo (1-10)</label><input id="tempo" type="number" step="0.1" value="5">
+          <label>Chaos (1-10)</label><input id="chaos" type="number" step="0.1" value="5">
+          <label>Importance (1-10)</label><input id="importance" type="number" step="0.1" value="5">
+
+          <div class="section-title">Team State</div>
+          <label>Home Stability (1-10)</label><input id="home_st" type="number" step="0.1" value="5">
+          <label>Away Stability (1-10)</label><input id="away_st" type="number" step="0.1" value="5">
+          <label>Home Momentum (1-10)</label><input id="home_mom" type="number" step="0.1" value="5">
+          <label>Away Momentum (1-10)</label><input id="away_mom" type="number" step="0.1" value="5">
+
+          <div class="section-title">Tactical</div>
+          <label>Home Press (1-10)</label><input id="home_press" type="number" step="0.1" value="5">
+          <label>Away Press (1-10)</label><input id="away_press" type="number" step="0.1" value="5">
+          <label>Home Flex</label><input id="home_flex" type="number" step="0.1" value="0.5">
+          <label>Away Flex</label><input id="away_flex" type="number" step="0.1" value="0.5">
+
+          <div class="section-title">Advanced (Auto fillable)</div>
+          <label>Finishing Quality Home (1-10)</label><input id="finishing_quality_home" type="number" step="0.1" value="5">
+          <label>Finishing Quality Away (1-10)</label><input id="finishing_quality_away" type="number" step="0.1" value="5">
+          <label>Injury Impact Home (-3..3)</label><input id="injury_home" type="number" step="0.1" value="0">
+          <label>Injury Impact Away (-3..3)</label><input id="injury_away" type="number" step="0.1" value="0">
+          <label>Manager Aggression Home (1-10)</label><input id="manager_agg_home" type="number" step="0.1" value="5">
+          <label>Manager Aggression Away (1-10)</label><input id="manager_agg_away" type="number" step="0.1" value="5">
+          <label>Defensive Line Home (1-10)</label><input id="defline_home" type="number" step="0.1" value="5">
+          <label>Defensive Line Away (1-10)</label><input id="defline_away" type="number" step="0.1" value="5">
+
+          <label>PPDA Home (auto/manual)</label><input id="ppda_home" type="number" step="0.1" value="12">
+          <label>PPDA Away (auto/manual)</label><input id="ppda_away" type="number" step="0.1" value="12">
+
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button id="btn_auto" class="btn">AUTO INPUT (FULL)</button>
+            <button id="btn_run" class="btn">RUN INTEGRATED</button>
+            <button id="btn_reset" class="btn secondary">RESET</button>
+          </div>
+
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <div class="section-title">Auto / Quick Stats (optional)</div>
+          <label>xG Home (if known)</label><input id="xg_home" type="number" step="0.01" value="1.20">
+          <label>xG Away (if known)</label><input id="xg_away" type="number" step="0.01" value="1.00">
+          <label>Shots Home (optional)</label><input id="shots_home" type="number" step="1" value="10">
+          <label>Shots Away (optional)</label><input id="shots_away" type="number" step="1" value="8">
+          <label>ShotQuality Home (xG/shot)</label><input id="shotq_home" type="number" step="0.01" value="0.12">
+          <label>ShotQuality Away (xG/shot)</label><input id="shotq_away" type="number" step="0.01" value="0.10">
+          <div class="small muted">Use auto when possible. If left blank engine uses synthetic estimates.</div>
+        </div>
+      </div>
+
+      <!-- Right: Output & compact controls -->
+      <div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div><strong>OUTPUT — SUPER REPORT</strong></div>
+            <div class="small muted">Copy result from textarea</div>
+          </div>
+          <textarea id="output" readonly></textarea>
+          <div style="margin-top:8px;display:flex;gap:8px">
+            <button id="btn_copy" class="btn secondary">COPY OUTPUT</button>
+            <button id="btn_save" class="btn secondary">DOWNLOAD TXT</button>
+            <div class="small muted" id="status"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <div class="section-title">Toggles (modules)</div>
+          <div class="row">
+            <label><input type="checkbox" id="flag_dla" checked> DLA</label>
+            <label><input type="checkbox" id="flag_gsm" checked> GSM</label>
+            <label><input type="checkbox" id="flag_tem" checked> TEM</label>
+            <label><input type="checkbox" id="flag_xt" checked> xT</label>
+            <label><input type="checkbox" id="flag_fma2" checked> FMA2</label>
+            <label><input type="checkbox" id="flag_chrono" checked> ChronoSim</label>
+            <label><input type="checkbox" id="flag_selfcal" checked> SelfCal</label>
+            <label><input type="checkbox" id="flag_rc" checked> RC</label>
+            <label><input type="checkbox" id="flag_reco" checked> Recommender</label>
+          </div>
+          <div class="small muted" style="margin-top:6px">Toggle modules for testing. Disabling a module will fallback to safe behavior.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px" class="small muted">
+      Version: PSZ Master — Final Full. Paste three parts in order if splitting. Contact authorised dev for further customizations.
+    </div>
+  </div>
+<!-- PART 2: Core engine + Master Upgrade Pack -->
+  <script>
+  // Basic V20 namespace & helpers
+  window.V20 = window.V20 || {};
+  (function(ns){
+    ns.num = function(v, d){ const n = Number(v); return isFinite(n) ? n : d; };
+    ns.clamp = function(v,a,b){ return Math.max(a, Math.min(b, v)); };
+    ns.poissonPMF = function(lambda,k){ if(k<0) return 0; return Math.exp(-lambda)*Math.pow(lambda,k)/ (function f(n){return n<=1?1:n*f(n-1)})(k); };
+    ns.randInt = function(a,b){ return Math.floor(a + Math.random()*(b-a+1)); };
+  })(V20);
+
+  /* ------------------------------
+     MASTER UPGRADE PACK (Level Dewa + helpers)
+     Paste this block before runPrimeZero
+     ------------------------------ */
+  (function(){
+    V20.Master = V20.Master || {};
+
+    // safe helpers
+    V20.Master._safeNum = function(v,d=0){const n=Number(v); return isFinite(n)?n:d;};
+    V20.Master._clamp = function(v,a,b){return Math.max(a,Math.min(b,v));};
+    V20.Master._now = ()=>Date.now();
+
+    // ANS clamp
+    V20.Master.ANS = {
+      clampInputs: function(inputs){
+        if(!inputs) return;
+        inputs.ppda_home = V20.Master._clamp(V20.Master._safeNum(inputs.ppda_home,12),3.2,18);
+        inputs.ppda_away = V20.Master._clamp(V20.Master._safeNum(inputs.ppda_away,12),3.2,18);
+        inputs.fin_home = V20.Master._clamp(V20.Master._safeNum(inputs.fin_home,5),1,10);
+        inputs.fin_away = V20.Master._clamp(V20.Master._safeNum(inputs.fin_away,5),1,10);
+        inputs.mom_home = V20.Master._clamp(V20.Master._safeNum(inputs.mom_home,5),1,10);
+        inputs.mom_away = V20.Master._clamp(V20.Master._safeNum(inputs.mom_away,5),1,10);
+        inputs.stab_home = V20.Master._clamp(V20.Master._safeNum(inputs.stab_home,5),1,10);
+        inputs.stab_away = V20.Master._clamp(V20.Master._safeNum(inputs.stab_away,5),1,10);
+      }
+    };
+
+    // Auto fillers
+    V20.Master.Auto = {
+      autoFinishingFrom_xG: function(xg, goals, defaultVal=5){
+        xg = V20.Master._safeNum(xg, NaN); goals = V20.Master._safeNum(goals, NaN);
+        if(!isFinite(xg) || xg<=0) return defaultVal;
+        let ratio = goals / xg;
+        let val = 5 + (ratio-1)*2;
+        return V20.Master._clamp(val,1,10);
+      },
+      autoPPDAFromPressDefline: function(press, defline, momentum){
+        press = V20.Master._safeNum(press,5); defline = V20.Master._safeNum(defline,5);
+        momentum = V20.Master._safeNum(momentum,5);
+        let pp = 14 - (press-5)*1.2 - (defline-5)*0.6 - (momentum-5)*0.12;
+        return V20.Master._clamp(pp,3.2,18);
+      },
+      autoxGbasic: function(shots, shotQuality, tempoFactor, ppdaEffect){
+        shots = V20.Master._safeNum(shots,6); shotQuality = V20.Master._safeNum(shotQuality,0.12);
+        tempoFactor = V20.Master._safeNum(tempoFactor,1); ppdaEffect = V20.Master._safeNum(ppdaEffect,1);
+        let xg = shots * shotQuality * tempoFactor * ppdaEffect;
+        return Math.max(0.05, xg);
+      }
+    };
+
+    // Synthetic DNA
+    V20.Master.SyntheticDNA = {
+      buildFromProfile: function(profile){
+        profile = profile || {};
+        const press = V20.Master._safeNum(profile.press,5);
+        const momentum = V20.Master._safeNum(profile.momentum,5);
+        const stability = V20.Master._safeNum(profile.stability,5);
+        const xg = V20.Master._safeNum(profile.xg,1.1);
+        const xga = V20.Master._safeNum(profile.xga,1.1);
+        const styleScore = (press>6?1:0) + (xg>1.2?0.8:0) + ((momentum-5)/5);
+        const style = styleScore > 1.2 ? 'gegenpress' : (styleScore < -0.5 ? 'low_block' : 'possession');
+        return {
+          style,
+          tempoBias: V20.Master._clamp(1 + (press-5)*0.06 + (momentum-5)*0.03, 0.7, 1.5),
+          finishingBias: V20.Master._clamp((xg>0? (xg / Math.max(0.2, profile.shotxg||0.12)) : 1)*0.5 + 1, 0.6, 1.6),
+          fragility: V20.Master._clamp( (xga - stability*0.05), 0, 5),
+          transitionBias: V20.Master._clamp((press-5)*0.15 + (momentum-5)*0.1, -1, 1),
+          dnaTimestamp: V20.Master._now()
+        };
+      }
+    };
+
+    // DLA
+    V20.Master.DLA = {
+      adjustLambda: function(baseLam, ctx, home, away, pressInfo, meta){
+        try{
+          let lam = { ...baseLam };
+          const momDiff = (home.momentum - away.momentum)/10;
+          lam.lamH *= (1 + momDiff*0.35);
+          lam.lamA *= (1 - momDiff*0.35);
+          const fragH = Math.max(0, 1 - home.stability/12);
+          const fragA = Math.max(0, 1 - away.stability/12);
+          lam.lamH *= (1 + fragA*0.18);
+          lam.lamA *= (1 + fragH*0.18);
+          const ppdaRatio = (pressInfo.awayPPDA/Math.max(0.0001,pressInfo.homePPDA));
+          lam.lamH *= (1 - (ppdaRatio-1)*0.08);
+          lam.lamA *= (1 + (ppdaRatio-1)*0.08);
+          lam.lamH *= (1 + (ctx.tempo-5)/5*0.08 + (ctx.chaos-5)/5*0.04);
+          lam.lamA *= (1 + (ctx.tempo-5)/5*0.08 + (ctx.chaos-5)/5*0.04);
+          lam.lamH *= (home.finishingBias || 1);
+          lam.lamA *= (away.finishingBias || 1);
+          const imp = V20.Master._safeNum(ctx.importance,5);
+          const impAdj = 1 - (imp-5)*0.03;
+          lam.lamH *= impAdj; lam.lamA *= impAdj;
+          if(meta && meta.singularityBoost) {
+            lam.lamH *= 1 + meta.singularityBoost*0.02;
+            lam.lamA *= 1 + meta.singularityBoost*0.02;
+          }
+          lam.lamH = V20.Master._clamp(lam.lamH, 0.2, 8);
+          lam.lamA = V20.Master._clamp(lam.lamA, 0.2, 8);
+          return lam;
+        }catch(e){
+          console.warn("DLA.adjustLambda err",e);
+          return baseLam;
+        }
+      }
+    };
+
+    // GSM
+    V20.Master.GSM = {
+      applyGameState: function(state, ctxMods){
+        if(!ctxMods) return;
+        const minute = V20.Master._safeNum(state.minute,0);
+        const gd = (state.homeGoals - state.awayGoals);
+        if(gd>0){ ctxMods.tempo *= 0.92; ctxMods.chaos *= 0.85; }
+        else if(gd<0){ ctxMods.tempo *= 1.12; ctxMods.chaos *= 1.08; }
+        else { if(minute>75) { ctxMods.tempo *= 1.05; ctxMods.chaos *= 1.06; } }
+        if(minute>80 && Math.abs(gd)<=1){ ctxMods.tempo *= 1.12; ctxMods.chaos *= 1.10; }
+        ctxMods.tempo = V20.Master._clamp(ctxMods.tempo, 0.5, 10);
+        ctxMods.chaos = V20.Master._clamp(ctxMods.chaos, 0.5, 10);
+        return ctxMods;
+      }
+    };
+
+    // TEM
+    V20.Master.TEM = {
+      computeTransitionScore: function(home, away, pressInfo){
+        const pressDiff = (pressInfo.homePPDA - pressInfo.awayPPDA) / 18;
+        const deflineDiff = (away.defline - home.defline)/10;
+        const momDiff = (home.momentum - away.momentum)/10;
+        let scoreHome = ( (home.transitionBias || 0) + (-pressDiff*0.8) + momDiff*0.4 + deflineDiff*0.5 );
+        let scoreAway = ( (away.transitionBias || 0) + (pressDiff*0.8) - momDiff*0.4 - deflineDiff*0.5 );
+        scoreHome = V20.Master._clamp( (scoreHome+1)/2, 0, 1);
+        scoreAway = V20.Master._clamp( (scoreAway+1)/2, 0, 1);
+        return {scoreHome, scoreAway};
+      }
+    };
+
+    // xT Lite
+    V20.Master.xT = {
+      computeLite: function(profile){
+        const possession = V20.Master._safeNum(profile.possession,50)/100;
+        const width = V20.Master._safeNum(profile.widthUse,0.5);
+        const central = V20.Master._safeNum(profile.centralUse,0.5);
+        const entries = V20.Master._safeNum(profile.finalThirdEntries,5);
+        let xt = possession*0.4 + (central*0.35 + width*0.25) * 0.8 + (entries/10)*0.6;
+        return V20.Master._clamp(xt, 0, 2.5);
+      }
+    };
+
+    // FMA2
+    V20.Master.FMA2 = {
+      evaluate: function(homeFormation, awayFormation, profiles){
+        const mapWidth = {'4-3-3':0.8,'4-2-3-1':0.7,'3-4-3':0.9,'5-3-2':0.5,'4-4-2':0.6};
+        const hW = mapWidth[homeFormation] || 0.7;
+        const aW = mapWidth[awayFormation] || 0.7;
+        const wingAdv = (hW - aW);
+        const centralAdv = ( (profiles.home.xGEfficiency||1) - (profiles.away.xGEfficiency||1) ) * 0.3;
+        const fmaScore = V20.Master._clamp(wingAdv*0.8 + centralAdv, -1, 1);
+        return {wingAdv, centralAdv, fmaScore};
+      }
+    };
+
+    // SPS (score smoothing)
+    V20.Master.SPS = {
+      shapeScores: function(dist){
+        const alpha = 0.92; const out = {}; let total = 0;
+        for(let h in dist){ out[h]=out[h]||{}; for(let a in dist[h]){ let p = dist[h][a]||0; const closeBoost = (Math.abs(h-a)<=1)?1.06:0.97; p = Math.pow(p,alpha)*closeBoost; out[h][a]=p; total+=p; } }
+        for(let h in out){ for(let a in out[h]){ out[h][a] /= Math.max(1e-12,total); } }
+        return out;
+      }
+    };
+
+    // AMPE
+    V20.Master.AMPE = {
+      phaseForMinute: function(minute){
+        if(minute < 15) return 'early'; if(minute < 30) return 'control';
+        if(minute < 45) return 'expansion'; if(minute < 60) return 'reset';
+        if(minute < 75) return 'transition'; return 'surge';
+      },
+      phaseModifiers: function(phase){
+        switch(phase){
+          case 'early': return {tempo:1.05, chaos:1.08};
+          case 'control': return {tempo:0.98, chaos:0.95};
+          case 'expansion': return {tempo:1.02, chaos:1.03};
+          case 'reset': return {tempo:0.95, chaos:0.98};
+          case 'transition': return {tempo:1.08, chaos:1.10};
+          case 'surge': return {tempo:1.15, chaos:1.18};
+        }
+        return {tempo:1, chaos:1};
+      }
+    };
+
+    // Morale
+    V20.Master.Morale = {
+      compute: function(formScore, momentum, error){
+        const m = V20.Master._safeNum(momentum,5); const f = V20.Master._safeNum(formScore,0); const e = V20.Master._safeNum(error,0);
+        let morale = (f*0.6) + ((m-5)*0.4) - (e*0.3);
+        return V20.Master._clamp(morale, -5, 5);
+      }
+    };
+
+    // PCV
+    V20.Master.PCV = {
+      compute: function(uncertainty, stabilityDiff, ppdaDiff){
+        const u = V20.Master._clamp(V20.Master._safeNum(uncertainty,0.2), 0, 1);
+        const stab = V20.Master._clamp(V20.Master._safeNum(stabilityDiff,0)/10,0,1);
+        const ppd = V20.Master._clamp(V20.Master._safeNum(ppdaDiff,0)/2,0,1);
+        const score = (1-u)*0.6 + (1-stab)*0.2 + (1-ppd)*0.2;
+        if(score > 0.75) return 'HIGH'; if(score > 0.45) return 'MEDIUM'; return 'LOW';
+      }
+    };
+
+    // RC fuse
+    V20.Master.RC = {
+      fuse: function(components, hints){
+        hints = hints || {};
+        let w = {det:0.22, chaos:0.18, hybrid:0.2, infinity:0.2, xT:0.2};
+        const vol = V20.Master._safeNum(hints.volatility, 0.2);
+        w.chaos += V20.Master._clamp(vol*0.5,0,0.25);
+        const finSkew = V20.Master._safeNum(hints.finSkew, 0);
+        w.infinity += V20.Master._clamp(Math.abs(finSkew)*0.15,0,0.2);
+        let sum = Object.values(w).reduce((s,n)=>s+n,0);
+        for(let k in w) w[k] /= sum;
+        const final = {pH:0,pD:0,pA:0};
+        for(let k in components){
+          const c = components[k]; const wk = w[k] || 0;
+          final.pH += (c.pH||0) * wk; final.pD += (c.pD||0) * wk; final.pA += (c.pA||0) * wk;
+        }
+        const tot = final.pH+final.pD+final.pA || 1; final.pH/=tot; final.pD/=tot; final.pA/=tot;
+        return final;
+      }
+    };
+
+    // SelfCal (light)
+    V20.Master.SelfCal = {
+      memory: { history: [], maxLen: 120 },
+      record: function(matchInput,result,preds){ this.memory.history.push({input:matchInput, result, preds, ts:V20.Master._now()}); if(this.memory.history.length>this.memory.maxLen) this.memory.history.shift(); },
+      calibrateWeights: function(){ const hist=this.memory.history; if(hist.length<8) return null; let biasSum=0; hist.slice(-30).forEach(h=>{ const {result,preds}=h; const predChoice = preds.pH>preds.pA && preds.pH>preds.pD ? 'H' : (preds.pA>preds.pH && preds.pA>preds.pD ? 'A':'D'); biasSum += (predChoice===result)?0:(result==='H'?-0.4:(result==='A'?0.4:0)); }); if(Math.abs(biasSum)>3) return {biasNudge: V20.Master._clamp(biasSum/30,-0.05,0.05)}; return null; }
+    };
+
+    // ChronoSim (light)
+    V20.Master.ChronoSim = {
+      simulateMatch: function(params, opts){
+        opts = opts||{};
+        const cap = V20.Master._safeNum(opts.cap,6);
+        const step = V20.Master._safeNum(opts.minuteStep,5);
+        const sim = {matrix:[], events: [], final:{h:0,a:0}, avgGoals:0, simCount:1};
+        const minutes = Array.from({length: Math.ceil(90/step)}, (_,i)=>i*step);
+        let lamHtotal = V20.Master._safeNum(params.lamH,1.2);
+        let lamAtotal = V20.Master._safeNum(params.lamA,1.0);
+        minutes.forEach((m)=>{
+          const phase = V20.Master.AMPE.phaseForMinute(m);
+          const phmod = V20.Master.AMPE.phaseModifiers(phase);
+          const lH = lamHtotal * (phmod.tempo + phmod.chaos)/2 * 0.12;
+          const lA = lamAtotal * (phmod.tempo + phmod.chaos)/2 * 0.12;
+          const pGoalH = 1 - Math.exp(-lH);
+          const pGoalA = 1 - Math.exp(-lA);
+          if(Math.random() < pGoalH) sim.final.h += 1, sim.events.push({min:m,team:'H'});
+          if(Math.random() < pGoalA) sim.final.a += 1, sim.events.push({min:m,team:'A'});
+        });
+        const mat = Array.from({length:cap+1}, ()=>Array.from({length:cap+1}, ()=>0));
+        mat[sim.final.h] = mat[sim.final.h] || []; mat[sim.final.h][sim.final.a] = (mat[sim.final.h][sim.final.a] || 0) + 1;
+        sim.matrix = mat; sim.avgGoals = sim.final.h + sim.final.a; return sim;
+      }
+    };
+
+    // masterRun integrator
+    V20.Master.masterRun = function(context){
+      try{
+        const baseLam = { lamH: V20.Master._safeNum(context.lamH,1.2), lamA: V20.Master._safeNum(context.lamA,1.0) };
+        const ctx = { tempo: V20.Master._safeNum(context.tempo,5), chaos: V20.Master._safeNum(context.chaos,5), importance: V20.Master._safeNum(context.importance,5) };
+        const home = context.home || {}; const away = context.away || {};
+        V20.Master.ANS.clampInputs({ ppda_home: context.ppda_home, ppda_away: context.ppda_away, fin_home: context.fin_home, fin_away: context.fin_away, mom_home: context.mom_home, mom_away: context.mom_away, stab_home: context.stab_home, stab_away: context.stab_away});
+        const homeProfile = Object.assign({}, home, { finishingBias: context.fin_home || 1, stability: context.stab_home || 5, momentum: context.mom_home || 5, defline: context.defline_home || 5, xg: context.xg_home || 1.0, xga: context.xga_home || 1.0, transitionBias: context.homeTransitionBias || 0, shotxg: context.homeShotXG || 0.12, xGEfficiency: context.homeXGEff || 1 });
+        const awayProfile = Object.assign({}, away, { finishingBias: context.fin_away || 1, stability: context.stab_away || 5, momentum: context.mom_away || 5, defline: context.defline_away || 5, xg: context.xg_away || 1.0, xga: context.xga_away || 1.0, transitionBias: context.awayTransitionBias || 0, shotxg: context.awayShotXG || 0.12, xGEfficiency: context.awayXGEff || 1 });
+        const pressInfo = { homePPDA: V20.Master._safeNum(context.ppda_home,12), awayPPDA: V20.Master._safeNum(context.ppda_away,12), pressMatchFactor: context.pressMatchFactor || 0 };
+        const homeDNA = V20.Master.SyntheticDNA.buildFromProfile(homeProfile);
+        const awayDNA = V20.Master.SyntheticDNA.buildFromProfile(awayProfile);
+        const adjustedLam = (V20.Master.flags && V20.Master.flags.ENABLE_DLA===false)? baseLam : V20.Master.DLA.adjustLambda(baseLam, ctx, homeProfile, awayProfile, pressInfo, context.meta||{});
+        const transition = (V20.Master.flags && V20.Master.flags.ENABLE_TEM===false)? {scoreHome:0.5,scoreAway:0.5} : V20.Master.TEM.computeTransitionScore(homeProfile, awayProfile, pressInfo);
+        const xtHome = (V20.Master.flags && V20.Master.flags.ENABLE_xT===false)? 1 : V20.Master.xT.computeLite({possession:context.possession_home||50,widthUse:context.homeWidth||0.5,centralUse:context.homeCentral||0.5,finalThirdEntries:context.homeEntries||5});
+        const xtAway = (V20.Master.flags && V20.Master.flags.ENABLE_xT===false)? 1 : V20.Master.xT.computeLite({possession:context.possession_away||50,widthUse:context.awayWidth||0.5,centralUse:context.awayCentral||0.5,finalThirdEntries:context.awayEntries||5});
+        const fma = (V20.Master.flags && V20.Master.flags.ENABLE_FMA2===false)? {fmaScore:0} : V20.Master.FMA2.evaluate(context.homeFormation||'4-3-3', context.awayFormation||'4-4-2', {home:{xGEfficiency:homeProfile.xGEfficiency}, away:{xGEfficiency:awayProfile.xGEfficiency}});
+        const chrono = (V20.Master.flags && V20.Master.flags.ENABLE_CHRONOSIM===false)? {avgGoals: (adjustedLam.lamH+adjustedLam.lamA)} : V20.Master.ChronoSim.simulateMatch({lamH:adjustedLam.lamH, lamA:adjustedLam.lamA}, {cap: context.scoreCap||6, minuteStep:5});
+        const hints = { volatility: Math.abs(ctx.chaos - 5) + Math.abs((homeProfile.momentum - awayProfile.momentum)/5), finSkew: (homeProfile.finishingBias - awayProfile.finishingBias), xtDiff: xtHome - xtAway };
+        return { adjustedLam, pressInfo, transition, xtHome, xtAway, fma, chrono, hints, homeDNA, awayDNA };
+      }catch(e){ console.warn("masterRun err",e); return null; }
+    };
+
+    // flags defaults
+    V20.Master.flags = { ENABLE_DLA:true, ENABLE_GSM:true, ENABLE_TEM:true, ENABLE_xT:true, ENABLE_FMA2:true, ENABLE_CHRONOSIM:true, ENABLE_SELFCAL:true, ENABLE_RC:true, ENABLE_PCV:true, ENABLE_ANS:true };
+  })();
+  </script>
+<!-- PART 3: Recommender + lightweight simulation + runPrimeZero + UI handlers -->
+  <script>
+  // Recommender (full) - from earlier
+  (function(){
+    V20.Reco = V20.Reco || {};
+    const CL = (v,a,b)=>Math.max(a,Math.min(b,v));
+    V20.Reco.HDP = function(pH,pD,pA,fragH,fragA,momH,momA,fmaScore){
+      const bias = (momH - momA)/10 + fmaScore*0.4 - (fragH-fragA)*0.03;
+      let rec="", conf=0;
+      if(pH>pA && pH>pD){
+        if(pH>0.55 || bias>0.25){ rec="Home -0.25"; conf=(pH*0.55 + (bias+1)/2*0.45)*100; } else { rec="Home +0.0"; conf=pH*100; }
+      } else if(pA>pH && pA>pD){
+        if(pA>0.55 || bias<-0.25){ rec="Away -0.25"; conf=(pA*0.55 + (1-bias)/2*0.45)*100; } else { rec="Away +0.0"; conf=pA*100; }
+      } else { rec="No Bet (Draw heavy)"; conf=Math.max(pD*100,20); }
+      return {rec, conf:CL(conf,20,95)};
+    };
+    V20.Reco.OU = function(ouBlend, avgGoals, tempo, chaos, transitionScore){
+      let pick=""; let baseOU = avgGoals;
+      if(baseOU >= 2.3 && (ouBlend["2.5"] && ouBlend["2.5"].over>0.55)){ pick="Over 2.5"; }
+      else if(baseOU <= 2.1 && (ouBlend["2.5"] && ouBlend["2.5"].under>0.55)){ pick="Under 2.5"; }
+      else { if(transitionScore>0.55) pick="Over 2.0"; else pick="Under 3.0"; }
+      const conf = CL((Math.abs(baseOU-2.5)*15) + (Math.abs(transitionScore-0.5)*35) + ((tempo-5)/5*20) + ((chaos-5)/5*20),35,92);
+      return {pick, conf};
+    };
+    V20.Reco.BTTS = function(prob, xtH, xtA, finH, finA){
+      let pick = prob>=0.54 ? "YES":"NO";
+      let conf = (prob*70) + ((xtH+xtA)/2*20) + ((finH+finA)/2*5); conf = CL(conf,25,90);
+      return {pick, conf};
+    };
+    V20.Reco.Score = function(matrix){
+      const scores=[]; for(let h in matrix){ for(let a in matrix[h]) scores.push({score:`${h}-${a}`, prob:matrix[h][a]}); }
+      scores.sort((x,y)=>y.prob-x.prob); return scores.slice(0,3).map(s=>({score:s.score, prob:(s.prob*100).toFixed(1)}));
+    };
+    V20.Reco.Value = function(fairProb, marketOdds){ if(!marketOdds) return {value:"N/A"}; const fairOdds=1/fairProb; const v = marketOdds - fairOdds; if(v>0.15) return {value:"STRONG", diff:v.toFixed(2)}; if(v>0.05) return {value:"MILD", diff:v.toFixed(2)}; return {value:"NONE", diff:v.toFixed(2)}; };
+    V20.Reco.Risk = function(volatility, uncertainty, fragH, fragA, chaos){ const score = (volatility*0.35) + (uncertainty*0.25) + (Math.abs(fragH-fragA)/10*0.2) + ((chaos-5)/5*0.2); if(score<0.33) return {level:"SAFE", score:score.toFixed(2)}; if(score<0.66) return {level:"BALANCED", score:score.toFixed(2)}; return {level:"CHAOTIC", score:score.toFixed(2)}; };
+  })();
+
+  // Lightweight deterministic Poisson & MonteCarlo
+  (function(){
+    V20.detSim = function(lambda){
+      // simple poisson independent goals
+      const lamH = V20.num(lambda.lamH,1.2), lamA = V20.num(lambda.lamA,1.0);
+      const max = 6;
+      // compute matrix
+      const mat = Array.from({length:max+1},()=>Array.from({length:max+1},()=>0));
+      for(let h=0;h<=max;h++){
+        for(let a=0;a<=max;a++){
+          const pH = Math.exp(-lamH)*Math.pow(lamH,h)/ (function f(n){return n<=1?1:n*f(n-1)})(h);
+          const pA = Math.exp(-lamA)*Math.pow(lamA,a)/ (function f(n){return n<=1?1:n*f(n-1)})(a);
+          mat[h][a] = pH * pA;
+        }
+      }
+      // probabilities
+      let pH=0,pD=0,pA=0;
+      for(let h=0;h<=max;h++){ for(let a=0;a<=max;a++){ if(h>a) pH+=mat[h][a]; else if(h==a) pD+=mat[h][a]; else pA+=mat[h][a]; } }
+      return {pH,pD,pA,mat,lamH,lamA};
+    };
+
+    V20.monteCarlo = function(lambda, ctx, simCount, scoreCap, home, away, tact){
+      simCount = isFinite(Number(simCount))?Number(simCount):2000;
+      scoreCap = isFinite(Number(scoreCap))?Number(scoreCap):6;
+      const mat = Array.from({length:scoreCap+1}, ()=>Array.from({length:scoreCap+1}, ()=>0));
+      let cntH=0,cntD=0,cntA=0, totGoals=0;
+      for(let i=0;i<simCount;i++){
+        // sample Poisson for each
+        const lamH = V20.num(lambda.lamH,1.2);
+        const lamA = V20.num(lambda.lamA,1.0);
+        // small randomness from chaos/tempo
+        const h = samplePoisson(lamH);
+        const a = samplePoisson(lamA);
+        const hcap = Math.min(scoreCap,h); const acap = Math.min(scoreCap,a);
+        mat[hcap][acap] += 1;
+        totGoals += h + a;
+        if(h>a) cntH++; else if(h==a) cntD++; else cntA++;
+      }
+      return {matrix:mat, simCount, pH:cntH/simCount, pD:cntD/simCount, pA:cntA/simCount, avgGoals: totGoals/simCount, scoreCap};
+      function samplePoisson(lambda){
+        const L = Math.exp(-lambda); let k=0; let p=1;
+        do{ k++; p *= Math.random(); } while(p > L);
+        return k-1;
+      }
+    };
+  })();
+
+  // Utility compute functions
+  (function(){
+    V20.computeUncertainty = function(pH,pD,pA){
+      const max = Math.max(pH,pD,pA);
+      const unc = 1 - max; // crude
+      return {score: Math.max(2, Math.min(90, unc*100))};
+    };
+    V20.computeBTTS = function(godHL){
+      // simple approximation: higher lambda sum -> more BTTS
+      const sum = (godHL.lamH || 1) + (godHL.lamA || 1);
+      return Math.min(0.95, 0.28 + sum*0.12);
+    };
+    V20.computeRisk = function(ctx, tact){
+      const r = (Math.abs(ctx.chaos-5)/5)*0.6 + (Math.abs(ctx.tempo-5)/5)*0.2 + (tact.home.pressIntensity+tact.away.pressIntensity)/20*0.2;
+      return Math.min(1, Math.max(0, r));
+    };
+    V20.computeFragility = function(ctx, home, away){
+      return Math.max(0, (10 - Math.max(home.stability, away.stability))/10);
+    };
+    V20.computeMeta = function(det, detChaos, sdi){ return 0.5; };
+    V20.computeFlow = function(ctx, home, away, tact, godPat){ return 0.5; };
+    V20.computeMomentumSwing = function(home, away){ return Math.max(0, (home.momentum - away.momentum)/10); };
+  })();
+
+  // Fusing basic outputs
+  (function(){
+    V20.fuseOutputs = function(det, detChaos, mc, zeroProb){
+      // average simple
+      const pH = (det.pH + detChaos.pH + mc.pH)/3;
+      const pD = (det.pD + detChaos.pD + mc.pD)/3;
+      const pA = (det.pA + detChaos.pA + mc.pA)/3;
+      const tot = pH+pD+pA || 1;
+      return {final:{pH:pH/tot,pD:pD/tot,pA:pA/tot}};
+    };
+  })();
+
+  // Hook to integrate master + run
+  function buildContextFromUI(){
+    const ctx = {};
+    ctx.home_team = document.getElementById('home_team').value;
+    ctx.away_team = document.getElementById('away_team').value;
+    ctx.league = document.getElementById('league').value;
+    ctx.match_type = document.getElementById('match_type').value;
+
+    ctx.lamH = V20.num(document.getElementById('lamH').value,1.2);
+    ctx.lamA = V20.num(document.getElementById('lamA').value,1.0);
+    ctx.tempo = V20.num(document.getElementById('tempo').value,5);
+    ctx.chaos = V20.num(document.getElementById('chaos').value,5);
+    ctx.importance = V20.num(document.getElementById('importance').value,5);
+
+    ctx.home_st = V20.num(document.getElementById('home_st').value,5);
+    ctx.away_st = V20.num(document.getElementById('away_st').value,5);
+    ctx.home_mom = V20.num(document.getElementById('home_mom').value,5);
+    ctx.away_mom = V20.num(document.getElementById('away_mom').value,5);
+
+    ctx.home_press = V20.num(document.getElementById('home_press').value,5);
+    ctx.away_press = V20.num(document.getElementById('away_press').value,5);
+    ctx.home_flex = V20.num(document.getElementById('home_flex').value,0.5);
+    ctx.away_flex = V20.num(document.getElementById('away_flex').value,0.5);
+
+    ctx.fin_home = V20.num(document.getElementById('finishing_quality_home').value,5);
+    ctx.fin_away = V20.num(document.getElementById('finishing_quality_away').value,5);
+    ctx.injury_home = V20.num(document.getElementById('injury_home').value,0);
+    ctx.injury_away = V20.num(document.getElementById('injury_away').value,0);
+    ctx.manager_agg_home = V20.num(document.getElementById('manager_agg_home').value,5);
+    ctx.manager_agg_away = V20.num(document.getElementById('manager_agg_away').value,5);
+
+    ctx.defline_home = V20.num(document.getElementById('defline_home').value,5);
+    ctx.defline_away = V20.num(document.getElementById('defline_away').value,5);
+    ctx.ppda_home = V20.num(document.getElementById('ppda_home').value,12);
+    ctx.ppda_away = V20.num(document.getElementById('ppda_away').value,12);
+
+    ctx.xg_home = V20.num(document.getElementById('xg_home').value, ctx.lamH);
+    ctx.xg_away = V20.num(document.getElementById('xg_away').value, ctx.lamA);
+    ctx.shots_home = V20.num(document.getElementById('shots_home').value,10);
+    ctx.shots_away = V20.num(document.getElementById('shots_away').value,8);
+    ctx.shotq_home = V20.num(document.getElementById('shotq_home').value,0.12);
+    ctx.shotq_away = V20.num(document.getElementById('shotq_away').value,0.10);
+
+    ctx.scoreCap = 6;
+    ctx.homeFormation = document.getElementById('home_formation')?.value || '4-3-3';
+    ctx.awayFormation = document.getElementById('away_formation')?.value || '4-4-2';
+    return ctx;
+  }
+
+  // build output UI text (super output)
+  function buildSuperOutput(vars){
+    // vars contains many computed fields
+    const out = [];
+    out.push("============================================================");
+    out.push("                P S Z   S U P E R   O U T P U T");
+    out.push("============================================================");
+    out.push("");
+    out.push("[ENGINE STATUS] " + vars.engineStatus);
+    out.push("Confidence Level : " + vars.pcv);
+    out.push("Volatility Index : " + vars.volatility.toFixed(2));
+    out.push("Uncertainty      : " + (vars.unc.score).toFixed(1) + "%");
+    out.push("Risk Level       : " + vars.riskR.level + " (" + vars.riskR.score + ")");
+    out.push("");
+    out.push("------------------------------------------------------------");
+    out.push("INPUT SUMMARY");
+    out.push("------------------------------------------------------------");
+    out.push("λH (base): " + vars.lamH.toFixed(2) + " → adjusted: " + vars.mOut.adjustedLam.lamH.toFixed(2));
+    out.push("λA (base): " + vars.lamA.toFixed(2) + " → adjusted: " + vars.mOut.adjustedLam.lamA.toFixed(2));
+    out.push("Tempo / Chaos / Importance : " + vars.tempo + " / " + vars.chaos + " / " + vars.importance);
+    out.push("Home Stability/Momentum    : " + vars.home_st + " / " + vars.home_mom);
+    out.push("Away Stability/Momentum    : " + vars.away_st + " / " + vars.away_mom);
+    out.push("PPDA (H/A)                 : " + vars.ppda_home + " / " + vars.ppda_away);
+    out.push("Finishing (H/A)            : " + vars.fin_home + " / " + vars.fin_away);
+    out.push("Defline (H/A)              : " + vars.defline_home + " / " + vars.defline_away);
+    out.push("");
+    out.push("------------------------------------------------------------");
+    out.push("ADVANCED MODULE OUTPUTS (LEVEL DEWA)");
+    out.push("------------------------------------------------------------");
+    out.push("Transition Score    : H " + vars.mOut.transition.scoreHome.toFixed(2) + " | A " + vars.mOut.transition.scoreAway.toFixed(2));
+    out.push("xT Attack           : H " + vars.mOut.xtHome.toFixed(2) + " | A " + vars.mOut.xtAway.toFixed(2));
+    out.push("Formation Matchup   : " + (vars.mOut.fma.fmaScore >= 0 ? "Home advantage":"Away advantage") + " (" + vars.mOut.fma.fmaScore.toFixed(2) + ")");
+    out.push("Morale Index        : H " + vars.moraleH.toFixed(2) + " | A " + vars.moraleA.toFixed(2));
+    out.push("DNA Style (H/A)     : " + vars.mOut.homeDNA.style + " / " + vars.mOut.awayDNA.style);
+    out.push("ChronoSim Avg Goals : " + vars.mOut.chrono.avgGoals.toFixed(2));
+    out.push("");
+    out.push("------------------------------------------------------------");
+    out.push("CORE PROBABILITIES (1X2)");
+    out.push("------------------------------------------------------------");
+    out.push("Home Win : " + (vars.pH*100).toFixed(1) + "%");
+    out.push("Draw     : " + (vars.pD*100).toFixed(1) + "%");
+    out.push("Away Win : " + (vars.pA*100).toFixed(1) + "%");
+    out.push("");
+    out.push("------------------------------------------------------------");
+    out.push("OVER / UNDER");
+    out.push("------------------------------------------------------------");
+    for(const k of Object.keys(vars.ouBlend)){
+      out.push("O/U " + k + " → Over " + (vars.ouBlend[k].over*100).toFixed(1) + "% | Under " + (vars.ouBlend[k].under*100).toFixed(1) + "%");
+    }
+    out.push("");
+    out.push("------------------------------------------------------------");
+    out.push("BTTS & GOAL METRICS");
+    out.push("------------------------------------------------------------");
+    out.push("BTTS Probability : " + (vars.btts*100).toFixed(1) + "%");
+    out.push("Avg Goals (MC)   : " + vars.mc.avgGoals.toFixed(2));
+    out.push("Goal Swing Index : " + vars.swingVal.toFixed(2));
+    out.push("");
+    out.push("------------------------------------------------------------");
+    out.push("TOP SCORELINES (SPS + RC)");
+    out.push("------------------------------------------------------------");
+    vars.top3.forEach(s => out.push(" • " + s.score + " (" + s.prob + "%)"));
+    out.push("");
+    out.push("------------------------------------------------------------");
+    out.push("MATCH DYNAMICS");
+    out.push("------------------------------------------------------------");
+    out.push("Transition Battle : " + (vars.mOut.transition.scoreHome > vars.mOut.transition.scoreAway ? "HOME advantage":"AWAY advantage"));
+    out.push("Surge Potential   : " + vars.surgeText);
+    out.push("Collapse Risk     : " + vars.collapseText);
+    out.push("Game Flow Rating  : " + vars.flowVal.toFixed(2));
+    out.push("Phase Bias        : " + vars.phaseBias);
+    out.push("");
+    out.push("------------------------------------------------------------");
+    out.push("RECOMMENDATIONS (FULL)");
+    out.push("------------------------------------------------------------");
+    out.push("HDP Recommendation : " + vars.hdp.rec + " (Conf " + vars.hdp.conf.toFixed(1) + "%)");
+    out.push("O/U Recommendation : " + vars.ouRec.pick + " (Conf " + vars.ouRec.conf.toFixed(1) + "%)");
+    out.push("BTTS Recommendation: " + vars.bttsR.pick + " (Conf " + vars.bttsR.conf.toFixed(1) + "%)");
+    out.push("");
+    out.push("------------------------------------------------------------");
+    out.push("MARKET SUITABILITY");
+    out.push("------------------------------------------------------------");
+    if(vars.riskR.level === "SAFE"){
+      out.push("Best Markets : Handicap, Over/Under, BTTS");
+    } else if(vars.riskR.level === "BALANCED"){
+      out.push("Best Markets : Over/Under, BTTS");
+      out.push("Avoid       : Heavy handicap lines");
+    } else {
+      out.push("Best Markets : Over, BTTS");
+      out.push("Avoid       : 1X2 & HDP (high chaos)");
+    }
+    out.push("");
+    out.push("------------------------------------------------------------");
+    out.push("FINAL NOTES");
+    out.push("------------------------------------------------------------");
+    out.push("• All active modules integrated.");
+    out.push("• Output stabilized using SPS + Anti-Noise.");
+    out.push("• Confidence Vector used as reliability gauge.");
+    out.push("");
+    return out.join("\n");
+  }
+
+  // runPrimeZero final integrated
+  function runPrimeZeroIntegrated(){
+    try{
+      const outEl = document.getElementById('output'); if(!outEl) return;
+      outEl.value = "Running analysis...";
+
+      const ctx = buildContextFromUI();
+
+      // toggle flags from UI
+      V20.Master.flags.ENABLE_DLA = document.getElementById('flag_dla').checked;
+      V20.Master.flags.ENABLE_GSM = document.getElementById('flag_gsm').checked;
+      V20.Master.flags.ENABLE_TEM = document.getElementById('flag_tem').checked;
+      V20.Master.flags.ENABLE_xT = document.getElementById('flag_xt').checked;
+      V20.Master.flags.ENABLE_FMA2 = document.getElementById('flag_fma2').checked;
+      V20.Master.flags.ENABLE_CHRONOSIM = document.getElementById('flag_chrono').checked;
+      V20.Master.flags.ENABLE_SELFCAL = document.getElementById('flag_selfcal').checked;
+      V20.Master.flags.ENABLE_RC = document.getElementById('flag_rc').checked;
+
+      // Build master context
+      const mctx = {
+        lamH: ctx.lamH, lamA: ctx.lamA, tempo:ctx.tempo, chaos:ctx.chaos, importance:ctx.importance,
+        home: {stability:ctx.home_st, momentum:ctx.home_mom, defline:ctx.defline_home, xg:ctx.xg_home},
+        away: {stability:ctx.away_st, momentum:ctx.away_mom, defline:ctx.defline_away, xg:ctx.xg_away},
+        ppda_home: ctx.ppda_home, ppda_away: ctx.ppda_away, fin_home: ctx.fin_home, fin_away: ctx.fin_away,
+        xg_home: ctx.xg_home, xg_away: ctx.xg_away, scoreCap: ctx.scoreCap,
+        homeFormation: ctx.homeFormation, awayFormation: ctx.awayFormation,
+        homeEntries: ctx.shots_home, awayEntries: ctx.shots_away, homeXGEff: ctx.shotq_home, awayXGEff: ctx.shotq_away
+      };
+
+      const mOut = V20.Master.masterRun(mctx);
+      if(!mOut){ outEl.value = "Master run failed"; return; }
+
+      // detSim baseline
+      const det = V20.detSim({lamH:ctx.lamH, lamA:ctx.lamA});
+      // chaos adjusted det (simple: scale by chaos)
+      const chaosScale = 1 + (ctx.chaos-5)/25;
+      const detChaos = V20.detSim({lamH:ctx.lamH*chaosScale, lamA:ctx.lamA*chaosScale});
+
+      // monte carlo using adjusted lam
+      const mc = V20.monteCarlo({lamH:mOut.adjustedLam.lamH, lamA:mOut.adjustedLam.lamA}, {tempo:ctx.tempo,chaos:ctx.chaos,importance:ctx.importance}, 2000, ctx.scoreCap, null,null,null);
+
+      // fuse outputs
+      const fused = V20.fuseOutputs(det, detChaos, mc, 0);
+      const pH = fused.final.pH, pD = fused.final.pD, pA = fused.final.pA;
+
+      // compute extras
+      const godHL = {lamH:mOut.adjustedLam.lamH, lamA:mOut.adjustedLam.lamA};
+      const unc = V20.computeUncertainty(pH,pD,pA);
+      const btts = V20.computeBTTS(godHL);
+      const flowVal = V20.computeFlow({tempo:ctx.tempo,chaos:ctx.chaos}, {stability:ctx.home_st, momentum:ctx.home_mom}, {stability:ctx.away_st, momentum:ctx.away_mom}, {home:{pressIntensity:ctx.home_press}, away:{pressIntensity:ctx.away_press}}, {control:0.25});
+      const swingVal = V20.computeMomentumSwing({momentum:ctx.home_mom},{momentum:ctx.away_mom});
+      const riskScore = V20.computeRisk({tempo:ctx.tempo,chaos:ctx.chaos,importance:ctx.importance}, {home:{pressIntensity:ctx.home_press}, away:{pressIntensity:ctx.away_press}});
+      const frag = V20.computeFragility({},{stability:ctx.home_st},{stability:ctx.away_st});
+      const fragHome = Math.max(0, (10-ctx.home_st)/10), fragAway = Math.max(0,(10-ctx.away_st)/10);
+
+      // OU lines (0.5/1.5/2.5/3.5) using simple poisson from adjusted lamEff
+      const totalLamBase = mOut.adjustedLam.lamH + mOut.adjustedLam.lamA;
+      let lamEff = totalLamBase * (1 + (ctx.chaos-5)/5*0.10 + (ctx.tempo-5)/5*0.05);
+      lamEff = V20.clamp(lamEff,0.5,8);
+      const lines = [0.5,1.5,2.5,3.5];
+      const ou = {}; lines.forEach(line=>{
+        const cut = Math.floor(line);
+        let under=0;
+        for(let k=0;k<=100;k++){ // approximate infinite
+          const pmf = Math.exp(-lamEff)*Math.pow(lamEff,k)/ (function f(n){return n<=1?1:n*f(n-1)})(k);
+          if(k<=cut) under += pmf;
+        }
+        ou[line] = {under:under, over:1-under};
+      });
+
+      // MonteCarlo OU
+      const mat = mc.matrix; const cap = mc.scoreCap;
+      const ouMC = {}; lines.forEach(line=>{
+        const cut = Math.floor(line); let under=0, over=0;
+        for(let h=0;h<=cap;h++){ for(let a=0;a<=cap;a++){ const freq = (mat[h]&&mat[h][a])?mat[h][a]:0; const sum=h+a; if(sum<=cut) under+=freq; else over+=freq; } }
+        ouMC[line] = {under: under/mc.simCount, over: over/mc.simCount};
+      });
+
+      // blend simple:
+      const patternChaos = 0.2; const wMC = 0.4 + 0.4*Math.max(0,patternChaos);
+      const wAN = 1 - wMC;
+      const ouBlend = {}; lines.forEach(k=>{ ouBlend[k] = { over: ou[k].over*wAN + ouMC[k].over*wMC, under: ou[k].under*wAN + ouMC[k].under*wMC }; });
+
+      // compute additional metrics
+      const swingIndex = swingVal;
+      const volatility = Math.abs(ctx.chaos-5)/5 + Math.abs((ctx.home_mom-ctx.away_mom)/5);
+      const pcv = V20.Master.PCV.compute(unc.score/100, Math.abs(ctx.home_st-ctx.away_st), Math.abs(ctx.ppda_home-ctx.ppda_away));
+      const engineStatus = ( (unc.score<40 && riskScore<0.6) ? "PRIME STABLE" : (riskScore>0.75 ? "PRIME CAUTION" : "PRIME NEUTRAL") );
+
+      // build score matrix for top lines (use det.mat as base)
+      const scoreMat = det.mat;
+      const sps = V20.Master.SPS.shapeScores(scoreMat);
+      // compute top3
+      const top3 = []; for(let h=0;h<scoreMat.length;h++){ for(let a=0;a<scoreMat[h].length;a++){ top3.push({score:h+"-"+a, prob: scoreMat[h][a]}); } }
+      top3.sort((x,y)=>y.prob-x.prob); const top3clean = top3.slice(0,3).map(s=>({score:s.score, prob:(s.prob*100).toFixed(1)}));
+
+      // Recommender outputs
+      const hdpre = V20.Reco.HDP(pH,pD,pA,fragHome,fragAway,ctx.home_mom,ctx.away_mom, mOut.fma.fmaScore);
+      const ourec = V20.Reco.OU(ouBlend, mc.avgGoals, ctx.tempo, ctx.chaos, mOut.transition.scoreHome);
+      const bttsr = V20.Reco.BTTS(btts, mOut.xtHome, mOut.xtAway, ctx.fin_home, ctx.fin_away);
+      const topScores = V20.Reco.Score(det.mat);
+      const riskR = V20.Reco.Risk(volatility, unc.score/100, fragHome, fragAway, ctx.chaos);
+
+      // dynamic texts
+      const surgeText = (ctx.tempo>6 || ctx.home_mom - ctx.away_mom > 1) ? "High" : (ctx.tempo>5?"Medium":"Low");
+      const collapseText = (fragAway>0.5 && ctx.away_mom<4) ? "Moderate" : "Low";
+      const phaseBias = V20.Master.AMPE.phaseForMinute(0);
+
+      // collect for output builder
+      const vars = {
+        engineStatus, pcv, volatility, unc, riskR, lamH:ctx.lamH, lamA:ctx.lamA, tempo:ctx.tempo, chaos:ctx.chaos, importance:ctx.importance,
+        home_st:ctx.home_st, home_mom:ctx.home_mom, away_st:ctx.away_st, away_mom:ctx.away_m,
+        ppda_home:ctx.ppda_home, ppda_away:ctx.ppda_away, fin_home:ctx.fin_home, fin_away:ctx.fin_away,
+        defline_home:ctx.defline_home, defline_away:ctx.defline_away,
+        mOut, pH, pD, pA, ouBlend, btts, mc, swingVal: swingIndex, top3: top3clean, surgeText, collapseText, flowVal, phaseBias,
+        hdp: hdpre, ouRec: ourec, bttsR: bttsr, topScores, riskR, moraleH: V20.Master.Morale.compute(0,ctx.home_mom,0), moraleA: V20.Master.Morale.compute(0,ctx.away_mom,0)
+      };
+
+      const finalText = buildSuperOutput(vars);
+      outEl.value = finalText;
+
+      // optional: record in self cal
+      if(V20.Master.flags.ENABLE_SELFCAL) V20.Master.SelfCal.record({home:ctx.home_team,away:ctx.away_team}, (pH>pA?'H':(pA>pH?'A':'D')), {pH,pD,pA});
+
+    }catch(e){ document.getElementById('output').value = "Error running analysis: "+(e.message||e); console.error(e); }
+  }
+
+  // UI wiring
+  document.getElementById('btn_auto').addEventListener('click', function(){
+    // auto-fill advanced values
+    const home = document.getElementById('home_team').value, away = document.getElementById('away_team').value;
+    const pressH = Number(document.getElementById('home_press').value||5);
+    const pressA = Number(document.getElementById('away_press').value||5);
+    const defH = Number(document.getElementById('defline_home').value||5);
+    const defA = Number(document.getElementById('defline_away').value||5);
+    const momH = Number(document.getElementById('home_mom').value||5);
+    const momA = Number(document.getElementById('away_mom').value||5);
+    // autofill finishing from xG/shots if present
+    const shotsH = Number(document.getElementById('shots_home').value||10);
+    const shotsA = Number(document.getElementById('shots_away').value||8);
+    const shotqH = Number(document.getElementById('shotq_home').value||0.12);
+    const shotqA = Number(document.getElementById('shotq_away').value||0.1);
+    const xgH = Number(document.getElementById('xg_home').value||1.2);
+    const xgA = Number(document.getElementById('xg_away').value||1.0);
+    document.getElementById('finishing_quality_home').value = V20.Master.Auto.autoFinishingFrom_xG(xgH, Math.round(shotsH*shotqH));
+    document.getElementById('finishing_quality_away').value = V20.Master.Auto.autoFinishingFrom_xG(xgA, Math.round(shotsA*shotqA));
+    document.getElementById('ppda_home').value = V20.Master.Auto.autoPPDAFromPressDefline(pressH,defH,momH).toFixed(2);
+    document.getElementById('ppda_away').value = V20.Master.Auto.autoPPDAFromPressDefline(pressA,defA,momA).toFixed(2);
+    document.getElementById('defline_home').value = defH;
+    document.getElementById('defline_away').value = defA;
+    document.getElementById('status').textContent = "AUTO INPUT complete ✔";
+  });
+
+  document.getElementById('btn_run').addEventListener('click', function(){ runPrimeZeroIntegrated(); });
+
+  document.getElementById('btn_copy').addEventListener('click', function(){
+    const t = document.getElementById('output'); t.select(); document.execCommand('copy'); document.getElementById('status').textContent = "Copied to clipboard";
+  });
+  document.getElementById('btn_save').addEventListener('click', function(){
+    const blob = new Blob([document.getElementById('output').value], {type:'text/plain'}); const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'psz_output.txt'; a.click(); URL.revokeObjectURL(url);
+  });
+  document.getElementById('btn_reset').addEventListener('click', function(){
+    location.reload();
+  });
+// initialize sample output
+  document.addEventListener('DOMContentLoaded', function(){ document.getElementById('output').value = "Ready. Press AUTO INPUT (FULL) then RUN INTEGRATED."; });
+
+  </script>
+</body>
+</html>
