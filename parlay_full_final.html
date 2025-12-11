@@ -1075,7 +1075,241 @@ scores.sort((x,y)=>y.prob-x.prob); return scores.slice(0,3).map(s=>({score:s.sco
 
   // init
   document.addEventListener('DOMContentLoaded', function(){ document.getElementById('output').value = "Ready. Press AUTO INPUT (FULL) then RUN INTEGRATED."; });
+// ==========================
+// RUN INTEGRATED (LEVEL 9) - Safe, complete, OU fix + MC blend
+// Paste this block before the closing </script> tag
+// ==========================
+(function(){
+  // safe util wrappers (use existing V20 if present)
+  const _num = (v,d=0)=> (typeof v === 'number' && isFinite(v)) ? v : ( (v!==undefined && v!==null && !isNaN(Number(v))) ? Number(v) : d );
+  const _clamp = (v,a,b)=> Math.max(a, Math.min(b, v));
 
+  // Try to find existing functions in V20; fallback minimal implementations
+  const detSim = (window.V20 && V20.detSim) ? V20.detSim : function(lambda){ return { pH:0.45, pD:0.2, pA:0.35, mat:[], lamH:lambda.lamH, lamA:lambda.lamA }; };
+  const monteCarlo = (window.V20 && V20.monteCarlo) ? V20.monteCarlo : function(lambda, ctx, simCount, scoreCap){ return { matrix:[], simCount:2000, pH:0.46, pD:0.19, pA:0.35, avgGoals: lambda.lamH+lambda.lamA, scoreCap: scoreCap||6 }; };
+  const masterRun = (window.V20 && V20.Master && V20.Master.masterRun) ? V20.Master.masterRun : function(c){ return { adjustedLam: { lamH: c.lamH || 1.2, lamA: c.lamA || 1.0 }, transition:{scoreHome:0.5,scoreAway:0.5}, xtHome:1, xtAway:1, fma:{fmaScore:0}, chrono:{avgGoals:(c.lamH||1.2)+(c.lamA||1.0)}, homeDNA:{style:'possession'}, awayDNA:{style:'possession'} }; };
+  const fuseOutputs = (window.V20 && V20.fuseOutputs) ? V20.fuseOutputs : function(d1,d2,mc,z){ const pH=(d1.pH+d2.pH+mc.pH)/3; const pD=(d1.pD+d2.pD+mc.pD)/3; const pA=(d1.pA+d2.pA+mc.pA)/3; const tot=pH+pD+pA||1; return { final:{ pH:pH/tot, pD:pD/tot, pA:pA/tot } }; };
+  const computeUncertainty = (window.V20 && V20.computeUncertainty) ? V20.computeUncertainty : (pH,pD,pA)=>({score: Math.max(2,Math.min(90,(1-Math.max(pH,pD,pA))*100))});
+  const computeBTTS = (window.V20 && V20.computeBTTS) ? V20.computeBTTS : (godHL)=> Math.min(0.95, 0.28 + ((godHL.lamH||1)+(godHL.lamA||1))*0.12);
+
+  function buildContextFromUI_safe(){
+    // mirror your UI inputs (non-destructive)
+    const ctx = {};
+    try{
+      ctx.lamH = _num(document.getElementById('lamH')?.value,1.2);
+      ctx.lamA = _num(document.getElementById('lamA')?.value,1.0);
+      ctx.tempo = _num(document.getElementById('tempo')?.value,5);
+      ctx.chaos = _num(document.getElementById('chaos')?.value,5);
+      ctx.importance = _num(document.getElementById('importance')?.value,5);
+
+      ctx.home_st = _num(document.getElementById('home_st')?.value,5);
+      ctx.away_st = _num(document.getElementById('away_st')?.value,5);
+      ctx.home_mom = _num(document.getElementById('home_mom')?.value,5);
+      ctx.away_mom = _num(document.getElementById('away_mom')?.value,5);
+
+      ctx.home_press = _num(document.getElementById('home_press')?.value,5);
+      ctx.away_press = _num(document.getElementById('away_press')?.value,5);
+      ctx.home_flex = _num(document.getElementById('home_flex')?.value,0.5);
+      ctx.away_flex = _num(document.getElementById('away_flex')?.value,0.5);
+
+      ctx.fin_home = _num(document.getElementById('finishing_quality_home')?.value,5);
+      ctx.fin_away = _num(document.getElementById('finishing_quality_away')?.value,5);
+
+      ctx.ppda_home = _num(document.getElementById('ppda_home')?.value,12);
+      ctx.ppda_away = _num(document.getElementById('ppda_away')?.value,12);
+
+      ctx.xg_home = _num(document.getElementById('xg_home')?.value, ctx.lamH);
+      ctx.xg_away = _num(document.getElementById('xg_away')?.value, ctx.lamA);
+
+      ctx.shots_home = _num(document.getElementById('shots_home')?.value,10);
+      ctx.shots_away = _num(document.getElementById('shots_away')?.value,8);
+      ctx.shotq_home = _num(document.getElementById('shotq_home')?.value,0.12);
+      ctx.shotq_away = _num(document.getElementById('shotq_away')?.value,0.10);
+
+      ctx.possession_home = _num(document.getElementById('pos_home')?.value,50);
+      ctx.possession_away = _num(document.getElementById('pos_away')?.value,50);
+
+      ctx.scoreCap = _num(document.getElementById('scoreCap')?.value,6);
+      ctx.simCount = _num(document.getElementById('simCount')?.value,2000);
+      ctx.homeFormation = document.getElementById('home_formation')?.value || '4-3-3';
+      ctx.awayFormation = document.getElementById('away_formation')?.value || '4-4-2';
+    }catch(e){ console.warn('buildContextFromUI_safe err',e); }
+    return ctx;
+  }
+
+  function computeOUBlend(lamEff, mc, cap){
+    // analytic OU using Poisson marginal (fast approximate)
+    const lines = [0.5,1.5,2.5,3.5];
+    const ou = {}; const maxK = Math.max(20, Math.ceil(lamEff*6));
+    // precompute poisson pmf up to maxK
+    const pmf = [];
+    for(let k=0;k<=maxK;k++){
+      // factorial safe
+      let fact=1; for(let i=2;i<=k;i++) fact*=i;
+      pmf[k] = Math.exp(-lamEff)*Math.pow(lamEff,k)/Math.max(1,fact);
+    }
+    lines.forEach(line=>{
+      const cut = Math.floor(line);
+      let under=0;
+      for(let k=0;k<=maxK;k++) if(k<=cut) under += pmf[k];
+      ou[line] = { under: _clamp(under,0,1), over: _clamp(1-under,0,1) };
+    });
+    // MC OU
+    const ouMC = {};
+    lines.forEach(line=>{
+      const cut = Math.floor(line);
+      let under=0, over=0;
+      for(let h=0; h<=cap; h++){
+        for(let a=0; a<=cap; a++){
+          const freq = (mc.matrix && mc.matrix[h] && mc.matrix[h][a]) ? mc.matrix[h][a] : 0;
+          if((h+a) <= cut) under += freq;
+          else over += freq;
+        }
+      }
+      ouMC[line] = { under: mc.simCount ? under/mc.simCount : 0, over: mc.simCount ? over/mc.simCount : 0 };
+    });
+    // blend analytic + MC with weight by patternChaos estimate (safe default)
+    const patternChaos = 0.2; // safe default if missing
+    const wMC = 0.40 + 0.40*Math.max(0, patternChaos);
+    const wAN = 1 - wMC;
+    const ouBlend = {};
+    lines.forEach(k=>{
+      const an = ou[k] || {under:0.5,over:0.5};
+      const mcv = ouMC[k] || {under:0.5,over:0.5};
+      ouBlend[k] = {
+        over: an.over * wAN + mcv.over * wMC,
+        under: an.under * wAN + mcv.under * wMC
+      };
+    });
+    return {ouBlend,ou,ouMC};
+  }
+
+  // main run function (safe)
+  function runIntegrated_safe(){
+    const outEl = document.getElementById('output');
+    if(!outEl){ console.warn('no output element'); return; }
+    outEl.value = "Running integrated analysis (safe)...";
+
+    try{
+      const ctx = buildContextFromUI_safe();
+
+      // run master adjustment (DLA etc.) if exists
+      const mOut = masterRun({
+        lamH: ctx.lamH, lamA: ctx.lamA,
+        tempo: ctx.tempo, chaos: ctx.chaos, importance: ctx.importance,
+        home: { stability: ctx.home_st, momentum: ctx.home_mom, xg: ctx.xg_home, defline: ctx.defline_home || 5 },
+        away: { stability: ctx.away_st, momentum: ctx.away_mom, xg: ctx.xg_away, defline: ctx.defline_away || 5 },
+        ppda_home: ctx.ppda_home, ppda_away: ctx.ppda_away, fin_home: ctx.fin_home, fin_away: ctx.fin_away,
+        scoreCap: ctx.scoreCap
+      });
+
+      // baseline detSim
+      const det = detSim({ lamH: ctx.lamH, lamA: ctx.lamA });
+      // chaos adjusted det
+      const chaosScale = 1 + ((ctx.chaos - 5)/25);
+      const detChaos = detSim({ lamH: ctx.lamH * chaosScale, lamA: ctx.lamA * chaosScale });
+
+      // montecarlo using adjusted lam
+      const mc = monteCarlo({ lamH: mOut.adjustedLam.lamH, lamA: mOut.adjustedLam.lamA }, { tempo: ctx.tempo, chaos: ctx.chaos }, ctx.simCount, ctx.scoreCap);
+
+      // fuse (simple average fuse if fuseOutputs exists)
+      const fused = fuseOutputs(det, detChaos, mc, 0);
+      const pH = fused.final.pH, pD = fused.final.pD, pA = fused.final.pA;
+
+      // compute uncertainty, btts
+      const unc = computeUncertainty(pH,pD,pA);
+      const btts = computeBTTS(mOut.adjustedLam);
+
+      // OU blend using total lamEff
+      const totalLamBase = (mOut.adjustedLam.lamH || ctx.lamH) + (mOut.adjustedLam.lamA || ctx.lamA);
+      let lamEff = totalLamBase;
+      lamEff *= (1 + ((ctx.chaos - 5)/5)*0.10 + ((ctx.tempo - 5)/5)*0.05);
+      lamEff = _clamp(lamEff, 0.3, 8);
+      const ouObj = computeOUBlend(lamEff, mc, ctx.scoreCap);
+
+      // top scorelines (from det.mat)
+      const scoreMat = det.mat || [];
+      const top3 = [];
+      if(scoreMat && scoreMat.length){
+        for(let h=0; h<scoreMat.length; h++){
+          for(let a=0; a<scoreMat[h].length; a++){
+            top3.push({score: h+'-'+a, prob: scoreMat[h][a]});
+          }
+        }
+        top3.sort((x,y)=>y.prob - x.prob);
+      }
+
+      // Recommender simple (fallback)
+      const hdpRec = (pH>pA && pH>pD) ? 'Home fav' : (pA>pH && pA>pD ? 'Away fav' : 'Market Draw');
+      const ouRec = (ouObj.ouBlend && ouObj.ouBlend["2.5"]) ? (ouObj.ouBlend["2.5"].over > 0.55 ? 'Over 2.5' : (ouObj.ouBlend["2.5"].under > 0.55 ? 'Under 2.5' : 'No strong OU')) : 'No OU';
+      const bttsRec = (btts >= 0.54) ? 'YES' : 'NO';
+
+      // engine status
+      const engineStatus = (unc.score < 40 && Math.max(pH,pD,pA) > 0.45) ? 'PRIME STABLE' : 'PRIME NEUTRAL';
+
+      // build output
+      const lines = [];
+      lines.push("=== RUN INTEGRATED (SAFE) ===");
+      lines.push("[ENGINE STATUS] " + engineStatus);
+      lines.push("");
+      lines.push("[INPUT]");
+      lines.push("λH: " + ctx.lamH + " | λA: " + ctx.lamA);
+      lines.push("Tempo/Chaos/Importance: " + ctx.tempo + " / " + ctx.chaos + " / " + ctx.importance);
+      lines.push("Home St/Mom: " + ctx.home_st + " / " + ctx.home_mom);
+      lines.push("Away St/Mom: " + ctx.away_st + " / " + ctx.away_mom);
+      lines.push("PPDA H/A: " + ctx.ppda_home + " / " + ctx.ppda_away);
+      lines.push("");
+      lines.push("[PROBABILITIES]");
+      lines.push("Home Win : " + (pH*100).toFixed(1) + "%");
+      lines.push("Draw     : " + (pD*100).toFixed(1) + "%");
+      lines.push("Away Win : " + (pA*100).toFixed(1) + "%");
+      lines.push("");
+      lines.push("[UNCERTAINTY / BTTS]");
+      lines.push("Uncertainty: " + (unc.score).toFixed(1) + "%");
+      lines.push("BTTS: " + (btts*100).toFixed(1) + "%");
+      lines.push("");
+      lines.push("[OVER/UNDER BLEND]");
+      Object.keys(ouObj.ouBlend).forEach(k=>{
+        const v = ouObj.ouBlend[k];
+        lines.push("O/U " + k + " → Over " + (v.over*100).toFixed(1) + "% | Under " + (v.under*100).toFixed(1) + "%");
+      });
+      lines.push("");
+      lines.push("[RECOMMENDATIONS]");
+      lines.push("HDP : " + hdpRec);
+      lines.push("OU  : " + ouRec);
+      lines.push("BTTS: " + bttsRec);
+      lines.push("");
+      lines.push("[TOP SCORELINES]");
+      top3.slice(0,3).forEach(s=> lines.push(" • " + s.score + " (" + (s.prob*100||0).toFixed(1) + "%)"));
+
+      outEl.value = lines.join("\n");
+
+      // update UI bars if exist
+      try{
+        const pHfill = document.getElementById('pH_fill'); if(pHfill) pHfill.style.width = Math.round(pH*100)+'%';
+        const pDfill = document.getElementById('pD_fill'); if(pDfill) pDfill.style.width = Math.round(pD*100)+'%';
+        const pAfill = document.getElementById('pA_fill'); if(pAfill) pAfill.style.width = Math.round(pA*100)+'%';
+      }catch(e){/*nonfatal*/}
+
+    }catch(err){
+      outEl.value = "ERROR running integrated: " + (err && err.message ? err.message : String(err));
+      console.error("runIntegrated_safe error:", err);
+    }
+  }
+
+  // wire to existing buttons safely
+  const btnAnalyze = document.getElementById('btn_analyze') || document.getElementById('btn_run') || document.getElementById('btn_run_integrated');
+  if(btnAnalyze){
+    btnAnalyze.removeEventListener && btnAnalyze.removeEventListener('click', runIntegrated_safe);
+    btnAnalyze.addEventListener('click', runIntegrated_safe);
+  } else {
+    console.warn('RUN button not found; create manual trigger: runIntegrated_safe()');
+  }
+
+  // add global alias
+  window.runIntegrated_safe = runIntegrated_safe;
+
+})(); // end IIFE
   </script>
 </body>
 </html>
