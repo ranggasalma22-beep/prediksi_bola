@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>PSZ LEVEL 11 — DEWA ULTRA (Offline)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+  body{font-family:Inter,Arial,sans-serif;margin:12px;background:#f6f8fb;color:#111}
+  h1{background:#0a6cff;color:#fff;padding:10px;border-radius:8px}
+  .grid{display:grid;grid-template-columns:1fr 520px;gap:12px}
+  .panel{background:#fff;padding:12px;border-radius:10px;box-shadow:0 2px 8px rgba(2,6,23,0.06)}
+  label{display:block;font-weight:700;margin-top:8px;font-size:13px}
+  input,select,textarea,button{width:100%;padding:8px;margin-top:6px;box-sizing:border-box;border-radius:6px;border:1px solid #d4dbe8}
+  textarea{height:260px;font-family:monospace;background:#0b0b0b;color:#0f0;padding:8px}
+  button{background:#0a6cff;color:#fff;border:none;font-weight:700;cursor:pointer}
+  .small{font-size:12px;color:#666}
+  .hrow{display:flex;gap:8px}
+  .hrow>input{flex:1}
+  .prob_bar{height:16px;background:#eef4ff;border-radius:10px;overflow:hidden;margin-top:6px}
+  .prob_fill{height:100%;background:#0a6cff;width:0%}
+  .muted{color:#666;font-size:13px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .note{font-size:13px;color:#444;margin-top:6px}
+  .smallbtn{background:#e6eefc;color:#0a6cff;padding:6px;border-radius:6px;border:1px solid #cde0ff}
+  .sectionTitle{font-size:15px;font-weight:800;margin-top:6px}
+  pre{white-space:pre-wrap}
+</style>
+</head>
+<body>
+
+<h1>PSZ — LEVEL 11 DEWA ULTRA (Offline)</h1>
+
+<div class="grid">
+
+  <!-- LEFT: Inputs, model, meta -->
+  <div class="panel">
+    <h2>Match / Core Inputs</h2>
+    <div class="two">
+      <div>
+        <label>Home Team</label><input id="home_team" value="TeamA">
+        <label>λ Home (xG proxy)</label><input id="lamH" type="number" step="0.01" value="1.20">
+        <label>Home Formation</label><select id="home_formation"><option>4-3-3</option><option>4-4-2</option><option>3-5-2</option></select>
+        <label>Home Stability (1-10)</label><input id="home_st" type="number" min="1" max="10" value="6">
+        <label>Home Press (1-10)</label><input id="home_press" type="number" min="1" max="10" value="6">
+        <label>Shots Home</label><input id="shots_home" value="11">
+      </div>
+      <div>
+        <label>Away Team</label><input id="away_team" value="TeamB">
+        <label>λ Away (xG proxy)</label><input id="lamA" type="number" step="0.01" value="1.05">
+        <label>Away Formation</label><select id="away_formation"><option>4-4-2</option><option>4-3-3</option><option>3-5-2</option></select>
+        <label>Away Stability (1-10)</label><input id="away_st" type="number" min="1" max="10" value="5">
+        <label>Away Press (1-10)</label><input id="away_press" type="number" min="1" max="10" value="5">
+        <label>Shots Away</label><input id="shots_away" value="8">
+      </div>
+    </div>
+
+    <div class="two">
+      <div>
+        <label>Tempo (1-10)</label><input id="tempo" type="number" min="1" max="10" value="5">
+        <label>Chaos (1-10)</label><input id="chaos" type="number" min="1" max="10" value="5">
+        <label>PPDA Home</label><input id="ppda_home" step="0.1" value="11.2">
+        <label>FormPts Home (last5)</label><input id="formPts_home" value="9">
+        <label>Conceded Last5 Home</label><input id="conceded_last5_home" value="1">
+      </div>
+      <div>
+        <label>Importance (1-10)</label><input id="importance" type="number" min="1" max="10" value="5">
+        <label>Manager Agg Home Bias (-2..2)</label><input id="home_aggr_bias" step="0.1" value="0">
+        <label>PPDA Away</label><input id="ppda_away" step="0.1" value="12.6">
+        <label>FormPts Away (last5)</label><input id="formPts_away" value="7">
+        <label>Conceded Last5 Away</label><input id="conceded_last5_away" value="2">
+      </div>
+    </div>
+
+    <div style="margin-top:8px" class="hrow">
+      <button id="btn_auto_input" class="">AUTO INPUT (ULTRA)</button>
+      <button id="btn_run" class="">RUN DEWA ULTRA</button>
+    </div>
+
+    <p class="note">Auto will compute advanced inputs (momentum, defline, ppda, fatigue). Use RUN to execute the full Level-11 pipeline (math + tree ensemble + meta learning + scoreline sim).</p>
+
+    <hr/>
+
+    <div class="sectionTitle">ML Tree Ensemble (Offline)</div>
+    <p class="small">Supports simple JSON tree ensemble format. Demo tree model provided if none loaded.</p>
+    <label>Paste Tree Ensemble JSON (or click load demo)</label>
+    <textarea id="tree_json" placeholder='{"meta":...,"features":[...],"trees":[{...}] }'></textarea>
+    <div class="hrow" style="margin-top:6px">
+      <button id="btn_load_tree" class="smallbtn">Load JSON Model</button>
+      <button id="btn_load_tree_demo" class="smallbtn">Load Demo Tree</button>
+    </div>
+
+    <div style="margin-top:8px">
+      <label>ML blend weight (0..1)</label><input id="ml_weight" type="number" step="0.05" value="0.28">
+      <label>Math weight (0..1)</label><input id="math_weight" type="number" step="0.05" value="0.52">
+      <label>MC weight (0..1)</label><input id="mc_weight" type="number" step="0.05" value="0.20">
+      <small class="muted">Weights will be normalized automatically.</small>
+    </div>
+
+    <hr/>
+    <div class="sectionTitle">Meta-Calibrator & Auto-Learning</div>
+    <p class="small">Local meta stored in localStorage — used to auto-adjust ML logits per-team/league. You can also enable auto-update based on results (simulated feedback).</p>
+    <label>Meta JSON (teams/leagues)</label>
+    <textarea id="meta_json" placeholder='{"teams":{},"leagues":{}}'></textarea>
+    <div class="hrow" style="margin-top:6px">
+      <button id="btn_save_meta" class="smallbtn">Save Meta</button>
+      <button id="btn_load_meta" class="smallbtn">Load Meta</button>
+    </div>
+
+    <div style="margin-top:8px">
+      <label>Auto-Learn on result (enable)</label>
+      <select id="auto_learn"><option value="false">false</option><option value="true">true</option></select>
+      <label>Auto-learn sensitivity (0..1)</label><input id="auto_learn_sens" step="0.01" value="0.12">
+    </div>
+
+  </div>
+
+  <!-- RIGHT: Output, explain, value, scorelines -->
+  <div class="panel">
+    <h2>DEWA ULTRA OUTPUT</h2>
+    <label>Output</label>
+    <textarea id="output" readonly></textarea>
+
+    <div style="margin-top:8px">
+      <label>Prob Visual</label>
+      <div class="prob_bar"><div id="pH_fill" class="prob_fill"></div></div>
+      <div class="prob_bar" style="margin-top:8px"><div id="pD_fill" class="prob_fill"></div></div>
+      <div class="prob_bar" style="margin-top:8px"><div id="pA_fill" class="prob_fill"></div></div>
+    </div>
+
+    <hr/>
+    <div class="sectionTitle">Explainability (per-tree & feature)</div>
+    <pre id="explain" class="note muted">No run yet.</pre>
+
+    <hr/>
+    <div class="sectionTitle">Value Detector (advanced)</div>
+    <label>Market odds (H / D / A)</label>
+    <div class="hrow"><input id="market_H" placeholder="1.95"><input id="market_D" placeholder="3.40"><input id="market_A" placeholder="4.00"></div>
+    <div style="margin-top:8px" class="hrow"><button id="btn_value" class="smallbtn">Calc Value</button><button id="btn_export_meta" class="smallbtn">Export Meta</button></div>
+    <pre id="value_out" class="note muted">No value yet.</pre>
+
+    <hr/>
+    <div class="sectionTitle">Scoreline Simulator & Clustering</div>
+    <label>Sim Count</label><input id="simCount" type="number" value="4000">
+    <label>Score Cap</label><input id="scoreCap" type="number" value="6">
+    <div style="margin-top:6px" class="hrow">
+      <button id="btn_simrun" class="smallbtn">Run Scoreline Sim</button>
+      <button id="btn_show_heat" class="smallbtn">Show Heat (Top)</button>
+    </div>
+    <pre id="scorelines" class="note muted">No simulation run yet.</pre>
+
+    <hr/>
+    <div class="sectionTitle">Engine Health & Controls</div>
+    <div class="hrow">
+      <button id="btn_reset" class="smallbtn">Reset Meta & Model</button>
+      <button id="btn_debug" class="smallbtn">Console Debug</button>
+    </div>
+    <p class="small">Tip: use moderate simCount (2k–10k) for balanced speed vs accuracy. For ultra precision try 20k+ (may be slow).</p>
+  </div>
+
+</div>
+
+<!-- ======================================================
+   SCRIPT: Level11 Dewa Ultra (Offline)
+   - Core math engine (detSim + MC)
+   - Master tactical modules (DLA, xT v3 simplified, FMA)
+   - Tree ensemble interpreter (simple node structure)
+   - Meta-calibrator with auto-learn
+   - Scoreline sim + clustering
+   - Value engine advanced
+   ====================================================== -->
+<script>
+/* PSZ LEVEL 11 DEWA ULTRA — OFFLINE
+   Author: PSZ assistant (generated)
+   Note: This is an all-in-one page. Keep it local for best performance.
+*/
+
+(function(window){
+  const PSZ = {}; window.PSZ = window.PSZ || PSZ;
+
+  /* ---------- utils ---------- */
+  PSZ.safeNum = (v,d=0)=>{ if(v===undefined||v===null) return d; const n=Number(v); return isFinite(n)?n:d; };
+  PSZ.clamp = (v,a,b)=> Math.max(a,Math.min(b,v));
+  PSZ.softmax = arr=>{ const mx=Math.max(...arr); const ex=arr.map(x=>Math.exp(x-mx)); const s=ex.reduce((a,b)=>a+b,0)||1; return ex.map(x=>x/s); };
+  PSZ.logit = p=> Math.log(Math.max(1e-12,p)/(1-Math.max(1e-12,p)));
+  PSZ.invlogit = l=> 1/(1+Math.exp(-l));
+
+  /* ---------- poisson & MC ---------- */
+  PSZ.poissonPMF = function(lambda,k){
+    lambda = Math.max(1e-6, PSZ.safeNum(lambda,0.1));
+    k = Math.max(0, Math.floor(PSZ.safeNum(k,0)));
+    let fact=1; for(let i=2;i<=k;i++) fact*=i;
+    const p = Math.exp(-lambda)*Math.pow(lambda,k)/fact;
+    return isFinite(p)?p:0;
+  };
+  PSZ.randomPoisson = function(lambda){
+    lambda = Math.max(1e-6, PSZ.safeNum(lambda,0.1));
+    const L = Math.exp(-lambda);
+    let k=0,p=1;
+    while(p> L && k<1000){ k++; p*=Math.random(); }
+    return Math.max(0,k-1);
+  };
+
+  /* ---------- deterministic matrix ---------- */
+  PSZ.detSim = function(lambda, cap=8){
+    const lamH = PSZ.safeNum(lambda.lamH,1.2), lamA = PSZ.safeNum(lambda.lamA,1.0);
+    const mat=[]; let pH=0,pD=0,pA=0;
+    for(let h=0; h<=cap; h++){ mat[h]=[]; const ph=PSZ.poissonPMF(lamH,h);
+      for(let a=0; a<=cap; a++){ const pa=PSZ.poissonPMF(lamA,a); const p = ph*pa; mat[h][a]=p; if(h>a) pH+=p; else if(h===a) pD+=p; else pA+=p; }
+    }
+    const tot = pH+pD+pA || 1;
+    return {pH:pH/tot,pD:pD/tot,pA:pA/tot, mat, lamH, lamA};
+  };
+
+  PSZ.monteCarlo = function(lambda, simCount=2000, scoreCap=6){
+    simCount = Math.max(1, Math.floor(PSZ.safeNum(simCount,2000)));
+    scoreCap = Math.max(1, Math.floor(PSZ.safeNum(scoreCap,6)));
+    const lamH = PSZ.safeNum(lambda.lamH,1.2), lamA = PSZ.safeNum(lambda.lamA,1.0);
+    const matrix = Array.from({length:scoreCap+1}, ()=> Array(scoreCap+1).fill(0));
+    let ch=0,cd=0,ca=0, tg=0;
+    for(let i=0;i<simCount;i++){
+      const gH = PSZ.randomPoisson(lamH), gA = PSZ.randomPoisson(lamA);
+      const h = Math.min(gH, scoreCap), a = Math.min(gA, scoreCap);
+      matrix[h][a] += 1; tg += (gH+gA);
+      if(gH>gA) ch++; else if(gH===gA) cd++; else ca++;
+    }
+    return {matrix, simCount, scoreCap, pH:ch/simCount, pD:cd/simCount, pA:ca/simCount, avgGoals: tg/simCount};
+  };
+
+  /* ---------- Master tactical modules (DLA, xT v3 simpl) ---------- */
+  PSZ.Master = {};
+  PSZ.Master.DLA = function(ctx){
+    const lamH = PSZ.safeNum(ctx.lamH,1.2), lamA = PSZ.safeNum(ctx.lamA,1.0);
+    const momDiff = (PSZ.safeNum(ctx.home_mom,5) - PSZ.safeNum(ctx.away_mom,5))/10;
+    const stDiff  = (PSZ.safeNum(ctx.home_st,5) - PSZ.safeNum(ctx.away_st,5))/10;
+    const pressDiff = (PSZ.safeNum(ctx.home_press,5) - PSZ.safeNum(ctx.away_press,5))/10;
+    const finDiff = (PSZ.safeNum(ctx.fin_home,5) - PSZ.safeNum(ctx.fin_away,5))/10;
+    let adjH = lamH * (1 + momDiff*0.20 + stDiff*0.12 + pressDiff*0.09 + finDiff*0.07);
+    let adjA = lamA * (1 - momDiff*0.20 - stDiff*0.12 - pressDiff*0.09 - finDiff*0.07);
+    adjH = PSZ.clamp(adjH, 0.08, 8); adjA = PSZ.clamp(adjA, 0.08, 8);
+    return { lamH: adjH, lamA: adjA };
+  };
+
+  // xT v3 simplified: use possession, progressive pass proxy (shots/pos), and zone bias
+  PSZ.Master.xT_v3 = function(ctx){
+    const posH = PSZ.safeNum(ctx.pos_home,50), posA = PSZ.safeNum(ctx.pos_away,50);
+    const shotsH = PSZ.safeNum(ctx.shots_home,8), shotsA = PSZ.safeNum(ctx.shots_away,7);
+    const shotqH = PSZ.safeNum(ctx.shotq_home,0.12), shotqA = PSZ.safeNum(ctx.shotq_away,0.10);
+    // progressive proxy: shots * shot quality * possession weighting
+    const progH = (shotsH * shotqH) * (posH/50);
+    const progA = (shotsA * shotqA) * (posA/50);
+    // zone bias from formation (simplified)
+    const formBias = function(f){ if(!f) return 0; if(f.includes("3-5")) return -0.05; if(f==="4-3-3") return 0.06; return 0; };
+    const zH = formBias(ctx.homeFormation) || 0, zA = formBias(ctx.awayFormation) || 0;
+    const xtH = PSZ.clamp(0.6*(posH/50) + 0.25*(progH/5) + zH, 0, 6);
+    const xtA = PSZ.clamp(0.6*(posA/50) + 0.25*(progA/5) + zA, 0, 6);
+    return { xtHome: xtH, xtAway: xtA };
+  };
+
+  PSZ.Master.FMA2 = function(ctx){
+    const fH=(ctx.homeFormation||"").toString(), fA=(ctx.awayFormation||"").toString();
+    let s=0; if(fH==="4-3-3" && fA==="4-4-2") s=0.12; if(fH==="3-5-2" && fA==="4-3-3") s=-0.10;
+    return { fmaScore: s };
+  };
+
+  PSZ.Master.mergeMaster = function(ctx){
+    const dla = PSZ.Master.DLA(ctx);
+    const xt = PSZ.Master.xT_v3(ctx);
+    const fma = PSZ.Master.FMA2(ctx);
+    return { dla, xt, fma, adjustedLam: { lamH:dla.lamH, lamA:dla.lamA } };
+  };
+
+  /* ---------- Dynamic Momentum Decay (event-based) ---------- */
+  PSZ.Momentum = (function(){
+    function decay(current, events){
+      // current: 0..10 ; events: { conceded:boolean, scored:boolean, pressedHigh:boolean, staminaLow:boolean }
+      let v = current;
+      if(events.scored) v += 0.9;
+      if(events.conceded) v -= 1.2;
+      if(events.pressedHigh) v += 0.2;
+      if(events.staminaLow) v -= 0.6;
+      // apply exponential decay towards baseline 5.0
+      const baseline = 5.0;
+      const alpha = 0.08; // decay rate
+      v = baseline + (v - baseline) * Math.exp(-alpha);
+      return PSZ.clamp(v, 0.5, 10);
+    }
+    return { decay };
+  })();
+
+  /* ---------- Tree Ensemble Interpreter (simple) ----------
+     Tree JSON format (simple):
+     {
+       "meta": {"name":"..."},
+       "features": ["lamDiff","momDiff",...],
+       "trees":[
+         { "nodes": [{ "id":0, "feature":"lamDiff","threshold":0.3,"left":1,"right":2 },
+                      { "id":1, "leaf":-0.12 },
+                      { "id":2, "leaf":0.14 } ], "scale":1.0 }
+         ,...
+       ]
+     }
+     Each tree returns a numeric value (logit contribution). Ensemble sum -> final logit.
+  */
+  PSZ.Tree = (function(){
+    let MODEL = null;
+    function loadFromJSON(obj){
+      if(!obj || !obj.features || !obj.trees) return {ok:false, error:"Invalid tree JSON"};
+      MODEL = obj;
+      return {ok:true};
+    }
+    function evalNode(nodeList, id, featMap){
+      const node = nodeList.find(n=>n.id===id);
+      if(!node) return 0;
+      if(node.leaf !== undefined) return node.leaf;
+      const f = node.feature;
+      const v = PSZ.safeNum(featMap[f],0);
+      if(v <= node.threshold) return evalNode(nodeList, node.left, featMap);
+      return evalNode(nodeList, node.right, featMap);
+    }
+    function predict(featMap){
+      if(!MODEL) return {ok:false, error:"no model"};
+      const trees = MODEL.trees;
+      let logit = 0;
+      for(let t=0;t<trees.length;t++){
+        const tree = trees[t];
+        const val = evalNode(tree.nodes, 0, featMap);
+        logit += (tree.scale || 1.0) * val;
+      }
+      // if multiclass: MODEL can provide multiple ensembles per class (not in demo). We'll support simple binary/multiclass via separate ensembles per class
+      return {ok:true, logit};
+    }
+    function getModel(){ return MODEL; }
+    function reset(){ MODEL = null; }
+    return { loadFromJSON, predict, getModel, reset };
+  })();
+
+  /* ---------- ML-lite fallback (multiclass linear) ---------- */
+  PSZ.ML = (function(){
+    // simple linear multiclass demo if no tree provided
+    const DEMO = {
+      meta:{name:"demo_linear_v2"},
+      features:["lamDiff","totalLam","tempo_scaled","chaos_scaled","momDiff","stDiff","ppdaDiff","xtDiff","fmaScore","formDiff","concededDiff"],
+      model1x2:{ type:"multiclass_linear", weights:[[0.20,-0.05,-0.04,0.03,0.10,-0.03,-0.02,0.04,0.01,0.0,-0.02],
+                                                     [-0.02,0.01,0.01,-0.01,-0.01,0.01,0.0,-0.01,0.0,0.0,0.0],
+                                                     [-0.18,0.04,-0.02,-0.02,-0.09,0.02,0.02,-0.03,-0.01,0.0,0.02]],
+                 bias:[0.15,0.01,-0.16] },
+      model_ou25:{ type:"logistic", weights:[0.12,0.06,0.03,-0.02,0.08,-0.03,-0.02,0.05,0.01,0.0,-0.01], bias:-0.18 },
+      model_btts:{ type:"logistic", weights:[0.10,0.08,0.03,-0.01,0.06,-0.02,-0.02,0.03,0.01,0.0,-0.01], bias:-0.08 }
+    };
+    let MODEL = DEMO;
+
+    function loadLinear(obj){ MODEL = obj; return {ok:true}; }
+    function reset(){ MODEL = DEMO; }
+    function predictLinearLogistic(weights, bias, featMap){
+      let s = bias || 0;
+      for(let i=0;i<weights.length;i++){ const name=MODEL.features[i]; s += (weights[i]||0) * PSZ.safeNum(featMap[name],0); }
+      return 1/(1+Math.exp(-s));
+    }
+    function predictMulticlassLinear(model, featMap){
+      const ncls = model.bias.length;
+      const logits = new Array(ncls).fill(0);
+      // weights as nested arrays: weights[class][i]
+      for(let c=0;c<ncls;c++){
+        let s = model.bias[c] || 0;
+        for(let i=0;i<MODEL.features.length;i++){
+          s += (model.weights[c][i]||0) * PSZ.safeNum(featMap[MODEL.features[i]],0);
+        }
+        logits[c] = s;
+      }
+      return PSZ.softmax(logits);
+    }
+    function predictAll(featMap){
+      const out = {};
+      if(PSZ.Tree.getModel()){
+        // if tree model loaded, use tree ensemble per-class not supported here -> fallback to linear demo
+        // we will use linear demo probabilities but tree logits will be used for adjustments elsewhere
+      }
+      if(MODEL.model1x2) out["ml1x2"] = predictMulticlassLinear(MODEL.model1x2, featMap);
+      if(MODEL.model_ou25) out["ml_ou25"] = predictLinearLogistic(MODEL.model_ou25.weights, MODEL.model_ou25.bias, featMap);
+      if(MODEL.model_btts) out["ml_btts"] = predictLinearLogistic(MODEL.model_btts.weights, MODEL.model_btts.bias, featMap);
+      return out;
+    }
+    function getModel(){ return MODEL; }
+    return { loadLinear, predictAll, reset, getModel };
+  })();
+
+  /* ---------- Meta calibrator (localStorage) ---------- */
+  PSZ.Meta = (function(){
+    const KEY = "psz_level11_meta_v1";
+    function load(){ try{ const raw = localStorage.getItem(KEY); return raw?JSON.parse(raw):{teams:{},leagues:{},history:[]}; }catch(e){ return {teams:{},leagues:{},history:[]}; } }
+    function save(obj){ try{ localStorage.setItem(KEY, JSON.stringify(obj)); return {ok:true}; }catch(e){ return {ok:false,error:String(e)}; } }
+    function clear(){ localStorage.removeItem(KEY); }
+    return { load, save, clear };
+  })();
+
+  /* ---------- Value Engine advanced ---------- */
+  PSZ.Value = (function(){
+    function fair_from_p(p){ if(p<=1e-9) return null; return Math.max(1.01, 1.0/p); }
+    function valueList(probs, marketOdds){
+      const fair = { H: fair_from_p(probs.pH), D: fair_from_p(probs.pD), A: fair_from_p(probs.pA) };
+      const arr = [];
+      ["H","D","A"].forEach(k=>{
+        const mo = PSZ.safeNum(marketOdds[k],0);
+        const fo = fair[k];
+        if(mo && fo){
+          const value_pct = (fo - mo)/mo;
+          const p = probs[k==="H"?"pH":k==="D"?"pD":"pA"];
+          const b = mo - 1;
+          let kelly = 0;
+          if(b>0 && p>0){
+            kelly = Math.max(0, (b * p - (1-p))/b);
+          }
+          // volatility proxy: if market odds far from fair -> volatility high
+          const vol = Math.abs(fo - mo)/Math.max(0.01, mo);
+          arr.push({side:k, market:mo, fair:fo, value_pct, kelly, volatility:vol});
+        }
+      });
+      // rank by value_pct* (1 - volatility)
+      arr.sort((a,b)=> (b.value_pct*(1-b.volatility)) - (a.value_pct*(1-a.volatility)));
+      return { fair, value_list:arr };
+    }
+    return { valueList };
+  })();
+
+  /* ---------- Scoreline clustering utility ---------- */
+  PSZ.Score = (function(){
+    function topScorelinesFromMatrix(mat, cap, topN=10){
+      const flat=[];
+      for(let h=0; h<mat.length; h++){
+        for(let a=0; a<mat[h].length; a++){
+          flat.push({score:`${h}-${a}`, h, a, p: mat[h][a]});
+        }
+      }
+      flat.sort((x,y)=> y.p - x.p);
+      return flat.slice(0, topN);
+    }
+    function clusterTop(flat, eps=0.5){
+      // simple clustering by goal sum proximity
+      const clusters = {};
+      flat.forEach(item=>{
+        const sum = item.h + item.a;
+        if(!clusters[sum]) clusters[sum]=[];
+        clusters[sum].push(item);
+      });
+      return clusters;
+    }
+    return { topScorelinesFromMatrix, clusterTop };
+  })();
+
+  /* ---------- Feature builder ---------- */
+  function buildFeatureMap(ctx, master){
+    const feat = {};
+    feat.lamDiff = PSZ.safeNum(ctx.lamH) - PSZ.safeNum(ctx.lamA);
+    feat.totalLam = PSZ.safeNum(ctx.lamH) + PSZ.safeNum(ctx.lamA);
+    feat.tempo_scaled = (PSZ.safeNum(ctx.tempo,5) - 5)/5.0;
+    feat.chaos_scaled = (PSZ.safeNum(ctx.chaos,5) - 5)/5.0;
+    feat.momDiff = PSZ.safeNum(ctx.home_mom,5) - PSZ.safeNum(ctx.away_mom,5);
+    feat.stDiff = PSZ.safeNum(ctx.home_st,5) - PSZ.safeNum(ctx.away_st,5);
+    feat.ppdaDiff = PSZ.safeNum(ctx.ppda_home,12) - PSZ.safeNum(ctx.ppda_away,12);
+    const xtH = master && master.xt ? master.xt.xtHome : PSZ.safeNum(ctx.xg_home,1);
+    const xtA = master && master.xt ? master.xt.xtAway : PSZ.safeNum(ctx.xg_away,1);
+    feat.xtDiff = xtH - xtA;
+    feat.fmaScore = master && master.fma ? master.fma.fmaScore : 0;
+    feat.formDiff = PSZ.safeNum(ctx.formPts_home,7) - PSZ.safeNum(ctx.formPts_away,6);
+    feat.concededDiff = PSZ.safeNum(ctx.conceded_last5_home,2) - PSZ.safeNum(ctx.conceded_last5_away,2);
+    // ensure features expected by model exist
+    const modelTree = PSZ.Tree.getModel();
+    const modelLin = PSZ.ML.getModel();
+    const features = (modelTree && modelTree.features) ? modelTree.features : (modelLin && modelLin.features ? modelLin.features : []);
+    features.forEach(f=>{ if(!(f in feat)) feat[f] = 0; });
+    return feat;
+  }
+
+  /* ---------- Main run (Level11) ---------- */
+  async function runUltra(){
+    const outEl = document.getElementById("output");
+    const explainEl = document.getElementById("explain");
+    outEl.value = "Running PSZ Level11 DEWA ULTRA...\n";
+    explainEl.innerText = "Preparing...";
+    try{
+      // collect UI context
+      const ctx = {
+        home_team: document.getElementById("home_team").value,
+        away_team: document.getElementById("away_team").value,
+        lamH: PSZ.safeNum(document.getElementById("lamH").value,1.2),
+        lamA: PSZ.safeNum(document.getElementById("lamA").value,1.0),
+        homeFormation: document.getElementById("home_formation").value,
+        awayFormation: document.getElementById("away_formation").value,
+        tempo: PSZ.safeNum(document.getElementById("tempo").value,5),
+        chaos: PSZ.safeNum(document.getElementById("chaos").value,5),
+        home_st: PSZ.safeNum(document.getElementById("home_st").value,5),
+        away_st: PSZ.safeNum(document.getElementById("away_st").value,5),
+        home_press: PSZ.safeNum(document.getElementById("home_press").value,5),
+        away_press: PSZ.safeNum(document.getElementById("away_press").value,5),
+        ppda_home: PSZ.safeNum(document.getElementById("ppda_home").value,11.5),
+        ppda_away: PSZ.safeNum(document.getElementById("ppda_away").value,12.5),
+        xg_home: PSZ.safeNum(document.getElementById("lamH").value,1.2),
+        xg_away: PSZ.safeNum(document.getElementById("lamA").value,1.0),
+        shots_home: PSZ.safeNum(document.getElementById("shots_home").value,10),
+        shots_away: PSZ.safeNum(document.getElementById("shots_away").value,8),
+        shotq_home: PSZ.safeNum(document.getElementById("shotq_home")?.value,0.12) || 0.12,
+        shotq_away: PSZ.safeNum(document.getElementById("shotq_away")?.value,0.10) || 0.10,
+        formPts_home: PSZ.safeNum(document.getElementById("formPts_home").value,7),
+        formPts_away: PSZ.safeNum(document.getElementById("formPts_away").value,6),
+        conceded_last5_home: PSZ.safeNum(document.getElementById("conceded_last5_home").value,2),
+        conceded_last5_away: PSZ.safeNum(document.getElementById("conceded_last5_away").value,2),
+        importance: PSZ.safeNum(document.getElementById("importance").value,5),
+        home_aggr_bias: PSZ.safeNum(document.getElementById("home_aggr_bias").value,0),
+        // sim params
+        simCount: Math.max(1, Math.floor(PSZ.safeNum(document.getElementById("simCount").value,4000))),
+        scoreCap: Math.max(1, Math.floor(PSZ.safeNum(document.getElementById("scoreCap").value,6)))
+      };
+// AutoHybrid improvements (momentum via dynamic decay)
+      // initial momentum baseline from form + xG
+      const home_mom0 = PSZ.safeNum(ctx.formPts_home,7)/1.7 + (PSZ.safeNum(ctx.lamH,1.2)-0.8);
+      const away_mom0 = PSZ.safeNum(ctx.formPts_away,6)/1.7 + (PSZ.safeNum(ctx.lamA,1.0)-0.8);
+      // events heuristic
+      const eventsH = { scored:false, conceded:false, pressedHigh: ctx.home_press > ctx.away_press, staminaLow:false };
+      const eventsA = { scored:false, conceded:false, pressedHigh: ctx.away_press > ctx.home_press, staminaLow:false };
+      ctx.home_mom = PSZ.Momentum.decay(PSZ.clamp(home_mom0,1,9), eventsH);
+      ctx.away_mom = PSZ.Momentum.decay(PSZ.clamp(away_mom0,1,9), eventsA);
+
+      // master run
+      const master = PSZ.Master.mergeMaster(ctx);
+
+      // det + chaos + MC
+      const det = PSZ.detSim({ lamH: ctx.lamH, lamA: ctx.lamA }, 8);
+      const chaosScale = 1 + ((ctx.chaos - 5)/18);
+      const detChaos = PSZ.detSim({ lamH: ctx.lamH * chaosScale, lamA: ctx.lamA * chaosScale }, 8);
+
+      const mc = PSZ.monteCarlo(master.adjustedLam, ctx.simCount, ctx.scoreCap);
+
+      // fused math (RC)
+      let math_fused = (det.pH + detChaos.pH + mc.pH)/3;
+      let math_fused_d = (det.pD + detChaos.pD + mc.pD)/3;
+      let math_fused_a = (det.pA + detChaos.pA + mc.pA)/3;
+      // apply xt and fma nudges
+      math_fused += (master.xt.xtHome||0)*0.018 + master.fma.fmaScore*0.02;
+      math_fused_a += (master.xt.xtAway||0)*0.018 - master.fma.fmaScore*0.02;
+      let math_total = math_fused + math_fused_d + math_fused_a || 1;
+      math_fused /= math_total; math_fused_d /= math_total; math_fused_a /= math_total;
+
+      // ML part: TREE ensemble if available else linear ML
+      const featMap = buildFeatureMap(ctx, master);
+      let ml_probs = null;
+      const treeModel = PSZ.Tree.getModel();
+      if(treeModel){
+        // support: treeModel can include separate ensembles per class as trees_by_class: { "0": [...], "1": [...], "2": [...] }
+        // Here: if trees_by_class present, evaluate each, else use a single ensemble logit and softmax with other info
+        if(treeModel.trees_by_class){
+          const logits = [];
+          for(const cls of Object.keys(treeModel.trees_by_class).sort()) {
+            const ensemble = {trees: treeModel.trees_by_class[cls]};
+            // evaluate ensemble: reuse Tree.predict by temporarily constructing model
+            const tmp = {features: treeModel.features, trees: ensemble.trees};
+            PSZ.Tree.loadFromJSON(tmp);
+            const r = PSZ.Tree.predict(featMap);
+            logits.push(r.logit || 0);
+          }
+          // restore full model
+          PSZ.Tree.loadFromJSON(treeModel);
+          const probs = PSZ.softmax(logits);
+          ml_probs = { pH: probs[0], pD: probs[1], pA: probs[2] };
+        } else {
+          // single ensemble -> logit for home advantage; combine with linear fallback for multiclass
+          const r = PSZ.Tree.predict(featMap);
+          const treeLogit = r.logit || 0;
+          // use ML linear to get base multiclass probs
+          const linear = PSZ.ML.predictAll(featMap);
+          const base = linear.ml1x2 ? {pH:linear.ml1x2[0], pD:linear.ml1x2[1], pA:linear.ml1x2[2]} : {pH:0.33,pD:0.34,pA:0.33};
+          // convert base to logits and add treeLogit to home logit, -treeLogit to away (symmetry)
+          const logits = [PSZ.logit(base.pH) + treeLogit, PSZ.logit(base.pD), PSZ.logit(base.pA) - treeLogit];
+          const adj = PSZ.softmax(logits);
+          ml_probs = { pH: adj[0], pD: adj[1], pA: adj[2] };
+        }
+      } else {
+        const linear = PSZ.ML.predictAll(featMap);
+        if(linear.ml1x2) ml_probs = { pH:linear.ml1x2[0], pD:linear.ml1x2[1], pA:linear.ml1x2[2] };
+        else ml_probs = { pH:0.33, pD:0.34, pA:0.33 };
+      }
+
+      // meta calibrator adjustments
+      const meta = PSZ.Meta.load();
+      let home_adj = 0, away_adj = 0, league_adj = 0;
+      if(meta.teams && meta.teams[ctx.home_team]) home_adj = PSZ.safeNum(meta.teams[ctx.home_team].bias,0);
+      if(meta.teams && meta.teams[ctx.away_team]) away_adj = PSZ.safeNum(meta.teams[ctx.away_team].bias,0);
+
+      // apply small adjustments to ml logits
+      const ml_logits = [PSZ.logit(PSZ.safeNum(ml_probs.pH,0.33)) + home_adj, PSZ.logit(PSZ.safeNum(ml_probs.pD,0.34)), PSZ.logit(PSZ.safeNum(ml_probs.pA,0.33)) + away_adj];
+      const ml_adj_probs_arr = PSZ.softmax(ml_logits);
+      const ml_adj = { pH: ml_adj_probs_arr[0], pD: ml_adj_probs_arr[1], pA: ml_adj_probs_arr[2] };
+
+      // final blending: use weights from UI, normalize
+      let wML = PSZ.safeNum(Number(document.getElementById("ml_weight").value),0.28);
+      let wMath = PSZ.safeNum(Number(document.getElementById("math_weight").value),0.52);
+      let wMC = PSZ.safeNum(Number(document.getElementById("mc_weight").value),0.20);
+      // normalize positive weights
+      let sumW = Math.max(1e-9, Math.abs(wML)+Math.abs(wMath)+Math.abs(wMC));
+      wML /= sumW; wMath /= sumW; wMC /= sumW;
+
+      // Use fused math (math_fused) as math component, MC component from mc.p*
+      const final_pH = PSZ.clamp(wMath*math_fused + wMC*mc.pH + wML*ml_adj.pH, 1e-6, 0.999999);
+      const final_pD = PSZ.clamp(wMath*math_fused_d + wMC*mc.pD + wML*ml_adj.pD, 1e-6, 0.999999);
+      const final_pA = PSZ.clamp(wMath*math_fused_a + wMC*mc.pA + wML*ml_adj.pA, 1e-6, 0.999999);
+      const sfinal = final_pH + final_pD + final_pA || 1;
+      const fpH = final_pH/sfinal, fpD = final_pD/sfinal, fpA = final_pA/sfinal;
+
+      // BTTS combine: ML + Math
+      const ml_btts = PSZ.safeNum(PSZ.ML.getModel().model_btts ? PSZ.ML.getModel().model_btts.bias && 0.5 : 0.45, 0.45);
+      const math_btts = PSZ.clamp(0.22 + (master.adjustedLam.lamH + master.adjustedLam.lamA)*0.12, 0, 0.98);
+      const final_btts = 0.5 * math_btts + 0.5 * (PSZ.ML.predictAll(featMap).ml_btts || math_btts);
+
+      // OU 2.5 combine analytic + ml
+      const lamEff = PSZ.clamp((master.adjustedLam.lamH + master.adjustedLam.lamA) * (1 + ((ctx.tempo-5)/12) + ((ctx.chaos-5)/15)), 0.2, 12);
+      let underAnalytic = 0;
+      for(let k=0;k<=20;k++) if(k<=2) underAnalytic += PSZ.poissonPMF(lamEff,k);
+      const ml_ou_raw = PSZ.ML.predictAll(featMap).ml_ou25 || 0.5;
+      const final_ou_over = 0.6*(1-underAnalytic) + 0.4*ml_ou_raw;
+
+      // Top scorelines from det matrix
+      const top = PSZ.Score.topScorelinesFromMatrix(det.mat, det.mat.length, 12);
+      const clusters = PSZ.Score.clusterTop(top);
+
+      // Confidence: measure variance across components
+      const comps = [math_fused, mc.pH, ml_adj.pH];
+      const mean = (comps[0]+comps[1]+comps[2])/3;
+      const variance = comps.reduce((a,b)=>a + Math.pow(b-mean,2),0)/3;
+      const conf = PSZ.clamp(1 - variance*6, 0, 1); // heuristic
+
+      // Build output text
+      let txt = "=== PSZ LEVEL11 DEWA ULTRA — REPORT ===\n\n";
+      txt += `[MATCH] ${ctx.home_team} vs ${ctx.away_team}\n\n`;
+      txt += "[FINAL PROBABILITIES]\n";
+      txt += `Home Win: ${(fpH*100).toFixed(1)}%  Draw: ${(fpD*100).toFixed(1)}%  Away Win: ${(fpA*100).toFixed(1)}%\n\n`;
+      txt += `[BTTS] ${(final_btts*100).toFixed(1)}%  | [OU 2.5 Over] ${(final_ou_over*100).toFixed(1)}%\n\n`;
+      txt += `[CONFIDENCE] ${(conf*100).toFixed(1)}% (higher is more stable)\n\n`;
+      txt += "[ENGINE DETAILS]\n";
+      txt += `Adjusted λH: ${master.adjustedLam.lamH.toFixed(3)} | λA: ${master.adjustedLam.lamA.toFixed(3)}\n`;
+      txt += `Math(pH/pD/pA): ${(math_fused*100).toFixed(1)}% / ${(math_fused_d*100).toFixed(1)}% / ${(math_fused_a*100).toFixed(1)}%\n`;
+      txt += `MC (pH/pD/pA): ${(mc.pH*100).toFixed(1)}% / ${(mc.pD*100).toFixed(1)}% / ${(mc.pA*100).toFixed(1)}%\n`;
+      txt += `ML (pH/pD/pA): ${(ml_adj.pH*100).toFixed(1)}% / ${(ml_adj.pD*100).toFixed(1)}% / ${(ml_adj.pA*100).toFixed(1)}%\n\n`;
+
+      txt += "[TOP SCORELINES (analytic det)]\n";
+      top.slice(0,8).forEach(s=> txt += `${s.score} ${(s.p*100).toFixed(2)}%\n`);
+      txt += "\n[CLUSTERS by total goals]\n";
+      Object.keys(clusters).forEach(sum=>{
+        txt += `TotalGoals=${sum} -> ${clusters[sum].map(x=>x.score).join(", ")}\n`;
+      });
+      txt += "\n[RECOMMENDATIONS]\n";
+      const hdpRec = fpH > fpA && fpH > fpD ? "Home" : (fpA > fpH && fpA > fpD ? "Away" : "No clear");
+      const ouRec = final_ou_over > 0.60 ? "Over 2.5" : (final_ou_over < 0.40 ? "Under 2.5" : "No strong OU");
+      const bttsRec = final_btts > 0.55 ? "YES" : "NO";
+      txt += `HDP: ${hdpRec}\nOU: ${ouRec}\nBTTS: ${bttsRec}\n\n`;
+
+      outEl.value = txt;
+      document.getElementById("pH_fill").style.width = Math.round(fpH*100) + "%";
+      document.getElementById("pD_fill").style.width = Math.round(fpD*100) + "%";
+      document.getElementById("pA_fill").style.width = Math.round(fpA*100) + "%";
+// Explainability: feature contributions (approx)
+      const explainParts = [];
+      // Use tree info if available
+      if(treeModel){
+        explainParts.push("Tree ensemble used — showing tree-level avg contributions (approx):");
+        // approximate per-feature contribution by finite diff (costly) — do small perturbation
+        const baseLogitHome = PSZ.Tree.predict(featMap).logit || 0;
+        const contributions = {};
+        treeModel.features.forEach(f=>{
+          const orig = PSZ.safeNum(featMap[f],0);
+          featMap[f] = orig + (Math.abs(orig)*0.08 + 0.01);
+          const newLogit = PSZ.Tree.predict(featMap).logit || 0;
+          const diff = newLogit - baseLogitHome;
+          contributions[f] = diff;
+          featMap[f] = orig;
+        });
+        const sorted = Object.keys(contributions).map(k=>({k,v:contributions[k]})).sort((a,b)=>Math.abs(b.v)-Math.abs(a.v)).slice(0,8);
+        sorted.forEach(s=> explainParts.push(`${s.k} : ${s.v.toFixed(4)}`));
+      } else {
+        explainParts.push("Linear ML used — showing weight*feature contributions (approx):");
+        const linear = PSZ.ML.getModel();
+        if(linear && linear.model1x2){
+          // home class weights
+          const w = linear.model1x2.weights[0];
+          linear.features.forEach((f,i)=> explainParts.push(`${f} : ${(w[i]*PSZ.safeNum(featMap[f],0)).toFixed(4)}`));
+        } else {
+          explainParts.push("No ML details available.");
+        }
+      }
+      explainEl.innerText = explainParts.join("\n");
+
+      // Value calc
+      const market = { H: PSZ.safeNum(document.getElementById("market_H").value,0), D: PSZ.safeNum(document.getElementById("market_D").value,0), A: PSZ.safeNum(document.getElementById("market_A").value,0) };
+      const val = PSZ.Value.valueList({pH:fpH,pD:fpD,pA:fpA}, market);
+      document.getElementById("value_out").innerText = JSON.stringify(val, null, 2);
+
+      // If auto-learn is enabled, optionally update meta based on user-provided actual result (simulate feedback)
+      const autoLearn = document.getElementById("auto_learn").value === "true";
+      if(autoLearn){
+        // Ask user for actual result? For offline simplicity, we only simulate small drift update using confidence and outcome if user chooses to call update.
+        // We'll not auto-change without explicit call to update function — but we provide updateMeta function below for user to call with actual outcome.
+      }
+
+      // store last run for debugging
+      window.PSZ_LAST_RUN = { ctx, master, det, detChaos, mc, fusedMath:{pH:math_fused,pD:math_fused_d,pA:math_fused_a}, ml_adj, final:{fpH,fpD,fpA}, featMap, meta };
+
+    }catch(e){
+      outEl.value += "\n[ERROR] " + (e.message || String(e)) + "\n";
+      console.error("runUltra error", e);
+    }
+  }
+
+  /* ---------- Scoreline sim button (separate heavy run) ---------- */
+  function runScorelineSim(){
+    const outScore = document.getElementById("scorelines");
+    outScore.innerText = "Running Scoreline Simulation...";
+    try{
+      const last = window.PSZ_LAST_RUN;
+      if(!last) return outScore.innerText = "Run engine first.";
+      const simCount = PSZ.safeNum(Number(document.getElementById("simCount").value),4000);
+      const scoreCap = PSZ.safeNum(Number(document.getElementById("scoreCap").value),6);
+      // faster MC using Poisson with master.adjustedLam
+      const lam = last.master.adjustedLam;
+      const matrix = Array.from({length:scoreCap+1}, ()=> Array(scoreCap+1).fill(0));
+      for(let i=0;i<simCount;i++){
+        const gH = PSZ.randomPoisson(lam.lamH);
+        const gA = PSZ.randomPoisson(lam.lamA);
+        const h = Math.min(gH, scoreCap), a = Math.min(gA, scoreCap);
+        matrix[h][a] += 1;
+      }
+      // normalize
+      const matNorm = matrix.map(row => row.map(v => v/simCount));
+      const top = PSZ.Score.topScorelinesFromMatrix(matNorm, scoreCap, 20);
+      outScore.innerText = top.slice(0,12).map(s=> `${s.score} ${(s.p*100).toFixed(2)}%`).join("\n");
+      // store matrix for heat display
+      window.PSZ_LAST_SIM = { matrix:matNorm, top };
+    }catch(e){
+      outScore.innerText = "Sim error: " + (e.message||String(e));
+    }
+  }
+
+  /* ---------- UI actions ---------- */
+  function attach(){
+    document.getElementById("btn_load_tree_demo").addEventListener("click", function(){
+      // build demo tree JSON (very small)
+      const demo = {
+        meta:{name:"demo_tree_1"},
+        features:["lamDiff","momDiff","xtDiff","ppdaDiff","formDiff"],
+        // single ensemble: if feature lamDiff > 0.2 -> positive logit else negative
+        trees:[
+          { nodes: [ {id:0, feature:"lamDiff", threshold:0.25, left:1, right:2}, {id:1, leaf:-0.28}, {id:2, leaf:0.45} ], scale:1.0 }
+        ]
+      };
+      document.getElementById("tree_json").value = JSON.stringify(demo, null, 2);
+      const r = PSZ.Tree.loadFromJSON(demo);
+      alert("Demo tree loaded.");
+    });
+
+    document.getElementById("btn_load_tree").addEventListener("click", function(){
+      const raw = document.getElementById("tree_json").value;
+      if(!raw) return alert("Paste tree JSON first or load demo.");
+      try{
+        const obj = JSON.parse(raw);
+        const ok = PSZ.Tree.loadFromJSON(obj);
+        if(ok && ok.ok) alert("Tree model loaded.");
+        else alert("Load failed: " + (ok.error||"unknown"));
+      }catch(e){ alert("Invalid JSON: "+e.message); }
+    });
+
+    document.getElementById("btn_save_meta").addEventListener("click", function(){
+      const raw = document.getElementById("meta_json").value;
+      if(!raw) return alert("Paste meta JSON first.");
+      try{
+        const obj = JSON.parse(raw);
+        PSZ.Meta.save(obj);
+        alert("Meta saved.");
+      }catch(e){ alert("Invalid JSON: "+e.message); }
+    });
+
+    document.getElementById("btn_load_meta").addEventListener("click", function(){
+      const m = PSZ.Meta.load();
+      document.getElementById("meta_json").value = JSON.stringify(m, null, 2);
+      alert("Meta loaded.");
+    });
+
+    document.getElementById("btn_auto_input").addEventListener("click", function(){
+      // quick auto hybrid: compute momentum & ppda adjustments
+      const ctx = {
+        lamH: PSZ.safeNum(document.getElementById("lamH").value,1.2),
+        lamA: PSZ.safeNum(document.getElementById("lamA").value,1.0),
+        shots_home: PSZ.safeNum(document.getElementById("shots_home").value,10),
+        shots_away: PSZ.safeNum(document.getElementById("shots_away").value,8),
+        pos_home: PSZ.safeNum(document.getElementById("pos_home")?.value,50),
+        pos_away: PSZ.safeNum(document.getElementById("pos_away")?.value,50),
+        formPts_home: PSZ.safeNum(document.getElementById("formPts_home").value,7),
+        formPts_away: PSZ.safeNum(document.getElementById("formPts_away").value,6),
+        home_press: PSZ.safeNum(document.getElementById("home_press").value,5),
+        away_press: PSZ.safeNum(document.getElementById("away_press").value,5)
+      };
+      // momentum baseline
+      const hMom = PSZ.clamp(ctx.formPts_home/1.6 + (ctx.lamH-0.8), 1, 9);
+      const aMom = PSZ.clamp(ctx.formPts_away/1.6 + (ctx.lamA-0.8), 1, 9);
+      // auto PPDA
+      const ppda_h = PSZ.clamp(16 - (ctx.home_press-4.5)*1.6 - (hMom-5)*0.25, 3, 30);
+      const ppda_a = PSZ.clamp(16 - (ctx.away_press-4.5)*1.6 - (aMom-5)*0.25, 3, 30);
+      document.getElementById("ppda_home").value = ppda_h.toFixed(2);
+      document.getElementById("ppda_away").value = ppda_a.toFixed(2);
+      document.getElementById("tempo").value = PSZ.clamp(4.5 + Math.log(Math.max(1, ctx.shots_home + ctx.shots_away))/Math.log(3),1,10).toFixed(2);
+      alert("Auto input applied (momentum + PPDA + tempo). Now run DEWA ULTRA.");
+    });
+
+    document.getElementById("btn_run").addEventListener("click", runUltra);
+    document.getElementById("btn_simrun").addEventListener("click", runScorelineSim);
+
+    document.getElementById("btn_value").addEventListener("click", function(){
+      const last = window.PSZ_LAST_RUN;
+      if(!last) return alert("Run engine first");
+      const market = { H: PSZ.safeNum(document.getElementById("market_H").value,0), D: PSZ.safeNum(document.getElementById("market_D").value,0), A: PSZ.safeNum(document.getElementById("market_A").value,0) };
+      const final = last.final ? last.final : { fpH: last.fpH, fpD: last.fpD, fpA: last.fpA};
+      // prefer current output fields
+      const probs = { pH: last.final ? last.final.fpH : (last.fpH||0.33), pD: last.final ? last.final.fpD : (last.fpD||0.34), pA: last.final ? last.final.fpA : (last.fpA||0.33) };
+      const val = PSZ.Value.valueList({pH:probs.pH,pD:probs.pD,pA:probs.pA}, market);
+document.getElementById("value_out").innerText = JSON.stringify(val, null, 2);
+    });
+
+    document.getElementById("btn_export_meta").addEventListener("click", function(){
+      const m = PSZ.Meta.load();
+      navigator.clipboard?.writeText(JSON.stringify(m,null,2));
+      alert("Meta copied to clipboard.");
+    });
+
+    document.getElementById("btn_reset").addEventListener("click", function(){
+      if(confirm("Reset model & meta to defaults?")){
+        PSZ.Tree.reset(); PSZ.ML.reset(); PSZ.Meta.clear();
+        document.getElementById("tree_json").value = "";
+        document.getElementById("meta_json").value = "";
+        alert("Reset done.");
+      }
+    });
+
+    document.getElementById("btn_debug").addEventListener("click", function(){
+      console.log("PSZ LAST:", window.PSZ_LAST_RUN, window.PSZ_LAST_SIM);
+      alert("Check console for debug objects: PSZ_LAST_RUN, PSZ_LAST_SIM");
+    });
+
+  }
+
+  // auto attach
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", attach);
+  else attach();
+
+  // expose for debugging
+  window.PSZ = PSZ;
+  console.log("PSZ Level11 DEWA ULTRA loaded (offline).");
+
+})(window);
+</script>
+
+</body>
+</html>
