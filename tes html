@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PSZ Level 9 — Clean Rebuild</title>
+
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    /* ======= Simple Clean UI ======= */
+    body { font-family: Inter, Arial, sans-serif; background:#f4f7fa; margin:0; padding:18px; color:#111; }
+    h1 { background:#0a6cff; color:#fff; padding:12px; border-radius:8px; margin:0 0 12px 0;}
+    .row { display:flex; gap:12px; }
+    .col { flex:1; min-width:260px; }
+    .panel { background:#fff; padding:14px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.06); margin-bottom:12px;}
+    label{display:block;font-weight:600;margin-top:8px;font-size:13px}
+    input, select, button, textarea { width:100%; padding:8px; margin-top:6px; box-sizing:border-box; border-radius:6px; border:1px solid #cdd6e0; font-size:13px }
+    button{background:#0a6cff;color:#fff;border:none;font-weight:700;cursor:pointer}
+    textarea { height:360px; background:#0b0b0b; color:#0f0; font-family: "Consolas", monospace; font-size:13px; resize:vertical; }
+    .prob_bar{height:18px;background:#e6eefc;border-radius:10px;overflow:hidden;margin-top:8px}
+    .prob_fill{height:100%;background:#0a6cff;width:0%}
+    .small{font-size:12px;color:#666}
+    .inline {display:flex; gap:8px}
+    .inline input { flex:1 }
+  </style>
+</head>
+<body>
+
+<h1>PSZ — LEVEL 9 CLEAN (Stable)</h1>
+
+<div class="row">
+
+  <div class="col">
+    <div class="panel">
+      <h2>Match Info</h2>
+      <label>Home Team</label><input id="home_team" type="text" placeholder="Home Team">
+      <label>Away Team</label><input id="away_team" type="text" placeholder="Away Team">
+      <label>League</label><input id="league" type="text" placeholder="League">
+      <label>Match Type</label>
+      <select id="match_type">
+        <option value="league">League</option><option value="cup">Cup</option><option value="friendly">Friendly</option>
+      </select>
+    </div>
+
+    <div class="panel">
+      <h2>Core Inputs (xG / λ)</h2>
+      <label>λ Home (xG proxy)</label><input id="lamH" type="number" step="0.01" value="1.20">
+      <label>λ Away (xG proxy)</label><input id="lamA" type="number" step="0.01" value="1.00">
+      <label>Score Cap (MC)</label><input id="scoreCap" type="number" value="6">
+      <label>Sim Count (MC)</label><input id="simCount" type="number" value="2000">
+    </div>
+
+    <div class="panel">
+      <h2>Core Tactics & Tempo</h2>
+      <label>Tempo (1–10)</label><input id="tempo" type="number" min="1" max="10" value="5">
+      <label>Chaos (1–10)</label><input id="chaos" type="number" min="1" max="10" value="5">
+      <label>Importance (1–10)</label><input id="importance" type="number" min="1" max="10" value="5">
+    </div>
+
+    <div class="panel">
+      <h2>Team State (Manual / Auto)</h2>
+      <label>Home Stability (1–10)</label><input id="home_st" type="number" min="1" max="10" value="5">
+      <label>Away Stability (1–10)</label><input id="away_st" type="number" min="1" max="10" value="5">
+      <label>Home Momentum (1–10)</label><input id="home_mom" type="number" min="1" max="10" value="5">
+      <label>Away Momentum (1–10)</label><input id="away_mom" type="number" min="1" max="10" value="5">
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="panel">
+      <h2>Tactical Inputs</h2>
+      <label>Pressing Intensity Home (1–10)</label><input id="home_press" type="number" min="1" max="10" value="5">
+      <label>Pressing Intensity Away (1–10)</label><input id="away_press" type="number" min="1" max="10" value="5">
+      <label>Flexibility Home</label><input id="home_flex" type="number" step="0.1" value="0.5">
+      <label>Flexibility Away</label><input id="away_flex" type="number" step="0.1" value="0.5">
+      <label>Finishing Quality Home (1–10)</label><input id="finishing_quality_home" type="number" min="1" max="10" value="5">
+      <label>Finishing Quality Away (1–10)</label><input id="finishing_quality_away" type="number" min="1" max="10" value="5">
+      <label>PPDA Home (auto/manual)</label><input id="ppda_home" type="number" step="0.1" value="11.5">
+      <label>PPDA Away (auto/manual)</label><input id="ppda_away" type="number" step="0.1" value="12.0">
+    </div>
+
+    <div class="panel">
+      <h2>Statistics</h2>
+      <label>xG Home</label><input id="xg_home" type="number" step="0.01" value="1.20">
+      <label>xG Away</label><input id="xg_away" type="number" step="0.01" value="1.00">
+      <label>Shots Home</label><input id="shots_home" type="number" value="10">
+      <label>Shots Away</label><input id="shots_away" type="number" value="8">
+      <label>Shot Quality Home</label><input id="shotq_home" type="number" step="0.01" value="0.12">
+      <label>Shot Quality Away</label><input id="shotq_away" type="number" step="0.01" value="0.10">
+      <label>Possession Home (%)</label><input id="pos_home" type="number" min="0" max="100" value="50">
+      <label>Possession Away (%)</label><input id="pos_away" type="number" min="0" max="100" value="50">
+    </div>
+
+    <div class="panel">
+      <h2>Formation / Meta</h2>
+      <label>Home Formation</label>
+      <select id="home_formation"><option>4-3-3</option><option>4-4-2</option><option>3-5-2</option></select>
+      <label>Away Formation</label>
+      <select id="away_formation"><option>4-4-2</option><option>4-3-3</option><option>3-5-2</option></select>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="panel">
+      <h2>Advanced Auto Inputs (Level 9)</h2>
+      <label>Conceded Last 5 (Home)</label><input id="conceded_last5_home" type="number" min="0" value="2">
+      <label>Conceded Last 5 (Away)</label><input id="conceded_last5_away" type="number" min="0" value="2">
+      <label>Form Points Last 5 (Home)</label><input id="formPts_home" type="number" min="0" max="15" value="7">
+      <label>Form Points Last 5 (Away)</label><input id="formPts_away" type="number" min="0" max="15" value="6">
+      <label>Injury Impact (Home)</label><input id="injury_home" type="number" min="0" max="10" value="0">
+      <label>Injury Impact (Away)</label><input id="injury_away" type="number" min="0" max="10" value="0">
+      <label>Squad Depth (Home)</label><input id="squadDepth_home" type="number" min="1" max="10" value="6">
+      <label>Squad Depth (Away)</label><input id="squadDepth_away" type="number" min="1" max="10" value="5">
+      <label>Defensive Line Home</label><input id="defline_home" type="number" min="1" max="10" value="5">
+      <label>Defensive Line Away</label><input id="defline_away" type="number" min="1" max="10" value="5">
+      <label>Rigidity Home (0-1)</label><input id="home_rigidity" type="number" step="0.1" min="0" max="1" value="0.5">
+      <label>Rigidity Away (0-1)</label><input id="away_rigidity" type="number" step="0.1" min="0" max="1" value="0.5">
+      <label>Manager Agg Bias Home (-2..+2)</label><input id="home_aggr_bias" type="number" step="0.1" min="-2" max="2" value="0">
+      <label>Manager Agg Bias Away (-2..+2)</label><input id="away_aggr_bias" type="number" step="0.1" min="-2" max="2" value="0">
+    </div>
+
+    <div class="panel">
+      <h2>Actions</h2>
+      <button id="btn_auto_input">AUTO INPUT (FULL)</button>
+      <button id="btn_run_integrated">RUN INTEGRATED</button>
+      <p class="small">Proses: Auto mengisi nilai → Engine menjalankan detSim + MC + fusion → Rekomendasi</p>
+    </div>
+
+    <div class="panel">
+      <h2>Output</h2>
+      <textarea id="output" readonly></textarea>
+
+      <div style="margin-top:10px">
+        <label>Probabilities (visual)</label>
+        <div class="prob_bar"><div id="pH_fill" class="prob_fill" style="width:0%"></div></div>
+        <div class="prob_bar" style="margin-top:6px"><div id="pD_fill" class="prob_fill" style="width:0%"></div></div>
+        <div class="prob_bar" style="margin-top:6px"><div id="pA_fill" class="prob_fill" style="width:0%"></div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<!-- ============================
+     SCRIPT: PSZ LEVEL 9 CLEAN REBUILD
+     Paste this whole block into your HTML (end of body)
+============================= -->
+<script>
+(function(window){
+  // clean namespace
+  window.V20 = window.V20 || {};
+  const V20 = window.V20;
+
+  /* --------- Utilities --------- */
+  V20.safeNum = (v,d=0)=>{ if(v===undefined||v===null) return d; const n = Number(v); return isFinite(n)?n:d; };
+  V20.clamp = (v,a,b)=> Math.max(a, Math.min(b, v));
+  V20.isMatrixOk = m => Array.isArray(m) && m.length>0 && Array.isArray(m[0]);
+
+  /* --------- Ensure hidden inputs exist (safety) --------- */
+  (function ensureHidden(){
+    const ids = ["pH_fill","pD_fill","pA_fill"];
+    ids.forEach(id=>{ if(!document.getElementById(id)){ const el=document.createElement("div"); el.id=id; el.style.display="none"; document.body.appendChild(el);} });
+  })();
+
+  /* --------- Poisson & random poisson (Knuth) --------- */
+  V20.poissonPMF = function(lambda, k){
+    lambda = Math.max(1e-6, V20.safeNum(lambda,0.1));
+    k = Math.max(0, Math.floor(V20.safeNum(k,0)));
+    let fact=1; for(let i=2;i<=k;i++) fact *= i;
+    const p = Math.exp(-lambda) * Math.pow(lambda,k) / fact;
+    return isFinite(p)?p:0;
+  };
+  V20.randomPoisson = function(lambda){
+    lambda = Math.max(1e-6, V20.safeNum(lambda,0.1));
+    const L = Math.exp(-lambda);
+    let k=0,p=1;
+    while(p> L && k < 500){ k++; p*=Math.random(); }
+    return Math.max(0,k-1);
+  };
+
+  /* --------- detSim --------- */
+  V20.detSim = function(lambda){
+    const lamH = V20.safeNum(lambda.lamH,1.2), lamA = V20.safeNum(lambda.lamA,1.0);
+    const cap = 8;
+    const mat = [];
+    let pH=0,pD=0,pA=0;
+    for(let h=0; h<=cap; h++){
+      mat[h]=[];
+      const ph = V20.poissonPMF(lamH,h);
+      for(let a=0; a<=cap; a++){
+        const pa = V20.poissonPMF(lamA,a);
+        const p = ph * pa;
+        mat[h][a] = p;
+        if(h>a) pH+=p; else if(h===a) pD+=p; else pA+=p;
+      }
+    }
+    const tot = pH+pD+pA || 1;
+    return { pH:pH/tot, pD:pD/tot, pA:pA/tot, mat, lamH, lamA };
+  };
+
+  /* --------- Monte Carlo sim --------- */
+  V20.monteCarlo = function(lambda, ctx, simCount=2000, scoreCap=6){
+    simCount = Math.max(1, Math.floor(V20.safeNum(simCount,2000)));
+    scoreCap = Math.max(1, Math.floor(V20.safeNum(scoreCap,6)));
+    const lamH = V20.safeNum(lambda.lamH,1.2), lamA = V20.safeNum(lambda.lamA,1.0);
+    const matrix = Array.from({length:scoreCap+1}, ()=> Array(scoreCap+1).fill(0));
+    let ch=0,cd=0,ca=0, tg=0;
+    for(let i=0;i<simCount;i++){
+      const gH = V20.randomPoisson(lamH), gA = V20.randomPoisson(lamA);
+      const h = Math.min(gH, scoreCap), a = Math.min(gA, scoreCap);
+      matrix[h][a] += 1;
+      tg += (gH + gA);
+      if(gH>gA) ch++; else if(gH===gA) cd++; else ca++;
+    }
+    return { matrix, simCount, scoreCap, pH:ch/simCount, pD:cd/simCount, pA:ca/simCount, avgGoals: tg/simCount };
+  };
+
+  /* --------- Master modules (DLA,GSM,TEM,xT,FMA,morale,PCV,RC) --------- */
+  V20.Master = {};
+  V20.Master.DLA = function(ctx){
+    const lamH = V20.safeNum(ctx.lamH,1.2), lamA = V20.safeNum(ctx.lamA,1.0);
+    const momDiff = (V20.safeNum(ctx.home_mom,5) - V20.safeNum(ctx.away_mom,5))/10;
+    const stDiff  = (V20.safeNum(ctx.home_st,5) - V20.safeNum(ctx.away_st,5))/10;
+    const pressDiff = (V20.safeNum(ctx.home_press,5) - V20.safeNum(ctx.away_press,5))/10;
+    const finDiff = (V20.safeNum(ctx.fin_home,5) - V20.safeNum(ctx.fin_away,5))/10;
+    let adjH = lamH * (1 + momDiff*0.18 + stDiff*0.12 + pressDiff*0.08 + finDiff*0.06);
+    let adjA = lamA * (1 - momDiff*0.18 - stDiff*0.12 - pressDiff*0.08 - finDiff*0.06);
+    adjH = V20.clamp(adjH, 0.15, 5.0); adjA = V20.clamp(adjA, 0.15, 5.0);
+    return { lamH: adjH, lamA: adjA };
+  };
+  V20.Master.GSM = function(ctx, dla){
+    const tempoAdj = V20.safeNum(ctx.tempo,5) + (dla.lamH - dla.lamA) * 0.45;
+    const chaosAdj = V20.safeNum(ctx.chaos,5) + Math.abs(dla.lamH - dla.lamA) * 0.28;
+    return { tempo: V20.clamp(tempoAdj,1,10), chaos: V20.clamp(chaosAdj,1,10) };
+  };
+  V20.Master.TEM = function(ctx){
+    const pressGap = V20.safeNum(ctx.home_press,5) - V20.safeNum(ctx.away_press,5);
+    const momDiff = V20.safeNum(ctx.home_mom,5) - V20.safeNum(ctx.away_mom,5);
+    return { transitionScore: V20.clamp(0.5 + (pressGap*0.05) + (momDiff*0.04), 0, 2) };
+  };
+  V20.Master.xTlite = function(ctx){
+    const posH = V20.safeNum(ctx.pos_home,50), posA = V20.safeNum(ctx.pos_away,50);
+    const shotqH = V20.safeNum(ctx.shotq_home,0.12), shotqA = V20.safeNum(ctx.shotq_away,0.10);
+    return { xtHome: V20.clamp((posH/50)*0.8 + shotqH*8, 0, 3), xtAway: V20.clamp((posA/50)*0.8 + shotqA*8, 0, 3) };
+  };
+  V20.Master.FMA2 = function(ctx){
+    const fH = (ctx.homeFormation||"").toString(), fA=(ctx.awayFormation||"").toString();
+    let s=0; if(fH==="4-3-3" && fA==="4-4-2") s=0.12; if(fH==="3-5-2" && fA==="4-3-3") s=-0.10;
+    return { fmaScore: s };
+  };
+  V20.Master.morale = function(ctx){
+    return { moraleHome: V20.clamp(V20.safeNum(ctx.home_mom,5) + V20.safeNum(ctx.home_st,5)/2,1,10), moraleAway: V20.clamp(V20.safeNum(ctx.away_mom,5) + V20.safeNum(ctx.away_st,5)/2,1,10) };
+  };
+  V20.Master.PCV = function(pH,pD,pA){
+    const maxP = Math.max(pH,pD,pA); let level="LOW"; if(maxP>0.52) level="MEDIUM"; if(maxP>0.60) level="HIGH"; return { confidence: level, max: maxP };
+  };
+V20.Master.RC = {};
+  V20.Master.RC.fuse = function(comp){
+    const det = comp.det || {pH:0.33,pD:0.34,pA:0.33};
+    const chaos = comp.chaos || det;
+    const mc = comp.mc || det;
+    const xt = comp.xt || {xtHome:1, xtAway:1};
+    const fma = (comp.fma && comp.fma.fmaScore) ? comp.fma.fmaScore : 0;
+    let pH = (det.pH + chaos.pH + mc.pH)/3;
+    let pD = (det.pD + chaos.pD + mc.pD)/3;
+    let pA = (det.pA + chaos.pA + mc.pA)/3;
+    pH += (xt.xtHome||0)*0.013 + fma*0.02;
+    pA += (xt.xtAway||0)*0.013 - fma*0.02;
+    const tot = (pH+pD+pA) || 1; pH/=tot; pD/=tot; pA/=tot;
+    return { pH,pD,pA };
+  };
+
+  V20.Master.masterRun = function(ctx){
+    const dla = V20.Master.DLA(ctx);
+    const gsm = V20.Master.GSM(ctx,dla);
+    const tem = V20.Master.TEM(ctx);
+    const xt  = V20.Master.xTlite(ctx);
+    const fma = V20.Master.FMA2(ctx);
+    const morale = V20.Master.morale(ctx);
+    return { dla,gsm,tem,xt,fma,morale, adjustedLam: { lamH:dla.lamH, lamA:dla.lamA } };
+  };
+
+  /* --------- Auto Hybrid Level9 (safe) --------- */
+  V20.Auto = (function(){
+    function autoTempo(ctx){
+      const shots = V20.safeNum(ctx.shots_home,8) + V20.safeNum(ctx.shots_away,7);
+      const posImb = Math.abs(V20.safeNum(ctx.pos_home,50)-V20.safeNum(ctx.pos_away,50))/50;
+      const chaos = V20.safeNum(ctx.chaos,5);
+      let base = 4.5 + (Math.log(Math.max(1,shots))/Math.log(3)) + posImb*1.1 + ((chaos-5)/5);
+      return V20.clamp(base,1,10);
+    }
+    function autoChaos(ctx){
+      const ppdaGap = Math.abs(V20.safeNum(ctx.ppda_home,12)-V20.safeNum(ctx.ppda_away,12));
+      const conceded = (V20.safeNum(ctx.conceded_last5_home,2) + V20.safeNum(ctx.conceded_last5_away,2))/2;
+      const tempo = autoTempo(ctx);
+      let v = 4.8 + ppdaGap/6 + ((conceded-2)/6) + ((tempo-5)/6) + (Math.random()-0.5)*0.25;
+      return V20.clamp(v,1,10);
+    }
+    function autoStability(team){
+      const conceded = V20.safeNum(team.conceded_last5,2);
+      const squad = V20.safeNum(team.squadDepth,5);
+      const form = V20.safeNum(team.formPts_last5,6)/5;
+      let val = 6.5 - (conceded/1.6) + (squad/4) + (form*0.75);
+      return V20.clamp(val,1,10);
+    }
+    function autoMomentum(team){
+      const form = V20.safeNum(team.formPts_last5,6);
+      const xg = V20.safeNum(team.xg,1.0);
+      return V20.clamp((form/15)*10 + (xg-0.8)*1.8,1,10);
+    }
+    function autoDefline(team){
+      const poss = V20.safeNum(team.possession,50);
+      const conceded = V20.safeNum(team.conceded_last5,2);
+      return V20.clamp(5 + (poss-50)/8 - conceded/8,1,10);
+    }
+    function autoPPDA(press, defline, momentum){
+      press = V20.safeNum(press,5); defline = V20.safeNum(defline,5); momentum = V20.safeNum(momentum,5);
+      return V20.clamp(16 - (press-4.5)*1.6 - (momentum-5)*0.25 + (defline-5)*0.28,3,25);
+    }
+    function autoPress(ppda){ return V20.clamp((18 - V20.safeNum(ppda,12))/1.4,1,10); }
+    function autoFlex(team){ return V20.clamp(5 + ((V20.safeNum(team.possession,50)-50)/10) - V20.safeNum(team.rigidityFactor,0.5)*2,1,10); }
+    function autoInjury(team){ return V20.clamp(V20.safeNum(team.injuries,0)*1.15 - V20.safeNum(team.squadDepth,5)*0.25,0,10); }
+
+    function merge(manual, autoVal, tol=0.9){
+      if(manual===undefined||manual===""||manual===null) return {chosen:autoVal};
+      const m = Number(manual); if(isNaN(m)) return {chosen:autoVal};
+      if(Math.abs(m-autoVal) <= tol) return {chosen:m};
+      return {chosen: V20.clamp(autoVal*0.6 + m*0.4, 1, 10)};
+    }
+
+    function computeAll(ctx){
+      ctx = ctx || {};
+      const home = { possession: V20.safeNum(ctx.pos_home,50), conceded_last5: V20.safeNum(ctx.conceded_last5_home,2), formPts_last5: V20.safeNum(ctx.formPts_home,6), injuries: V20.safeNum(ctx.injury_home,0), squadDepth: V20.safeNum(ctx.squadDepth_home,5), xg: V20.safeNum(ctx.xg_home, ctx.lamH), rigidityFactor: V20.safeNum(ctx.home_rigidity,0.5) };
+      const away = { possession: V20.safeNum(ctx.pos_away,50), conceded_last5: V20.safeNum(ctx.conceded_last5_away,2), formPts_last5: V20.safeNum(ctx.formPts_away,5), injuries: V20.safeNum(ctx.injury_away,0), squadDepth: V20.safeNum(ctx.squadDepth_away,5), xg: V20.safeNum(ctx.xg_away, ctx.lamA), rigidityFactor: V20.safeNum(ctx.away_rigidity,0.5) };
+
+      const auto = {};
+      auto.tempo = autoTempo(ctx);
+      auto.chaos = autoChaos(ctx);
+      auto.stability_home = autoStability(home);
+      auto.stability_away = autoStability(away);
+      auto.momentum_home = autoMomentum(home);
+      auto.momentum_away = autoMomentum(away);
+      auto.defline_home = autoDefline(home);
+      auto.defline_away = autoDefline(away);
+      auto.ppda_home = autoPPDA(V20.safeNum(ctx.home_press,5), auto.defline_home, auto.momentum_home);
+      auto.ppda_away = autoPPDA(V20.safeNum(ctx.away_press,5), auto.defline_away, auto.momentum_away);
+      auto.press_home = autoPress(auto.ppda_home);
+      auto.press_away = autoPress(auto.ppda_away);
+      auto.flex_home = autoFlex(home);
+      auto.flex_away = autoFlex(away);
+      auto.injuryImpact_home = autoInjury(home);
+      auto.injuryImpact_away = autoInjury(away);
+const confHome = Math.min(1, ((home.shots>=6?0.35:0) + (home.possession?0.25:0) + (home.xg?0.25:0) + (home.formPts_last5?0.15:0)));
+      const confAway = Math.min(1, ((away.shots>=5?0.35:0) + (away.possession?0.25:0) + (away.xg?0.25:0) + (away.formPts_last5?0.15:0)));
+      const conf = (confHome + confAway)/2;
+
+      const chosen = {};
+      chosen.stability_home = merge(V20.safeNum(ctx.home_st,undefined), auto.stability_home).chosen;
+      chosen.stability_away = merge(V20.safeNum(ctx.away_st,undefined), auto.stability_away).chosen;
+      chosen.momentum_home = merge(V20.safeNum(ctx.home_mom,undefined), auto.momentum_home).chosen;
+      chosen.momentum_away = merge(V20.safeNum(ctx.away_mom,undefined), auto.momentum_away).chosen;
+      chosen.press_home = merge(V20.safeNum(ctx.home_press,undefined), auto.press_home).chosen;
+      chosen.press_away = merge(V20.safeNum(ctx.away_press,undefined), auto.press_away).chosen;
+      chosen.flex_home = merge(V20.safeNum(ctx.home_flex,undefined), auto.flex_home).chosen;
+      chosen.flex_away = merge(V20.safeNum(ctx.away_flex,undefined), auto.flex_away).chosen;
+      chosen.ppda_home = merge(V20.safeNum(ctx.ppda_home,undefined), auto.ppda_home).chosen;
+      chosen.ppda_away = merge(V20.safeNum(ctx.ppda_away,undefined), auto.ppda_away).chosen;
+      chosen.defline_home = merge(V20.safeNum(ctx.defline_home,undefined), auto.defline_home).chosen;
+      chosen.defline_away = merge(V20.safeNum(ctx.defline_away,undefined), auto.defline_away).chosen;
+      chosen.injury_home = merge(V20.safeNum(ctx.injury_home,undefined), auto.injuryImpact_home).chosen;
+      chosen.injury_away = merge(V20.safeNum(ctx.injury_away,undefined), auto.injuryImpact_away).chosen;
+      chosen.tempo = merge(V20.safeNum(ctx.tempo,undefined), auto.tempo).chosen;
+      chosen.chaos = merge(V20.safeNum(ctx.chaos,undefined), auto.chaos).chosen;
+
+      return { auto, chosen, confidence:{home:confHome, away:confAway, global:conf} };
+    }
+
+    function applyChosenToUI(h){
+      try{
+        if(!h || !h.chosen) return;
+        const s = h.chosen;
+        if(document.getElementById("tempo")) document.getElementById("tempo").value = Number(s.tempo).toFixed(2);
+        if(document.getElementById("chaos")) document.getElementById("chaos").value = Number(s.chaos).toFixed(2);
+        const map = [['home_st','stability_home'],['away_st','stability_away'],['home_mom','momentum_home'],['away_mom','momentum_away'],['home_press','press_home'],['away_press','press_away'],['home_flex','flex_home'],['away_flex','flex_away'],['ppda_home','ppda_home'],['ppda_away','ppda_away'],['defline_home','defline_home'],['defline_away','defline_away'],['injury_home','injury_home'],['injury_away','injury_away']];
+        map.forEach(p=>{ const el=document.getElementById(p[0]); if(el && s[p[1]]!==undefined) el.value = Number(s[p[1]]).toFixed(2); });
+      }catch(e){ console.warn("applyChosenToUI fail", e); }
+    }
+
+    return { computeAll, applyChosenToUI };
+  })();
+
+  /* --------- OU Blend util --------- */
+  function computeOUBlend(lamEff, mc, cap){
+    lamEff = V20.safeNum(lamEff,1.5);
+    const lines = [0.5,1.5,2.5,3.5];
+    const ou={}, ouMC={}, ouBlend={};
+    const maxK = Math.max(20, Math.ceil(lamEff*6));
+    const pmf = []; for(let k=0;k<=maxK;k++) pmf[k]=V20.poissonPMF(lamEff,k);
+    lines.forEach(line=>{
+      const cut = Math.floor(line); let under=0;
+      for(let k=0;k<=maxK;k++) if(k<=cut) under+=pmf[k];
+      ou[line] = { under: V20.clamp(under,0,1), over: V20.clamp(1-under,0,1) };
+    });
+
+    if(mc && V20.isMatrixOk(mc.matrix)){
+      lines.forEach(line=>{
+        const cut = Math.floor(line); let u=0,o=0;
+        for(let h=0; h<=mc.scoreCap; h++){
+          for(let a=0; a<=mc.scoreCap; a++){
+            const freq = mc.matrix[h] && mc.matrix[h][a] ? mc.matrix[h][a] : 0;
+            const sum = h + a;
+            if(sum <= cut) u+=freq; else o+=freq;
+          }
+        }
+        ouMC[line] = { under: mc.simCount? u/mc.simCount : 0, over: mc.simCount? o/mc.simCount : 0 };
+      });
+    } else {
+      Object.keys(ou).forEach(k=> ouMC[k] = ou[k]);
+    }
+
+    const patternChaos = 0.22;
+    const wMC = 0.4 + 0.4*patternChaos;
+    const wAN = 1 - wMC;
+    Object.keys(ou).forEach(k=> {
+      const an = ou[k], m = ouMC[k];
+      ouBlend[k] = { over: an.over*wAN + m.over*wMC, under: an.under*wAN + m.under*wMC };
+    });
+    return { ouBlend, ou, ouMC };
+  }
+
+  /* --------- Build context from UI --------- */
+  function buildContextFromUI(){
+    const gv = id => { const el=document.getElementById(id); return el?el.value:undefined; };
+    return {
+      lamH: V20.safeNum(gv("lamH"), V20.safeNum(gv("xg_home"),1.2)),
+      lamA: V20.safeNum(gv("lamA"), V20.safeNum(gv("xg_away"),1.0)),
+      tempo: V20.safeNum(gv("tempo"),5),
+      chaos: V20.safeNum(gv("chaos"),5),
+      importance: V20.safeNum(gv("importance"),5),
+      home_st: V20.safeNum(gv("home_st"),5),
+      away_st: V20.safeNum(gv("away_st"),5),
+      home_mom: V20.safeNum(gv("home_mom"),5),
+      away_mom: V20.safeNum(gv("away_mom"),5),
+      home_press: V20.safeNum(gv("home_press"),5),
+      away_press: V20.safeNum(gv("away_press"),5),
+      home_flex: V20.safeNum(gv("home_flex"),0.5),
+      away_flex: V20.safeNum(gv("away_flex"),0.5),
+      fin_home: V20.safeNum(gv("finishing_quality_home"),5),
+      fin_away: V20.safeNum(gv("finishing_quality_away"),5),
+      ppda_home: V20.safeNum(gv("ppda_home"),12),
+      ppda_away: V20.safeNum(gv("ppda_away"),12),
+      xg_home: V20.safeNum(gv("xg_home"), V20.safeNum(gv("lamH"),1.2)),
+      xg_away: V20.safeNum(gv("xg_away"), V20.safeNum(gv("lamA"),1.0)),
+      shots_home: V20.safeNum(gv("shots_home"),10),
+      shots_away: V20.safeNum(gv("shots_away"),8),
+      shotq_home: V20.safeNum(gv("shotq_home"),0.12),
+      shotq_away: V20.safeNum(gv("shotq_away"),0.10),
+      pos_home: V20.safeNum(gv("pos_home"),50),
+      pos_away: V20.safeNum(gv("pos_away"),50),
+      scoreCap: Math.max(1, Math.floor(V20.safeNum(gv("scoreCap"),6))),
+      simCount: Math.max(1, Math.floor(V20.safeNum(gv("simCount"),2000))),
+      homeFormation: gv("home_formation") || "4-3-3",
+      awayFormation: gv("away_formation") || "4-4-2",
+      conceded_last5_home: V20.safeNum(gv("conceded_last5_home"),2),
+      conceded_last5_away: V20.safeNum(gv("conceded_last5_away"),2),
+      formPts_home: V20.safeNum(gv("formPts_home"),7),
+      formPts_away: V20.safeNum(gv("formPts_away"),6),
+      injury_home: V20.safeNum(gv("injury_home"),0),
+      injury_away: V20.safeNum(gv("injury_away"),0),
+      squadDepth_home: V20.safeNum(gv("squadDepth_home"),5),
+      squadDepth_away: V20.safeNum(gv("squadDepth_away"),5),
+      defline_home: V20.safeNum(gv("defline_home"),5),
+      defline_away: V20.safeNum(gv("defline_away"),5),
+      home_rigidity: V20.safeNum(gv("home_rigidity"),0.5),
+      away_rigidity: V20.safeNum(gv("away_rigidity"),0.5),
+      home_aggr_bias: V20.safeNum(gv("home_aggr_bias"),0),
+      away_aggr_bias: V20.safeNum(gv("away_aggr_bias"),0)
+    };
+  }
+/* --------- Main runIntegrated --------- */
+  function runIntegrated(){
+    const outEl = document.getElementById("output");
+    if(!outEl){ alert("Output area missing (id='output')"); return; }
+    outEl.value = "Running PSZ Level 9 (clean)...\n";
+    try{
+      const ctx = buildContextFromUI();
+      const hybrid = V20.Auto.computeAll(ctx);
+      V20.Auto.applyChosenToUI(hybrid);
+
+      // update ctx with chosen hybrid values
+      ctx.tempo = hybrid.chosen.tempo;
+      ctx.chaos = hybrid.chosen.chaos;
+      ctx.home_st = hybrid.chosen.stability_home;
+      ctx.away_st = hybrid.chosen.stability_away;
+      ctx.home_mom = hybrid.chosen.momentum_home;
+      ctx.away_mom = hybrid.chosen.momentum_away;
+      ctx.home_press = hybrid.chosen.press_home;
+      ctx.away_press = hybrid.chosen.press_away;
+      ctx.home_flex = hybrid.chosen.flex_home;
+      ctx.away_flex = hybrid.chosen.flex_away;
+      ctx.ppda_home = hybrid.chosen.ppda_home;
+      ctx.ppda_away = hybrid.chosen.ppda_away;
+      ctx.defline_home = hybrid.chosen.defline_home;
+      ctx.defline_away = hybrid.chosen.defline_away;
+
+      const master = V20.Master.masterRun(ctx);
+
+      const det = V20.detSim({ lamH: ctx.lamH, lamA: ctx.lamA });
+      const chaosScale = 1 + ((ctx.chaos - 5)/20);
+      const detChaos = V20.detSim({ lamH: ctx.lamH * chaosScale, lamA: ctx.lamA * chaosScale });
+      const mc = V20.monteCarlo(master.adjustedLam, ctx, ctx.simCount, ctx.scoreCap);
+
+      const fused = V20.Master.RC.fuse({ det, chaos: detChaos, mc, xt: master.xt, fma: master.fma });
+
+      const pcv = V20.Master.PCV(fused.pH, fused.pD, fused.pA);
+      const btts = V20.clamp(0.22 + (master.adjustedLam.lamH + master.adjustedLam.lamA)*0.13, 0, 0.95);
+
+      const lamEff = V20.clamp((master.adjustedLam.lamH + master.adjustedLam.lamA) * (1 + ((ctx.tempo-5)/12) + ((ctx.chaos-5)/15)), 0.3, 8);
+      const ou = computeOUBlend(lamEff, mc, ctx.scoreCap);
+
+      // top scorelines from det matrix
+      const flat = [];
+      if(V20.isMatrixOk(det.mat)){
+        for(let h=0; h<det.mat.length; h++){
+          for(let a=0; a<det.mat[h].length; a++){
+            flat.push({score:`${h}-${a}`, p: det.mat[h][a]});
+          }
+        }
+      }
+      flat.sort((a,b)=> b.p - a.p);
+
+      // recommendations
+      const hdpRec = fused.pH > fused.pA && fused.pH > fused.pD ? "Home" : (fused.pA > fused.pH && fused.pA > fused.pD ? "Away" : "No clear");
+      const ou25 = ou.ouBlend["2.5"];
+      const ouRec = (!ou25) ? "No data" : (ou25.over > 0.55 ? "Over 2.5" : (ou25.under > 0.55 ? "Under 2.5" : "No strong OU"));
+      const bttsRec = btts >= 0.54 ? "YES" : "NO";
+
+      // build output
+      let txt = "";
+      txt += "=== PSZ LEVEL 9 — CLEAN REPORT ===\n\n";
+      txt += `[AUTO CONF] Global ${(hybrid.confidence.global*100).toFixed(1)}% | Home ${(hybrid.confidence.home*100).toFixed(1)}% | Away ${(hybrid.confidence.away*100).toFixed(1)}%\n\n`;
+      txt += "[INPUT]\n";
+      txt += `λH: ${ctx.lamH.toFixed(3)} | λA: ${ctx.lamA.toFixed(3)}\n`;
+      txt += `Tempo: ${ctx.tempo.toFixed(2)} | Chaos: ${ctx.chaos.toFixed(2)} | Importance: ${ctx.importance}\n`;
+      txt += `Home St/Mom: ${ctx.home_st.toFixed(2)} / ${ctx.home_mom.toFixed(2)}\n`;
+      txt += `Away St/Mom: ${ctx.away_st.toFixed(2)} / ${ctx.away_mom.toFixed(2)}\n\n`;
+
+      txt += "[PROBABILITIES]\n";
+      txt += `Home Win: ${(fused.pH*100).toFixed(1)}%  Draw: ${(fused.pD*100).toFixed(1)}%  Away Win: ${(fused.pA*100).toFixed(1)}%\n\n`;
+
+      txt += "[BTTS & UNCERTAINTY]\n";
+      txt += `BTTS: ${(btts*100).toFixed(1)}%  Confidence: ${(pcv.max*100).toFixed(1)}% (${pcv.confidence})\n\n`;
+
+      txt += "[OVER / UNDER BLEND]\n";
+      Object.keys(ou.ouBlend).forEach(k=>{ const v = ou.ouBlend[k]; txt += `O/U ${k} => Over ${(v.over*100).toFixed(1)}% | Under ${(v.under*100).toFixed(1)}%\n`; });
+      txt += "\n";
+
+      txt += "[TOP SCORELINES]\n";
+      flat.slice(0,6).forEach(s=> txt += `${s.score}  (${(s.p*100).toFixed(2)}%)\n`);
+      txt += "\n";
+
+      txt += "[RECOMMENDATIONS]\n";
+      txt += `HDP: ${hdpRec}\nOU: ${ouRec}\nBTTS: ${bttsRec}\n\n`;
+
+      txt += "[ENGINE META]\n";
+      txt += `Adjusted λH: ${master.adjustedLam.lamH.toFixed(3)} | Adjusted λA: ${master.adjustedLam.lamA.toFixed(3)}\n`;
+      txt += `XTLite H/A: ${master.xt.xtHome.toFixed(3)} / ${master.xt.xtAway.toFixed(3)}\n`;
+      txt += `FMA score: ${master.fma.fmaScore}\n`;
+
+      outEl.value = txt;
+
+      // update bars
+      const bH = document.getElementById("pH_fill"), bD = document.getElementById("pD_fill"), bA = document.getElementById("pA_fill");
+      if(bH) bH.style.width = Math.round(fused.pH*100) + "%";
+      if(bD) bD.style.width = Math.round(fused.pD*100) + "%";
+      if(bA) bA.style.width = Math.round(fused.pA*100) + "%";
+
+    } catch(err){
+      outEl.value += "\n[ERROR] " + (err && err.message? err.message : String(err)) + "\n";
+      console.error("runIntegrated error", err);
+    }
+  }
+
+  /* --------- Bindings --------- */
+  function attach(){
+    const autoBtn = document.getElementById("btn_auto_input");
+    if(autoBtn) autoBtn.addEventListener("click", function(){
+      const out = document.getElementById("output");
+      if(out) out.value = "Running AUTO INPUT...\n";
+      try{
+        const ctx = buildContextFromUI();
+        const hybrid = V20.Auto.computeAll(ctx);
+        V20.Auto.applyChosenToUI(hybrid);
+        if(out) out.value += "Auto applied. Confidence: " + (hybrid.confidence.global*100).toFixed(1) + "%\n";
+      }catch(e){ if(out) out.value += "[AUTO ERROR] " + (e.message||e) + "\n"; }
+    });
+
+    const runBtn = document.getElementById("btn_run_integrated");
+    if(runBtn) runBtn.addEventListener("click", runIntegrated);
+
+    // global shortcuts
+    window.PSZ_RUN = runIntegrated;
+    window.PSZ_AUTO = ()=>{ const ctx=buildContextFromUI(); const h=V20.Auto.computeAll(ctx); V20.Auto.applyChosenToUI(h); return h; };
+  }
+
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", attach);
+  else attach();
+
+  // expose for debugging
+  window.V20 = V20;
+  console.log("PSZ Level9 clean engine loaded.");
+})(window);
+</script>
+
+</body>
+</html>
