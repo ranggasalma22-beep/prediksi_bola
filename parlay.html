@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PSZ MASTER — LEVEL 9 ENGINE</title>
+<style>
+
+body {
+  font-family: Arial, sans-serif;
+  background: #f4f7fa;
+  margin: 0;
+  padding: 20px;
+  color: #222;
+}
+
+h1 {
+  background: #0a6cff;
+  color: white;
+  padding: 14px;
+  border-radius: 8px;
+}
+
+h2 {
+  background: #e9edf5;
+  padding: 10px;
+  border-left: 4px solid #0a6cff;
+  margin-top: 25px;
+}
+
+.panel {
+  background: white;
+  padding: 18px;
+  border-radius: 10px;
+  margin-top: 20px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+label {
+  display: block;
+  font-weight: bold;
+  margin-top: 10px;
+}
+
+input, select, button, textarea {
+  width: 100%;
+  padding: 8px;
+  margin-top: 6px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  border: 1px solid #aaa;
+  font-size: 14px;
+}
+
+textarea {
+  resize: vertical;
+  background: #111;
+  color: #0f0;
+  font-family: "Consolas", monospace;
+  font-size: 13px;
+}
+
+button {
+  margin-top: 15px;
+  background: #0a6cff;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button:hover {
+  background: #004ecb;
+}
+
+#prob_container {
+  margin-top: 15px;
+}
+
+.prob_bar {
+  height: 22px;
+  background: #d0d0d0;
+  border-radius: 10px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.prob_fill {
+  height: 100%;
+  background: #0a6cff;
+  width: 0%;
+}
+
+</style>
+</head>
+<body>
+
+<h1>PSZ MASTER — LEVEL 9 PREDICTION ENGINE</h1>
+
+<!-- ============================
+     PANEL INPUT UTAMA
+=============================== -->
+<div class="panel">
+
+  <h2>⚽ Match Information</h2>
+
+  <label>Home Team</label>
+  <input type="text" id="home_team" placeholder="Home">
+
+  <label>Away Team</label>
+  <input type="text" id="away_team" placeholder="Away">
+
+  <label>League</label>
+  <input type="text" id="league" placeholder="League">
+
+  <label>Match Type</label>
+  <select id="match_type">
+    <option value="league">League</option>
+    <option value="cup">Cup</option>
+    <option value="friendly">Friendly</option>
+    <option value="playoff">Playoff</option>
+    <option value="derby">Derby</option>
+  </select>
+
+  <h2>⚡ Core Inputs (xG / λ)</h2>
+
+  <label>λ Home</label>
+  <input id="lamH" type="number" step="0.01" value="1.20">
+
+  <label>λ Away</label>
+  <input id="lamA" type="number" step="0.01" value="1.00">
+
+  <label>Tempo (1–10)</label>
+  <input id="tempo" type="number" min="1" max="10" value="5">
+
+  <label>Chaos (1–10)</label>
+  <input id="chaos" type="number" min="1" max="10" value="5">
+
+  <label>Match Importance (1–10)</label>
+  <input id="importance" type="number" min="1" max="10" value="5">
+
+  <h2>📊 Team State</h2>
+
+  <label>Home Stability</label>
+  <input id="home_st" type="number" min="1" max="10" value="5">
+
+  <label>Away Stability</label>
+  <input id="away_st" type="number" min="1" max="10" value="5">
+
+  <label>Home Momentum</label>
+  <input id="home_mom" type="number" min="1" max="10" value="5">
+
+  <label>Away Momentum</label>
+  <input id="away_mom" type="number" min="1" max="10" value="5">
+
+  <h2>🎯 Tactical Inputs</h2>
+
+  <label>Pressing Home</label>
+  <input id="home_press" type="number" min="1" max="10" value="5">
+
+  <label>Pressing Away</label>
+  <input id="away_press" type="number" min="1" max="10" value="5">
+
+  <label>Flexibility Home</label>
+  <input id="home_flex" type="number" min="0" max="10" step="0.1" value="0.5">
+
+  <label>Flexibility Away</label>
+  <input id="away_flex" type="number" min="0" max="10" step="0.1" value="0.5">
+
+  <label>Finishing Quality Home</label>
+  <input id="finishing_quality_home" type="number" min="1" max="10" value="5">
+
+  <label>Finishing Quality Away</label>
+  <input id="finishing_quality_away" type="number" min="1" max="10" value="5">
+
+  <label>PPDA Home</label>
+  <input id="ppda_home" type="number" step="0.1" value="11.5">
+
+  <label>PPDA Away</label>
+  <input id="ppda_away" type="number" step="0.1" value="12.0">
+
+</div>
+
+
+<!-- ============================
+     PANEL STATISTIK INPUT
+=============================== -->
+<div class="panel">
+  <h2>📈 Statistics</h2>
+
+  <label>xG Home</label>
+  <input id="xg_home" type="number" step="0.01" value="1.20">
+
+  <label>xG Away</label>
+  <input id="xg_away" type="number" step="0.01" value="1.00">
+
+  <label>Shots Home</label>
+  <input id="shots_home" type="number" value="10">
+
+  <label>Shots Away</label>
+  <input id="shots_away" type="number" value="8">
+
+  <label>Shot Quality Home</label>
+  <input id="shotq_home" type="number" step="0.01" value="0.12">
+
+  <label>Shot Quality Away</label>
+  <input id="shotq_away" type="number" step="0.01" value="0.10">
+
+  <label>Possession Home (%)</label>
+  <input id="pos_home" type="number" min="0" max="100" value="50">
+
+  <label>Possession Away (%)</label>
+  <input id="pos_away" type="number" min="0" max="100" value="50">
+
+  <label>Score Cap</label>
+  <input id="scoreCap" type="number" value="6">
+
+  <label>Sim Count</label>
+  <input id="simCount" type="number" value="2000">
+
+</div>
+
+
+<!-- ============================
+     ACTION BUTTONS
+=============================== -->
+<div class="panel">
+  <h2>⚙ Actions</h2>
+
+  <button id="btn_auto_input">AUTO INPUT (FULL)</button>
+  <button id="btn_run_integrated">RUN INTEGRATED</button>
+</div>
+
+
+<!-- ============================
+     OUTPUT AREA
+=============================== -->
+<div class="panel">
+  <h2>📜 Output</h2>
+  <textarea id="output" rows="26"></textarea>
+</div>
+
+<script>
+/* ============================================================
+   BAGIAN 3 — CORE ENGINE (V20 BASE)
+   - Poisson PMF
+   - Deterministic Simulation (detSim)
+   - Chaos-Adjusted Simulation (chaosSim built into detSim)
+   - Monte Carlo Simulation
+   ============================================================ */
+
+window.V20 = window.V20 || {};
+
+/* ------------------------------
+   Safe Number Utility
+--------------------------------*/
+V20.num = function(v, d=0){
+  if (v === undefined || v === null) return d;
+  const n = Number(v);
+  return isFinite(n) ? n : d;
+};
+
+/* ------------------------------
+   Clamp Utility
+--------------------------------*/
+V20.clamp = function(v,min,max){
+  return Math.max(min, Math.min(max, v));
+};
+
+/* ------------------------------
+   Poisson PMF
+   P(k; λ) = e^-λ * λ^k / k!
+--------------------------------*/
+V20.poissonPMF = function(lambda, k){
+  lambda = Math.max(0.0001, lambda);  
+  if (k < 0) return 0;
+
+  let fact = 1;
+  for (let i = 2; i <= k; i++) fact *= i;
+
+  return Math.exp(-lambda) * Math.pow(lambda, k) / fact;
+};
+
+/* ------------------------------
+   Deterministic Simulation (detSim)
+   Menghasilkan:
+   - pH, pD, pA
+   - matrix H×A
+--------------------------------*/
+V20.detSim = function(lambda){
+  const lamH = V20.num(lambda.lamH, 1.2);
+  const lamA = V20.num(lambda.lamA, 1.0);
+
+  const cap = 8; // safe cap
+  const mat = [];
+
+  let pH = 0, pD = 0, pA = 0;
+
+  for (let h = 0; h <= cap; h++){
+    mat[h] = [];
+    const pH_h = V20.poissonPMF(lamH, h);
+
+    for (let a = 0; a <= cap; a++){
+      const pA_a = V20.poissonPMF(lamA, a);
+      const p = pH_h * pA_a;
+
+      mat[h][a] = p;
+
+      if (h > a) pH += p;
+      else if (h === a) pD += p;
+      else pA += p;
+    }
+  }
+
+  const total = pH + pD + pA || 1;
+  return {
+    pH: pH / total,
+    pD: pD / total,
+    pA: pA / total,
+    mat: mat,
+    lamH,
+    lamA
+  };
+};
+
+/* ------------------------------
+   Monte Carlo Score Simulation
+--------------------------------*/
+V20.monteCarlo = function(lambda, ctx, simCount=2000, scoreCap=6, home={}, away={}, tact={}){
+  simCount = V20.num(simCount, 2000);
+  scoreCap = V20.num(scoreCap, 6);
+
+  const lamH = V20.num(lambda.lamH, 1.2);
+  const lamA = V20.num(lambda.lamA, 1.0);
+
+  const matrix = [];
+  for (let i=0;i<=scoreCap;i++){
+    matrix[i] = [];
+    for (let j=0;j<=scoreCap;j++) matrix[i][j] = 0;
+  }
+
+  let countH=0, countD=0, countA=0;
+  let totalGoals = 0;
+
+  for (let s=0; s<simCount; s++){
+    const gH = V20.randomPoisson(lamH);
+    const gA = V20.randomPoisson(lamA);
+
+    const h = Math.min(gH, scoreCap);
+    const a = Math.min(gA, scoreCap);
+
+    matrix[h][a]++;
+
+    totalGoals += (gH+gA);
+
+    if (gH > gA) countH++;
+    else if (gH === gA) countD++;
+    else countA++;
+  }
+
+  return {
+    matrix,
+    simCount,
+    scoreCap,
+    pH: countH/simCount,
+    pD: countD/simCount,
+    pA: countA/simCount,
+    avgGoals: totalGoals / simCount
+  };
+};
+
+/* ------------------------------
+   Random Poisson Generator
+   (Knuth method)
+--------------------------------*/
+V20.randomPoisson = function(lambda){
+  const L = Math.exp(-lambda);
+  let k = 0;
+  let p = 1;
+  do {
+    k++;
+    p *= Math.random();
+  } while (p > L);
+  return k - 1;
+};
+/* ============================================================
+   BAGIAN 4 — MASTER MODULES (LEVEL 9 ENGINE)
+   ============================================================ */
+
+V20.Master = V20.Master || {};
+
+/* ------------------------------------------------------------
+   4.1 — Synthetic DNA Engine (style identification)
+------------------------------------------------------------ */
+V20.Master.syntheticDNA = function(ctx){
+  const ppdaDiff = ctx.ppda_home - ctx.ppda_away;
+  const tempo = ctx.tempo;
+  const chaos = ctx.chaos;
+
+  return {
+    styleHome: tempo > 6 ? "High Tempo" : (ppdaDiff < -2 ? "High Press" : "Balanced"),
+    styleAway: tempo < 4 ? "Low Block" : "Balanced",
+    tempoBias: (tempo - 5) / 5,
+    chaosBias: (chaos - 5) / 5
+  };
+};
+
+/* ------------------------------------------------------------
+   4.2 — DLA (Dynamic Lambda Adjuster)
+   Mengatur ulang λ berdasarkan momentum, stability, pressing
+------------------------------------------------------------ */
+V20.Master.DLA = function(ctx){
+  const lamH = ctx.lamH;
+  const lamA = ctx.lamA;
+
+  const momDiff = (ctx.home_mom - ctx.away_mom) / 10;
+  const stDiff  = (ctx.home_st - ctx.away_st) / 10;
+  const pressDiff = (ctx.home_press - ctx.away_press) / 10;
+  const finDiff = (ctx.fin_home - ctx.fin_away) / 10;
+
+  let adjH = lamH * (1 + momDiff*0.20 + stDiff*0.15 + pressDiff*0.10 + finDiff*0.10);
+  let adjA = lamA * (1 - momDiff*0.20 - stDiff*0.15 - pressDiff*0.10 - finDiff*0.10);
+
+  adjH = V20.clamp(adjH, 0.2, 4.5);
+  adjA = V20.clamp(adjA, 0.2, 4.5);
+
+  return { lamH: adjH, lamA: adjA };
+};
+
+/* ------------------------------------------------------------
+   4.3 — GSM (Game State Model)
+   Mengatur tempo & chaos setelah DLA
+------------------------------------------------------------ */
+V20.Master.GSM = function(ctx, dla){
+  const tempoAdj = ctx.tempo + (dla.lamH - dla.lamA) * 0.5;
+  const chaosAdj = ctx.chaos + Math.abs(dla.lamH - dla.lamA) * 0.3;
+
+  return {
+    tempo: V20.clamp(tempoAdj, 1, 10),
+    chaos: V20.clamp(chaosAdj, 1, 10)
+  };
+};
+
+/* ------------------------------------------------------------
+   4.4 — TEM (Transition Engine Model)
+------------------------------------------------------------ */
+V20.Master.TEM = function(ctx){
+  const pressGap = ctx.home_press - ctx.away_press;
+  const momDiff = ctx.home_mom - ctx.away_mom;
+
+  return {
+    transitionScore:
+      0.5 +
+      pressGap * 0.05 +
+      momDiff  * 0.04
+  };
+};
+
+/* ------------------------------------------------------------
+   4.5 — xT-lite (Expected Threat)
+------------------------------------------------------------ */
+V20.Master.xTlite = function(ctx){
+  return {
+    xtHome: V20.clamp((ctx.pos_home/50)*0.8 + ctx.shotq_home*8, 0, 2.5),
+    xtAway: V20.clamp((ctx.pos_away/50)*0.8 + ctx.shotq_away*8, 0, 2.5)
+  };
+};
+
+/* ------------------------------------------------------------
+   4.6 — FMA2 (Formation Matchup Analyzer)
+------------------------------------------------------------ */
+V20.Master.FMA2 = function(ctx){
+  const formH = ctx.homeFormation;
+  const formA = ctx.awayFormation;
+
+  let score = 0;
+  if (formH === "4-3-3" && formA === "4-4-2") score = 0.15;
+  if (formH === "3-5-2" && formA === "4-3-3") score = -0.12;
+
+  return { fmaScore: score };
+};
+
+/* ------------------------------------------------------------
+   4.7 — ChronoSim (Time-Based Goal Pattern)
+------------------------------------------------------------ */
+V20.Master.ChronoSim = function(lambda){
+  const lamH = lambda.lamH, lamA = lambda.lamA;
+  const avg = lamH + lamA;
+  const surge = (lamH > lamA ? lamH : lamA) / 5;
+
+  return {
+    avgGoals: avg,
+    surge,
+    lateGoalProb: V20.clamp(lamH*0.06 + lamA*0.06, 0, 0.45)
+  };
+};
+
+/* ------------------------------------------------------------
+   4.8 — SPS (Score Probability Smoother)
+------------------------------------------------------------ */
+V20.Master.SPS = function(scoreMat){
+  const capH = scoreMat.length;
+  const capA = scoreMat[0].length;
+
+  const out = [];
+  for (let h=0;h<capH;h++){
+    out[h] = [];
+    for (let a=0;a<capA;a++){
+      let p = scoreMat[h][a];
+      if (h === a) p *= 1.05; // boost draws
+      if (h >= 4 || a >= 4) p *= 0.90; // reduce extremes
+      out[h][a] = p;
+    }
+  }
+  return out;
+};
+
+/* ------------------------------------------------------------
+   4.9 — Morale Engine
+------------------------------------------------------------ */
+V20.Master.morale = function(ctx){
+  return {
+    moraleHome: V20.clamp(ctx.home_mom + ctx.home_st/2, 1, 10),
+    moraleAway: V20.clamp(ctx.away_mom + ctx.away_st/2, 1, 10)
+  };
+};
+
+/* ------------------------------------------------------------
+   4.10 — PCV (Prediction Confidence Vector)
+------------------------------------------------------------ */
+V20.Master.PCV = function(pH,pD,pA){
+  const maxP = Math.max(pH,pD,pA);
+  let level = "LOW";
+
+  if (maxP > 0.52) level = "MEDIUM";
+  if (maxP > 0.60) level = "HIGH";
+
+  return { confidence: level, max: maxP };
+};
+
+/* ------------------------------------------------------------
+   4.11 — RC Fuse (Result Composition)
+   Fuse:
+   - det
+   - chaos
+   - MC
+   - xT
+   - FMA
+------------------------------------------------------------ */
+V20.Master.RC = {};
+
+V20.Master.RC.fuse = function(components){
+  const det = components.det;
+  const chaos = components.chaos;
+  const mc = components.mc;
+
+  const xtH = components.xt.xtHome;
+  const xtA = components.xt.xtAway;
+  const fma = components.fma.fmaScore;
+
+  let pH = (det.pH + chaos.pH + mc.pH)/3;
+  let pD = (det.pD + chaos.pD + mc.pD)/3;
+  let pA = (det.pA + chaos.pA + mc.pA)/3;
+
+  pH += xtH * 0.015 + fma * 0.02;
+  pA += xtA * 0.015 - fma * 0.02;
+
+  let total = pH + pD + pA;
+  if (total <= 0) total = 1;
+
+  return {
+    pH: pH/total,
+    pD: pD/total,
+    pA: pA/total
+  };
+};
+
+/* ------------------------------------------------------------
+   4.12 — MASTER.RUN (menggabungkan semua modul)
+------------------------------------------------------------ */
+V20.Master.masterRun = function(ctx){
+  const dna = V20.Master.syntheticDNA(ctx);
+  const dla = V20.Master.DLA(ctx);
+  const gsm = V20.Master.GSM(ctx, dla);
+  const tem = V20.Master.TEM(ctx);
+  const xt  = V20.Master.xTlite(ctx);
+  const fma = V20.Master.FMA2(ctx);
+  const chrono = V20.Master.ChronoSim(dla);
+  const morale = V20.Master.morale(ctx);
+
+  return {
+    dna,
+    dla,
+    gsm,
+    tem,
+    xt,
+    fma,
+    chrono,
+    morale,
+    adjustedLam: { lamH: dla.lamH, lamA: dla.lamA }
+  };
+};
+/* ============================================================
+   BAGIAN 5 — AUTO INPUT ENGINE (HYBRID PRO)
+   - auto estimators
+   - hybrid merge (auto + manual)
+   - apply to UI
+   ============================================================ */
+
+V20.Auto = V20.Auto || (function(){
+  const safe = (v,d=0) => (v===undefined||v===null||isNaN(Number(v)))?d:Number(v);
+  const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+
+  /* ---------------------------
+     Auto estimators
+  ----------------------------*/
+  function autoTempo(ctx){
+    // tempo driven by shots intensity, possession imbalance, and chaos hint
+    const shots = safe(ctx.shots_home,8) + safe(ctx.shots_away,7);
+    const possessionImb = Math.abs(safe(ctx.pos_home,50)-safe(ctx.pos_away,50))/50;
+    const chaos = safe(ctx.chaos,5);
+    let base = 4.5 + (Math.log(Math.max(1,shots))/Math.log(3)) + (possessionImb*1.2) + ((chaos-5)/5);
+    return clamp(base, 1, 10);
+  }
+
+  function autoChaos(ctx){
+    // chaos influenced by PPDA gap, tempo, recent conceded
+    const ppdaGap = Math.abs(safe(ctx.ppda_home,12)-safe(ctx.ppda_away,12));
+    const conceded = (safe(ctx.conceded_last5_home,2) + safe(ctx.conceded_last5_away,2))/2;
+    const tempo = autoTempo(ctx);
+    let val = 4.8 + (ppdaGap/6) + ((conceded-2)/6) + ((tempo-5)/6);
+    val += (Math.random()-0.5)*0.4; // small noise
+    return clamp(val,1,10);
+  }
+
+  function autoStability(teamCtx){
+    // fewer conceded + deeper squad => more stable
+    const conceded = safe(teamCtx.conceded_last5,2);
+    const squad = safe(teamCtx.squadDepth,5);
+    const form = safe(teamCtx.formPts_last5,6)/5;
+    let val = 6.5 - (conceded/1.5) + (squad/4) + (form*0.8);
+    return clamp(val,1,10);
+  }
+
+  function autoMomentum(teamCtx){
+    // form + recent xG advantage
+    const form = safe(teamCtx.formPts_last5,6);
+    const xg = safe(teamCtx.xg,1.0);
+    const momentum = (form/15)*10 + (xg-0.8)*1.8;
+    return clamp(momentum,1,10);
+  }
+
+  function autoPPDA(press, defline, momentum){
+    // heuristic mapping from pressing & defline to PPDA
+    press = safe(press,5); defline = safe(defline,5); momentum = safe(momentum,5);
+    let val = 16 - (press-4.5)*1.6 - (momentum-5)*0.25 + (defline-5)*0.3;
+    return clamp(val,3.2,20);
+  }
+
+  function autoPressIntensity(ppda){
+    return clamp((18 - safe(ppda,12))/1.4, 1, 10);
+  }
+
+  function autoFlex(teamCtx){
+    const possession = safe(teamCtx.possession,50);
+    const rigidity = safe(teamCtx.rigidityFactor,0.5);
+    let val = 5 + ((possession-50)/10) - rigidity*2;
+    return clamp(val, 1, 10);
+  }
+
+  function autoManagerAgg(teamCtx){
+    const shots = safe(teamCtx.shots,8);
+    const press = autoPressIntensity(teamCtx.ppda||12);
+    const val = (shots/10) + (press/3) + safe(teamCtx.aggressionBias,0);
+    return clamp(val,1,10);
+  }
+
+  function autoDefline(teamCtx){
+    const possession = safe(teamCtx.possession,50);
+    const conceded = safe(teamCtx.conceded_last5,2);
+    let val = 5 + (possession-50)/8 - conceded/8;
+    return clamp(val,1,10);
+  }
+
+  function autoInjuryImpact(teamCtx){
+    const inj = safe(teamCtx.injuries,0);
+    const depth = safe(teamCtx.squadDepth,5);
+    let val = inj*1.2 - depth*0.25;
+    return clamp(val, 0, 10);
+  }
+
+  function autoTransitionBias(teamCtx){
+    const press = autoPressIntensity(teamCtx.ppda||12);
+    const defline = autoDefline(teamCtx);
+    const momentum = autoMomentum(teamCtx);
+    let val = 5 + (press - defline)/2 + (momentum-5)*0.2;
+    return clamp(val,1,10);
+  }
+
+  /* ---------------------------
+     Hybrid merge logic
+     - merges manual inputs with auto estimations
+     - prefer manual if within tolerance and data confidence high
+  ----------------------------*/
+  function mergeManualAuto(manual, autoVal, confidence=0.6, tolerance=0.9){
+    // manual: numeric or undefined
+    if(manual === undefined || manual === null || isNaN(Number(manual))){
+      return { chosen: autoVal, source: "auto", confidence };
+    }
+    manual = Number(manual);
+    const diff = Math.abs(manual - autoVal);
+    if(confidence >= 0.6){
+      // allow manual if within reasonable distance
+      if(diff <= tolerance) return { chosen: manual, source: "manual", confidence: Math.min(0.95, 0.5 + (1-diff/tolerance)*0.5) };
+      // otherwise blend weighted
+      const wAuto = 0.6, wManual = 0.4;
+      return { chosen: clamp((autoVal*wAuto + manual*wManual), 1, 10), source: "blend", confidence: 0.6 };
+    } else {
+      // low confidence in auto, trust manual slightly more
+      const wAuto = 0.45, wManual = 0.55;
+      return { chosen: clamp((autoVal*wAuto + manual*wManual), 1, 10), source: "blend-lowconf", confidence: 0.55 };
+    }
+  }
+
+  /* ---------------------------
+     Main compute function (exposed)
+  ----------------------------*/
+  function computeAll(ctx){
+    ctx = ctx || {};
+    // prepare team contexts
+    const homeCtx = {
+      shots: safe(ctx.shots_home,8),
+      possession: safe(ctx.pos_home,50),
+      formPts_last5: safe(ctx.formPts_home,6),
+      conceded_last5: safe(ctx.conceded_last5_home,2),
+      injuries: safe(ctx.injury_home,0),
+      squadDepth: safe(ctx.squadDepth_home,5),
+      xg: safe(ctx.xg_home, ctx.lamH),
+      rigidityFactor: safe(ctx.home_rigidity,0.5),
+      aggressionBias: safe(ctx.home_aggr_bias,0),
+      ppda: safe(ctx.ppda_home,12)
+    };
+    const awayCtx = {
+      shots: safe(ctx.shots_away,7),
+      possession: safe(ctx.pos_away,50),
+      formPts_last5: safe(ctx.formPts_away,5),
+      conceded_last5: safe(ctx.conceded_last5_away,2),
+      injuries: safe(ctx.injury_away,0),
+      squadDepth: safe(ctx.squadDepth_away,5),
+      xg: safe(ctx.xg_away, ctx.lamA),
+      rigidityFactor: safe(ctx.away_rigidity,0.5),
+      aggressionBias: safe(ctx.away_aggr_bias,0),
+      ppda: safe(ctx.ppda_away,12)
+    };
+
+    // compute autos
+    const autoVals = {};
+    autoVals.tempo = autoTempo(ctx);
+    autoVals.chaos = autoChaos(ctx);
+    autoVals.stability_home = autoStability(homeCtx);
+    autoVals.stability_away = autoStability(awayCtx);
+    autoVals.momentum_home = autoMomentum(homeCtx);
+    autoVals.momentum_away = autoMomentum(awayCtx);
+    autoVals.ppda_home = autoPPDA(safe(ctx.home_press,5), safe(ctx.defline_home,5), autoVals.momentum_home);
+    autoVals.ppda_away = autoPPDA(safe(ctx.away_press,5), safe(ctx.defline_away,5), autoVals.momentum_away);
+    autoVals.press_home = autoPressIntensity(autoVals.ppda_home);
+    autoVals.press_away = autoPressIntensity(autoVals.ppda_away);
+    autoVals.flex_home = autoFlex(homeCtx);
+    autoVals.flex_away = autoFlex(awayCtx);
+    autoVals.managerAgg_home = autoManagerAgg(homeCtx);
+    autoVals.managerAgg_away = autoManagerAgg(awayCtx);
+    autoVals.defline_home = autoDefline(homeCtx);
+    autoVals.defline_away = autoDefline(awayCtx);
+    autoVals.injuryImpact_home = autoInjuryImpact(homeCtx);
+    autoVals.injuryImpact_away = autoInjuryImpact(awayCtx);
+    autoVals.transition_home = autoTransitionBias(homeCtx);
+    autoVals.transition_away = autoTransitionBias(awayCtx);
+    autoVals.pressLevel_home = clamp(autoVals.press_home/1.2 + autoVals.defline_home/6, 1, 10);
+    autoVals.pressLevel_away = clamp(autoVals.press_away/1.2 + autoVals.defline_away/6, 1, 10);
+
+    // confidence estimates from data richness
+    const confHome = Math.min(1, ( (homeCtx.shots>=6?0.35:0) + (homeCtx.possession?0.25:0) + (homeCtx.xg?0.25:0) + (homeCtx.formPts_last5?0.15:0) ));
+    const confAway = Math.min(1, ( (awayCtx.shots>=5?0.35:0) + (awayCtx.possession?0.25:0) + (awayCtx.xg?0.25:0) + (awayCtx.formPts_last5?0.15:0) ));
+    const conf = (confHome + confAway) / 2;
+
+    // merge with manual inputs (if provided)
+    const chosen = {};
+    const c1 = mergeManualAuto(ctx.home_st, autoVals.stability_home, conf);
+    chosen.stability_home = c1.chosen;
+    const c2 = mergeManualAuto(ctx.away_st, autoVals.stability_away, conf);
+    chosen.stability_away = c2.chosen;
+    const c3 = mergeManualAuto(ctx.home_mom, autoVals.momentum_home, conf);
+    chosen.momentum_home = c3.chosen;
+    const c4 = mergeManualAuto(ctx.away_mom, autoVals.momentum_away, conf);
+    chosen.momentum_away = c4.chosen;
+    const c5 = mergeManualAuto(ctx.home_press, autoVals.press_home, conf);
+    chosen.press_home = c5.chosen;
+    const c6 = mergeManualAuto(ctx.away_press, autoVals.press_away, conf);
+    chosen.press_away = c6.chosen;
+    const c7 = mergeManualAuto(ctx.home_flex, autoVals.flex_home, conf);
+    chosen.flex_home = c7.chosen;
+    const c8 = mergeManualAuto(ctx.away_flex, autoVals.flex_away, conf);
+    chosen.flex_away = c8.chosen;
+    const c9 = mergeManualAuto(ctx.ppda_home, autoVals.ppda_home, conf);
+    chosen.ppda_home = c9.chosen;
+    const c10 = mergeManualAuto(ctx.ppda_away, autoVals.ppda_away, conf);
+    chosen.ppda_away = c10.chosen;
+    const c11 = mergeManualAuto(ctx.defline_home, autoVals.defline_home, conf);
+    chosen.defline_home = c11.chosen;
+    const c12 = mergeManualAuto(ctx.defline_away, autoVals.defline_away, conf);
+    chosen.defline_away = c12.chosen;
+    const c13 = mergeManualAuto(ctx.injury_home, autoVals.injuryImpact_home, conf);
+    chosen.injury_home = c13.chosen;
+    const c14 = mergeManualAuto(ctx.injury_away, autoVals.injuryImpact_away, conf);
+    chosen.injury_away = c14.chosen;
+    const c15 = mergeManualAuto(ctx.home_flex, autoVals.pressLevel_home, conf);
+    chosen.pressLevel_home = c15.chosen;
+    const c16 = mergeManualAuto(ctx.away_flex, autoVals.pressLevel_away, conf);
+    chosen.pressLevel_away = c16.chosen;
+    const c17 = mergeManualAuto(ctx.tempo, autoVals.tempo, conf);
+    chosen.tempo = c17.chosen;
+    const c18 = mergeManualAuto(ctx.chaos, autoVals.chaos, conf);
+    chosen.chaos = c18.chosen;
+
+    // final hybrid object
+    const hybrid = {
+      auto: autoVals,
+      chosen: chosen,
+      confidence: { home: confHome, away: confAway, global: conf }
+    };
+    return hybrid;
+  }
+
+  /* ---------------------------
+     applyChosenToUI: write chosen values back to inputs (optional)
+  ----------------------------*/
+  function applyChosenToUI(hybrid){
+    try{
+      if(!hybrid || !hybrid.chosen) return;
+      document.getElementById('tempo').value = Number(hybrid.chosen.tempo).toFixed(2);
+      document.getElementById('chaos').value = Number(hybrid.chosen.chaos).toFixed(2);
+      document.getElementById('home_st').value = Number(hybrid.chosen.stability_home).toFixed(2);
+      document.getElementById('away_st').value = Number(hybrid.chosen.stability_away).toFixed(2);
+      document.getElementById('home_mom').value = Number(hybrid.chosen.momentum_home).toFixed(2);
+      document.getElementById('away_mom').value = Number(hybrid.chosen.momentum_away).toFixed(2);
+      document.getElementById('home_press').value = Number(hybrid.chosen.press_home).toFixed(2);
+      document.getElementById('away_press').value = Number(hybrid.chosen.press_away).toFixed(2);
+      document.getElementById('ppda_home').value = Number(hybrid.chosen.ppda_home).toFixed(2);
+      document.getElementById('ppda_away').value = Number(hybrid.chosen.ppda_away).toFixed(2);
+      document.getElementById('home_flex').value = Number(hybrid.chosen.flex_home).toFixed(2);
+      document.getElementById('away_flex').value = Number(hybrid.chosen.flex_away).toFixed(2);
+      document.getElementById('defline_home').value = Number(hybrid.chosen.defline_home).toFixed(2);
+      document.getElementById('defline_away').value = Number(hybrid.chosen.defline_away).toFixed(2);
+      document.getElementById('injury_home').value = Number(hybrid.chosen.injury_home).toFixed(2);
+      document.getElementById('injury_away').value = Number(hybrid.chosen.injury_away).toFixed(2);
+    }catch(e){ console.warn("applyChosenToUI err", e); }
+  }
+
+  return {
+    computeAll,
+    applyChosenToUI
+  };
+})();
+/* ============================================================
+   BAGIAN 6 — RUN INTEGRATED ENGINE (FINAL LEVEL 9)
+   ============================================================ */
+
+function buildContextFromUI(){
+  const g = id => document.getElementById(id)?.value;
+
+  return {
+    lamH: Number(g("lamH") || 1.2),
+    lamA: Number(g("lamA") || 1.0),
+
+    tempo: Number(g("tempo") || 5),
+    chaos: Number(g("chaos") || 5),
+    importance: Number(g("importance") || 5),
+
+    home_st: Number(g("home_st") || 5),
+    away_st: Number(g("away_st") || 5),
+    home_mom: Number(g("home_mom") || 5),
+    away_mom: Number(g("away_mom") || 5),
+
+    home_press: Number(g("home_press") || 5),
+    away_press: Number(g("away_press") || 5),
+    home_flex: Number(g("home_flex") || 0.5),
+    away_flex: Number(g("away_flex") || 0.5),
+
+    fin_home: Number(g("finishing_quality_home") || 5),
+    fin_away: Number(g("finishing_quality_away") || 5),
+
+    ppda_home: Number(g("ppda_home") || 12),
+    ppda_away: Number(g("ppda_away") || 12),
+
+    xg_home: Number(g("xg_home") || 1.2),
+    xg_away: Number(g("xg_away") || 1.0),
+
+    shots_home: Number(g("shots_home") || 10),
+    shots_away: Number(g("shots_away") || 8),
+    shotq_home: Number(g("shotq_home") || 0.12),
+    shotq_away: Number(g("shotq_away") || 0.10),
+
+    pos_home: Number(g("pos_home") || 50),
+    pos_away: Number(g("pos_away") || 50),
+
+    scoreCap: Number(g("scoreCap") || 6),
+    simCount: Number(g("simCount") || 2000),
+
+    homeFormation: g("home_formation") || "4-3-3",
+    awayFormation: g("away_formation") || "4-4-2"
+  };
+}
+
+
+/* ------------------------------------------------------------
+   Compute Over/Under Blend
+------------------------------------------------------------ */
+function computeOUBlend(lamEff, mc, cap){
+  const lines = [0.5,1.5,2.5,3.5];
+  const ou = {};
+  const ouMC = {};
+  const ouBlend = {};
+
+  /* analytic poisson */
+  const maxK = Math.max(20, Math.ceil(lamEff * 6));
+  const pmf = [];
+  for(let k=0;k<=maxK;k++){
+    let fact=1; for(let i=2;i<=k;i++) fact *= i;
+    pmf[k] = Math.exp(-lamEff)*Math.pow(lamEff,k)/fact;
+  }
+
+  lines.forEach(line=>{
+    const cut = Math.floor(line);
+    let under=0;
+    for(let k=0;k<=maxK;k++){
+      if(k<=cut) under += pmf[k];
+    }
+    ou[line] = {
+      under: Math.max(0, Math.min(1, under)),
+      over : Math.max(0, Math.min(1, 1-under))
+    };
+  });
+
+  /* MonteCarlo OU */
+  lines.forEach(line=>{
+    const cut = Math.floor(line);
+    let u=0, o=0;
+
+    for(let h=0;h<=cap;h++){
+      for(let a=0;a<=cap;a++){
+        const freq = mc.matrix?.[h]?.[a] || 0;
+        const sum = h + a;
+        if(sum <= cut) u += freq;
+        else o += freq;
+      }
+    }
+
+    ouMC[line] = {
+      under: u/mc.simCount,
+      over: o/mc.simCount
+    };
+  });
+
+  /* blending */
+  const patternChaos = 0.22; 
+  const wMC = 0.40 + 0.40 * patternChaos;
+  const wAN = 1 - wMC;
+
+  lines.forEach(k=>{
+    const an = ou[k];
+    const mcv = ouMC[k];
+    ouBlend[k] = {
+      over:  an.over  * wAN + mcv.over  * wMC,
+      under: an.under * wAN + mcv.under * wMC
+    };
+  });
+
+  return {ouBlend, ou, ouMC};
+}
+
+
+/* ------------------------------------------------------------
+   RUN INTEGRATED (MAIN ENGINE)
+------------------------------------------------------------ */
+function runIntegrated(){
+  const out = document.getElementById("output");
+  out.value = "Running PSZ Level 9 Engine...\n";
+
+  try{
+    /* ---------------------------
+       1. Build context
+    ----------------------------*/
+    const ctx = buildContextFromUI();
+
+    /* ---------------------------
+       2. AUTO INPUT ENGINE
+    ----------------------------*/
+    const hybrid = V20.Auto.computeAll(ctx);
+    V20.Auto.applyChosenToUI(hybrid);
+
+    /* apply auto → context */
+    ctx.tempo = hybrid.chosen.tempo;
+    ctx.chaos = hybrid.chosen.chaos;
+    ctx.home_st = hybrid.chosen.stability_home;
+    ctx.away_st = hybrid.chosen.stability_away;
+    ctx.home_mom = hybrid.chosen.momentum_home;
+    ctx.away_mom = hybrid.chosen.momentum_away;
+    ctx.home_press = hybrid.chosen.press_home;
+    ctx.away_press = hybrid.chosen.press_away;
+    ctx.home_flex = hybrid.chosen.flex_home;
+    ctx.away_flex = hybrid.chosen.flex_away;
+    ctx.ppda_home = hybrid.chosen.ppda_home;
+    ctx.ppda_away = hybrid.chosen.ppda_away;
+
+
+    /* ---------------------------
+       3. MASTER RUN (DLA + GSM + TEM + xT + FMA + Chrono + Morale)
+    ----------------------------*/
+    const master = V20.Master.masterRun(ctx);
+
+
+    /* ---------------------------
+       4. detSim, chaosSim, MonteCarlo
+    ----------------------------*/
+    const det = V20.detSim({lamH: ctx.lamH, lamA: ctx.lamA});
+
+    const chaosScale = 1 + ((ctx.chaos - 5)/20);
+    const detChaos = V20.detSim({
+      lamH: ctx.lamH * chaosScale,
+      lamA: ctx.lamA * chaosScale
+    });
+
+    const mc = V20.monteCarlo(
+      master.adjustedLam,
+      ctx,
+      ctx.simCount,
+      ctx.scoreCap
+    );
+
+
+    /* ---------------------------
+       5. Fuse (RC Fuse)
+    ----------------------------*/
+    const fused = V20.Master.RC.fuse({
+      det: det,
+      chaos: detChaos,
+      mc: mc,
+      xt: master.xt,
+      fma: master.fma
+    });
+
+    const pH = fused.pH;
+    const pD = fused.pD;
+    const pA = fused.pA;
+
+
+    /* ---------------------------
+       6. Uncertainty + BTTS + PCV
+    ----------------------------*/
+    const unc = V20.Master.PCV(pH,pD,pA);
+    const btts = Math.min(0.95, 0.24 + (master.adjustedLam.lamH + master.adjustedLam.lamA)*0.13);
+
+
+    /* ---------------------------
+       7. Compute OU (analytic + MC blend)
+    ----------------------------*/
+    const lamEff = Math.max(0.3,
+      (master.adjustedLam.lamH + master.adjustedLam.lamA) *
+      (1 + ((ctx.tempo-5)/12) + ((ctx.chaos-5)/15))
+    );
+
+    const ou = computeOUBlend(lamEff, mc, ctx.scoreCap);
+
+
+    /* ---------------------------
+       8. Top scorelines
+    ----------------------------*/
+    const flatScores = [];
+    for(let h=0;h<det.mat.length;h++){
+      for(let a=0;a<det.mat[h].length;a++){
+        flatScores.push({
+          score: `${h}-${a}`,
+          p: det.mat[h][a]
+        });
+      }
+    }
+    flatScores.sort((a,b)=> b.p - a.p);
+
+
+    /* ---------------------------
+       9. Recommendations
+    ----------------------------*/
+    const hdpRec =
+      pH > pA && pH > pD ? "Home" :
+      pA > pH && pA > pD ? "Away" :
+      "Draw / No strong side";
+
+    const ou25 = ou.ouBlend["2.5"];
+    const ouRec =
+      ou25.over > 0.55 ? "Over 2.5" :
+      ou25.under > 0.55 ? "Under 2.5" :
+      "No strong OU";
+
+    const bttsRec = btts >= 0.54 ? "YES" : "NO";
+
+
+    /* ---------------------------
+       10. SUPER OUTPUT BUILDER
+    ----------------------------*/
+    let txt = "";
+    txt += "=== PSZ MASTER ENGINE — LEVEL 9 ===\n\n";
+    txt += `[ENGINE STATUS] Confidence: ${unc.confidence}\n\n`;
+
+    txt += "[PROBABILITIES]\n";
+    txt += `Home Win : ${(pH*100).toFixed(1)}%\n`;
+    txt += `Draw     : ${(pD*100).toFixed(1)}%\n`;
+    txt += `Away Win : ${(pA*100).toFixed(1)}%\n\n`;
+
+    txt += "[BTTS / UNCERTAINTY]\n";
+    txt += `BTTS       : ${(btts*100).toFixed(1)}%\n`;
+    txt += `Confidence : ${(unc.max*100).toFixed(1)}%\n\n`;
+
+    txt += "[OVER / UNDER BLEND]\n";
+    Object.keys(ou.ouBlend).forEach(k=>{
+      const o = ou.ouBlend[k];
+      txt += `O/U ${k} → Over ${(o.over*100).toFixed(1)}% | Under ${(o.under*100).toFixed(1)}%\n`;
+    });
+    txt += "\n";
+
+    txt += "[TOP SCORELINES]\n";
+    flatScores.slice(0,5).forEach(s=>{
+      txt += `${s.score}  (${(s.p*100).toFixed(1)}%)\n`;
+    });
+    txt += "\n";
+
+    txt += "[RECOMMENDATIONS]\n";
+    txt += `HDP : ${hdpRec}\n`;
+    txt += `OU  : ${ouRec}\n`;
+    txt += `BTTS: ${bttsRec}\n`;
+
+    out.value = txt;
+
+
+    /* ---------------------------
+       11. Update Probability Bars
+    ----------------------------*/
+    const bH=document.getElementById("pH_fill");
+    const bD=document.getElementById("pD_fill");
+    const bA=document.getElementById("pA_fill");
+
+    if(bH) bH.style.width=(pH*100).toFixed(0)+"%";
+    if(bD) bD.style.width=(pD*100).toFixed(0)+"%";
+    if(bA) bA.style.width=(pA*100).toFixed(0)+"%";
+
+  } catch(err){
+    out.value += "\n[ERROR]\n" + (err.message || err);
+  }
+}
+/* ============================================================
+   BAGIAN 7 — FINAL BINDINGS (EVENT LISTENERS + GLOBAL WRAP)
+   ============================================================ */
+
+/* ---------------------------------
+   Tombol AUTO INPUT (FULL HYBRID)
+----------------------------------- */
+const autoBtn = document.getElementById("btn_auto_input");
+if (autoBtn){
+  autoBtn.addEventListener("click", function(){
+    const out = document.getElementById("output");
+    out.value = "Computing AUTO INPUT (Hybrid PRO)...\n";
+
+    try {
+      const ctx = buildContextFromUI();
+      const hybrid = V20.Auto.computeAll(ctx);
+      V20.Auto.applyChosenToUI(hybrid);
+
+      out.value += "\nAUTO INPUT Applied Successfully.\n";
+      out.value += "Confidence (Global): " + (hybrid.confidence.global*100).toFixed(1) + "%\n";
+
+    } catch(err){
+      out.value += "\n[ERROR AUTO]\n" + (err.message || err);
+    }
+  });
+}
+
+/* ---------------------------------
+   Tombol RUN INTEGRATED
+----------------------------------- */
+const runBtn = document.getElementById("btn_run_integrated");
+if (runBtn){
+  runBtn.addEventListener("click", runIntegrated);
+}
+
+/* ---------------------------------
+   Global alias (optional debugging)
+----------------------------------- */
+window.runIntegrated = runIntegrated;
+window.PSZ_AUTO = () => {
+  const ctx = buildContextFromUI();
+  const hybrid = V20.Auto.computeAll(ctx);
+  V20.Auto.applyChosenToUI(hybrid);
+  return hybrid;
+};
+
+window.PSZ_RUN = () => runIntegrated();
+</script>
+</body>
+</html>
