@@ -1,0 +1,1011 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PSZ — LEVEL 1000 (God Mode) — Dashboard Pro</title>
+<style>
+  :root{
+    --bg:#061122; --panel:#071528; --text:#e6eef6; --muted:#9fb0c8; --accent:#33d1ff;
+    --card:#0b2535; --danger:#ff6b6b;
+  }
+  html,body{ height:100%; margin:0; background:linear-gradient(180deg,#041021,#06111a); color:var(--text); font-family:Inter, Roboto, Arial; }
+  .container{ display:grid; grid-template-columns:360px 1fr; gap:12px; padding:12px; height:100vh; box-sizing:border-box; }
+  .left{ display:flex; flex-direction:column; gap:12px; }
+  .panel{ background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:10px; padding:10px; box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
+  h1{ margin:0; font-size:16px; color:var(--accent); }
+  label{ display:block; font-size:12px; color:var(--muted); margin-top:8px;}
+  input[type="text"], input[type="number"], select { width:100%; padding:8px; margin-top:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.04); background:rgba(255,255,255,0.02); color:var(--text); box-sizing:border-box;}
+  .row{ display:flex; gap:8px; }
+  .col{ flex:1; }
+  .controls{ display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  button{ background:var(--accent); color:#002; border:none; padding:8px 10px; border-radius:8px; cursor:pointer; font-weight:600; }
+  button.alt{ background:transparent; color:var(--accent); border:1px solid rgba(51,209,255,0.18); }
+  .small{ font-size:12px; color:var(--muted); margin-top:6px;}
+  /* right area grid: 3x2 panels */
+  .right{ display:grid; grid-template-columns: 1fr 420px; grid-template-rows: 1fr 1fr; gap:12px; }
+  .panel-large{ padding:12px; overflow:auto; }
+  textarea#output{ width:100%; height:100%; min-height:140px; background:#041b27; border-radius:8px; color:var(--text); padding:10px; font-family:monospace; border:1px solid rgba(255,255,255,0.03); box-sizing:border-box; }
+  .mini{ font-size:12px; color:var(--muted); }
+  .heatmap{ display:grid; grid-template-columns: repeat(8, 1fr); gap:4px; background:transparent; }
+  .zone{ padding:8px; border-radius:4px; text-align:center; font-size:11px; color:#001; background:rgba(255,255,255,0.06); }
+  .trace{ font-family:monospace; font-size:12px; color:var(--muted); max-height:360px; overflow:auto; background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; }
+  .legend{ display:flex; gap:6px; align-items:center; margin-top:6px;}
+  .badge{ padding:6px 8px; background:#062b3a; color:var(--text); border-radius:6px; font-weight:600; }
+  .flex-center{ display:flex; align-items:center; gap:8px; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="left">
+      <div class="panel">
+        <h1>PSZ — LEVEL 1000 (God Mode)</h1>
+        <div class="mini">Dashboard Pro — Single file (UI + Engine + Workers)</div>
+
+        <label>Home team</label><input id="home_team" type="text" value="Home FC"/>
+        <label>Away team</label><input id="away_team" type="text" value="Away FC"/>
+
+        <div class="row">
+          <div class="col"><label>λH (xG)</label><input id="lamH" type="number" step="0.01" value="1.20"/></div>
+          <div class="col"><label>λA (xG)</label><input id="lamA" type="number" step="0.01" value="1.00"/></div>
+        </div>
+
+        <div class="row">
+          <div class="col"><label>Tempo (1-9)</label><input id="tempo" type="number" step="0.1" value="5"/></div>
+          <div class="col"><label>Chaos (1-9)</label><input id="chaos" type="number" step="0.1" value="5"/></div>
+        </div>
+
+        <label>Importance (1-9)</label><input id="importance" type="number" step="0.1" value="5"/>
+
+        <div class="row">
+          <div class="col"><label>Home press (1-9)</label><input id="home_press" type="number" step="0.1" value="5"/></div>
+          <div class="col"><label>Away press (1-9)</label><input id="away_press" type="number" step="0.1" value="5"/></div>
+        </div>
+
+        <div class="row">
+          <div class="col"><label>Home formation</label><input id="homeFormation" type="text" value="4-3-3"/></div>
+          <div class="col"><label>Away formation</label><input id="awayFormation" type="text" value="4-4-2"/></div>
+        </div>
+
+        <label>PPDA override (leave blank = auto)</label><input id="ppda_override" type="text" placeholder="e.g. 8.2"/>
+
+        <label>Sim Quality</label>
+        <select id="simQuality">
+          <option value="fast">Fast (4k sims)</option>
+          <option value="normal" selected>Normal (30k sims)</option>
+          <option value="deep">Deep (150k sims)</option>
+        </select>
+
+        <div class="controls">
+          <button id="btn_auto_input" class="alt">AUTO INPUT</button>
+          <button id="btn_run_core">RUN CORE</button>
+          <button id="btn_minute_sim" class="alt">MINUTE SIM</button>
+          <button id="btn_export_json" class="alt">EXPORT JSON</button>
+        </div>
+
+        <div class="small">Auto PPDA if missing. Pressing, tempo, formation used to auto-fill tactical states. Use desktop for deep sim.</div>
+      </div>
+
+      <div class="panel">
+        <h3 style="margin:0;color:var(--accent)">Quick Team Stats</h3>
+        <div class="row">
+          <div class="col"><label>Shots H</label><input id="shots_home" type="number" value="12"/></div>
+          <div class="col"><label>Shots A</label><input id="shots_away" type="number" value="9"/></div>
+        </div>
+        <div class="row">
+          <div class="col"><label>SOT H</label><input id="sot_home" type="number" value="5"/></div>
+          <div class="col"><label>SOT A</label><input id="sot_away" type="number" value="3"/></div>
+        </div>
+        <div class="row">
+          <div class="col"><label>Poss H</label><input id="pos_home" type="number" value="52"/></div>
+          <div class="col"><label>Poss A</label><input id="pos_away" type="number" value="48"/></div>
+        </div>
+        <div class="small">Injury/fatigue settings, advanced options ada di kanan bawah.</div>
+      </div>
+
+      <div class="panel">
+        <h3 style="margin:0;color:var(--accent)">Advanced (optional)</h3>
+        <label>Injury impact home (0-5)</label><input id="injury_impact_home" type="number" step="0.1" value="0"/>
+        <label>Injury impact away (0-5)</label><input id="injury_impact_away" type="number" step="0.1" value="0"/>
+        <label>Fatigue index (0-5)</label><input id="fatigue" type="number" step="0.1" value="0.5"/>
+        <label>Volatility (0-1)</label><input id="volatility" type="number" step="0.01" value="0.5"/>
+        <div class="small">These values refine stamina, forced-error & late-collapse probability.</div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="panel panel-large" style="grid-column:1 / 2; grid-row:1 / 2;">
+        <h3 style="margin:0;color:var(--accent)">Output / Explain Trace</h3>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <div class="badge" id="engineStatus">ENGINE: IDLE</div>
+          <div class="mini" id="runMeta">—</div>
+        </div>
+        <div style="margin-top:8px;">
+          <textarea id="output" readonly placeholder="Final analysis & trace will appear here..."></textarea>
+        </div>
+      </div>
+
+      <div class="panel panel-large" style="grid-column:2 / 3; grid-row:1 / 2;">
+        <h3 style="margin:0;color:var(--accent)">xT Heatmap (8×8) & Branch Summary</h3>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <div style="flex:1;">
+            <div id="heatmap" class="heatmap"></div>
+            <div class="legend"><div class="mini">Zone values (µ-xG proxy)</div></div>
+          </div>
+          <div style="width:180px;">
+            <div style="font-weight:700;color:var(--muted)">Branches</div>
+            <div id="branchList" class="trace" style="height:220px;margin-top:6px;"></div>
+            <div style="margin-top:8px;"><div class="mini">Avg Goals: <span id="avgGoals">-</span> | BTTS: <span id="btts">-</span></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel panel-large" style="grid-column:1 / 2; grid-row:2 / 3;">
+        <h3 style="margin:0;color:var(--accent)">Minute xG Curve</h3>
+        <canvas id="xgChart" width="800" height="160" style="background:rgba(0,0,0,0.12); border-radius:8px;"></canvas>
+        <div class="small">Simulated expected goal pressure per minute (0–90).</div>
+      </div>
+
+      <div class="panel panel-large" style="grid-column:2 / 3; grid-row:2 / 3;">
+        <h3 style="margin:0;color:var(--accent)">Recommendations & Market Scan</h3>
+        <div id="recoList" class="trace" style="height:320px; margin-top:8px;"></div>
+      </div>
+    </div>
+  </div>
+
+<!-- ===========================
+  PSZ LEVEL 1000 — SINGLE FILE ENGINE
+  All modules compressed but functional:
+  - Core utils
+  - AutoInput & PPDA fallback
+  - VPS (virtual players)
+  - Tactical AI (F-TDAI) simplified
+  - Momentum wave & Micro Event
+  - xT 8x8 + µ-xG
+  - Multiverse manager + worker pool (WebWorkers)
+  - Monte Carlo with adaptive evo nudges
+  - Recommender & explain output
+  - IndexedDB persistence
+  ============================ -->
+
+<script>
+/* =========================
+   NAMESPACE & CORE UTILITIES
+   ========================= */
+window.PSZ = window.PSZ || {};
+(function(PSZ){
+  // basic safe numeric helpers
+  PSZ.safeNum = function(v, fallback){
+    if(v === null || v === undefined) return (fallback===undefined?NaN:fallback);
+    if(typeof v === "number") return isFinite(v)?v:(fallback===undefined?NaN:fallback);
+    if(typeof v === "string"){ const n = v.trim()===""?NaN:Number(v); return isFinite(n)?n:(fallback===undefined?NaN:fallback); }
+    try{ const n = Number(v); return isFinite(n)?n:(fallback===undefined?NaN:fallback); }catch(e){ return (fallback===undefined?NaN:fallback); }
+  };
+  PSZ.clamp = function(x,a,b){ x = PSZ.safeNum(x,0); if(a!==undefined) x = Math.max(x,a); if(b!==undefined) x = Math.min(x,b); return x; };
+  PSZ.normalize3 = function(a,b,c){ a = PSZ.safeNum(a,1); b = PSZ.safeNum(b,1); c = PSZ.safeNum(c,1); const s=a+b+c; if(!isFinite(s)||s<=0) return {pH:1/3,pD:1/3,pA:1/3}; return {pH:a/s,pD:b/s,pA:c/s}; };
+  PSZ.rand = Math.random;
+  PSZ.randNorm = function(mean,sd){ let u=0,v=0; while(u===0)u=Math.random(); while(v===0)v=Math.random(); let z=Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); return mean + z*(sd||1); };
+  PSZ.poissonPMF = function(lambda,k){ lambda=PSZ.safeNum(lambda,1e-6); k=Math.max(0,Math.floor(k)); let res=Math.exp(-lambda); if(k===0) return res; let term=res; for(let i=1;i<=k;i++) term *= lambda/i; return term; };
+  PSZ.poissonSample = function(lambda){ lambda = PSZ.safeNum(lambda,0.0001); if(lambda<=0) return 0; if(lambda>60) return Math.max(0, Math.round(PSZ.randNorm(lambda, Math.sqrt(lambda)))); const L=Math.exp(-lambda); let p=1, k=0; while(p>L){ p *= Math.random(); k++; if(k>500) break; } return k-1; };
+  PSZ.createMatrix = function(n,m){ n = Math.max(1, Math.floor(n)); m = m===undefined ? n : Math.max(1, Math.floor(m)); const mat = []; for(let i=0;i<n;i++){ mat[i]=new Array(m).fill(0); } return mat; };
+
+  // quick logging to UI
+  PSZ.log = function(msg,replace){
+    try{
+      const out = document.getElementById("output");
+      if(!out) return;
+      const now = new Date().toISOString().replace("T"," ").split(".")[0];
+      const line = `[${now}] ${msg}`;
+      if(replace) out.value = line; else out.value += "\n" + line;
+      out.scrollTop = out.scrollHeight;
+      console.log(line);
+    }catch(e){ console.log("LOG ERR", e); }
+  };
+
+  PSZ.LAST_RUN = null;
+  PSZ.ENGINE_STATUS = "IDLE";
+  console.log("PSZ core loaded");
+})(window.PSZ);
+</script>
+
+<script>
+/* =========================
+   IndexedDB tiny helper (weights & runs)
+   ========================= */
+(function(PSZ){
+  PSZ.DB = {};
+  PSZ.DB.open = function(){
+    if(PSZ.DB._store) return Promise.resolve(PSZ.DB._store);
+    return new Promise((res,rej)=>{
+      const req = indexedDB.open("psz_db_v1",1);
+      req.onupgradeneeded = function(e){
+        const db = e.target.result;
+        if(!db.objectStoreNames.contains("runs")) db.createObjectStore("runs",{keyPath:"id"});
+        if(!db.objectStoreNames.contains("weights")) db.createObjectStore("weights",{keyPath:"id"});
+      };
+      req.onsuccess = function(e){
+        const db = e.target.result;
+        PSZ.DB._store = {
+          db,
+          put: function(storeName,obj){ return new Promise((rj,rr)=>{ const tx=db.transaction(storeName,"readwrite"); const st=tx.objectStore(storeName); const rq=st.put(obj); rq.onsuccess=()=>rj(rq.result); rq.onerror=()=>rr(rq.error); }); },
+          get: function(storeName,id){ return new Promise((rj,rr)=>{ const tx=db.transaction(storeName,"readonly"); const st=tx.objectStore(storeName); const rq=st.get(id); rq.onsuccess=()=>rj(rq.result); rq.onerror=()=>rr(rq.error); }); },
+          all: function(storeName){ return new Promise((rj,rr)=>{ const tx=db.transaction(storeName,"readonly"); const st=tx.objectStore(storeName); const rq=st.getAll(); rq.onsuccess=()=>rj(rq.result); rq.onerror=()=>rr(rq.error); }); }
+        };
+        res(PSZ.DB._store);
+      };
+      req.onerror = function(e){ rej(e); };
+    });
+  };
+  console.log("PSZ DB helper loaded");
+})(window.PSZ);
+</script>
+
+<script>
+/* =========================
+   AutoInput & PPDA fallback (auto compute pressing->PPDA)
+   ========================= */
+(function(PSZ){
+  PSZ.Auto = {};
+  PSZ.Auto.gather = function(){
+    const ctx = {};
+    ctx.home_team = document.getElementById("home_team")?.value || "Home";
+    ctx.away_team = document.getElementById("away_team")?.value || "Away";
+    ctx.lamH = PSZ.safeNum(document.getElementById("lamH")?.value,1.2);
+    ctx.lamA = PSZ.safeNum(document.getElementById("lamA")?.value,1.0);
+    ctx.tempo = PSZ.clamp(PSZ.safeNum(document.getElementById("tempo")?.value,5),1,9);
+    ctx.chaos = PSZ.clamp(PSZ.safeNum(document.getElementById("chaos")?.value,5),1,9);
+    ctx.importance = PSZ.clamp(PSZ.safeNum(document.getElementById("importance")?.value,5),1,9);
+    ctx.home_press = PSZ.clamp(PSZ.safeNum(document.getElementById("home_press")?.value,5),1,9);
+    ctx.away_press = PSZ.clamp(PSZ.safeNum(document.getElementById("away_press")?.value,5),1,9);
+    ctx.homeFormation = document.getElementById("homeFormation")?.value || "";
+    ctx.awayFormation = document.getElementById("awayFormation")?.value || "";
+    ctx.pos_home = PSZ.safeNum(document.getElementById("pos_home")?.value,50);
+    ctx.pos_away = PSZ.safeNum(document.getElementById("pos_away")?.value,50);
+    ctx.shots_home = PSZ.safeNum(document.getElementById("shots_home")?.value,10);
+    ctx.shots_away = PSZ.safeNum(document.getElementById("shots_away")?.value,9);
+    ctx.sot_home = PSZ.safeNum(document.getElementById("sot_home")?.value,4);
+    ctx.sot_away = PSZ.safeNum(document.getElementById("sot_away")?.value,3);
+    ctx.injury_impact_home = PSZ.safeNum(document.getElementById("injury_impact_home")?.value,0);
+    ctx.injury_impact_away = PSZ.safeNum(document.getElementById("injury_impact_away")?.value,0);
+    ctx.fatigue = PSZ.safeNum(document.getElementById("fatigue")?.value,0.5);
+    ctx.volatility = PSZ.safeNum(document.getElementById("volatility")?.value,0.5);
+    ctx.ppda_override = PSZ.safeNum(document.getElementById("ppda_override")?.value, NaN);
+    ctx.simQuality = document.getElementById("simQuality")?.value || "normal";
+    ctx.match_id = "M" + Date.now();
+    ctx.timestamp = new Date().toISOString();
+    // compute simIntensity based on quality
+    if(ctx.simQuality === "fast") ctx.simIntensity = 4000;
+    else if(ctx.simQuality === "normal") ctx.simIntensity = 30000;
+    else ctx.simIntensity = 150000;
+
+    // PPDA fallback
+    if(!isFinite(ctx.ppda_override)){
+      // compute a PPDA-like proxy: lower = more intense pressing
+      const pressF = (ctx.home_press - 1)/8;
+      const tempoF = (ctx.tempo - 1)/8;
+      const formDef = ((ctx.homeFormation||"").startsWith("5")|| (ctx.homeFormation||"").startsWith("3-5")) ? 0.2 : 0;
+      let base = 0.55 - 0.35*pressF + 0.08*(1-tempoF) - formDef*0.2 + ((ctx.shots_away+1)/(ctx.shots_home+1)-1)*0.02;
+      base = PSZ.clamp(base, 0.08, 1.2);
+      ctx.ppda_home = 6 + base*10; // typical 6..18
+      // for away symmetric based on away_press
+      const pressF2 = (ctx.away_press - 1)/8;
+      let base2 = 0.55 - 0.35*pressF2 + 0.08*(1-tempoF) - (((ctx.awayFormation||"").startsWith("5"))?0.2:0) + ((ctx.shots_home+1)/(ctx.shots_away+1)-1)*0.02;
+      base2 = PSZ.clamp(base2, 0.08, 1.2);
+      ctx.ppda_away = 6 + base2*10;
+    } else {
+      ctx.ppda_home = ctx.ppda_away = ctx.ppda_override;
+    }
+
+    // park-the-bus detection simple
+    ctx.park_home = false; ctx.park_away = false;
+    if(ctx.lamA - ctx.lamH > 0.8 && ctx.importance > 6 && ctx.fatigue > 1.2) ctx.park_home = true;
+    if(ctx.lamH - ctx.lamA > 0.8 && ctx.importance > 6 && ctx.fatigue > 1.2) ctx.park_away = true;
+
+    return ctx;
+  };
+
+  console.log("AutoInput loaded");
+})(window.PSZ);
+</script>
+
+<script>
+/* =========================
+   VPS - Virtual Player System (minimal but dynamic)
+   creates virtual players with attributes and dynamic stamina/morale
+   ========================= */
+(function(PSZ){
+  PSZ.VPS = {};
+
+  PSZ.VPS.makeTeam = function(ctx,side){
+    // side: "home" or "away"
+    const baseFactor = (side==="home") ? 1 + (ctx.pos_home-50)/100 : 1 + (ctx.pos_away-50)/100;
+    // create 11 virtual players with roles distribution
+    const players = [];
+    const roles = ["GK","DL","DC","DC","DR","LM","CM","CM","RM","ST","ST"];
+    for(let i=0;i<11;i++){
+      const role = roles[i] || "SUB";
+      const p = {
+        id: side+"_"+i,
+        role,
+        finishing: PSZ.clamp(0.4 + Math.random()*0.6 + (ctx.scored_last5_home?0:0), 0.05, 0.99),
+        passing: PSZ.clamp(0.45 + Math.random()*0.5 + baseFactor*0.05, 0.05, 0.99),
+        pressResist: PSZ.clamp(0.4 + Math.random()*0.5, 0.05, 0.99),
+        defense: PSZ.clamp(0.4 + Math.random()*0.5, 0.05, 0.99),
+        aerial: PSZ.clamp(0.4 + Math.random()*0.5, 0.05, 0.99),
+        stamina: PSZ.clamp(0.9 - ctx.fatigue*0.04 + Math.random()*0.1, 0.15, 1.0),
+        morale: 1.0
+      };
+      players.push(p);
+    }
+    return players;
+  };
+
+  PSZ.VPS.initMatch = function(ctx){
+    const homePlayers = PSZ.VPS.makeTeam(ctx,"home");
+    const awayPlayers = PSZ.VPS.makeTeam(ctx,"away");
+    return { homePlayers, awayPlayers };
+  };
+
+  PSZ.VPS.applyFatigue = function(players, intensity){
+    // intensity 0..1 per 15 minutes
+    for(const p of players){
+      p.stamina = PSZ.clamp(p.stamina - intensity*0.06, 0.02, 1.0);
+      // morale slight decrease with low stamina
+      if(p.stamina < 0.35) p.morale = PSZ.clamp(p.morale - 0.06, 0.3, 1.2);
+    }
+  };
+
+  console.log("VPS loaded");
+})(window.PSZ);
+</script>
+
+<script>
+/* =========================
+   Tactical Decision AI (F-TDAI) simplified
+   - decides tactical shifts (press, formation) based on state
+   ========================= */
+(function(PSZ){
+  PSZ.TDAI = {};
+
+  PSZ.TDAI.evaluate = function(ctx, state){
+    // state includes minute, score, momentumIndex, fatigue indexes
+    const m = state.minute || 0;
+    const scoreDiff = (state.homeGoals||0) - (state.awayGoals||0);
+    const momentum = PSZ.clamp(state.momentum || 0.5, 0, 1);
+    const fatigueHome = state.fatigueHome || 0.1;
+    const fatigueAway = state.fatigueAway || 0.1;
+
+    const actions = { changeForm:null, changePress:null, notes: [] };
+
+    // If losing and minute > 60 -> increase press
+    if(scoreDiff < 0 && m > 60 && fatigueHome < 0.6){
+      actions.changePress = PSZ.clamp(ctx.home_press + 2, 1, 9);
+      actions.notes.push("Chase mode: increase home press");
+    }
+
+    // if leading and minute > 70 -> park home
+    if(scoreDiff > 0 && m > 70){
+      actions.changePress = PSZ.clamp(ctx.home_press - 2, 1, 9);
+      actions.notes.push("Protect lead: lower home press (park bus)");
+    }
+
+    // if fatigue very high -> reduce press
+    if(fatigueHome > 0.75){
+      actions.changePress = PSZ.clamp(ctx.home_press - 3, 1, 9);
+      actions.notes.push("Fatigue high: reduce home press");
+    }
+
+    // tactics may trigger formation change in desperate modes
+    if(scoreDiff < -1 && m > 65){
+      actions.changeForm = "4-2-4";
+      actions.notes.push("Desperate formation swap to attack");
+    }
+
+    // if away heavily press and home is weak -> compact
+    if(state.awayPress > ctx.home_press && momentum < 0.3){
+      actions.changeForm = "4-5-1";
+      actions.notes.push("Defensive compact to resist away press");
+    }
+
+    return actions;
+  };
+
+  console.log("TDAI loaded");
+})(window.PSZ);
+</script>
+<script>
+/* =========================
+   Momentum & Micro Event Engine (minute-level)
+   - minuteWave function returns pressure value 0..1
+   - microEvent generates events per minute with probabilities
+   ========================= */
+(function(PSZ){
+  PSZ.Momentum = {};
+
+  PSZ.Momentum.minuteWaveFunc = function(ctx){
+    const swingBase = PSZ.clamp(Math.abs((ctx.home_mom || 5) - (ctx.away_mom || 5))/10 + (ctx.chaos-5)/20, 0, 1);
+    const fatigueFactor = PSZ.clamp((ctx.fatigue||0.5)/1.5, 0, 1);
+    return function(minute){
+      const phase = Math.sin((minute/90)*Math.PI*2);
+      const lateSpike = (minute > 65) ? (1 + (minute-65)/25) : 0;
+      const value = PSZ.clamp(0.3 + 0.28*phase + swingBase*0.2 + fatigueFactor*0.15*lateSpike, 0, 1);
+      return value;
+    };
+  };
+PSZ.Momentum.genMicroEvent = function(ctx, minute, v){
+    // v: pressure [0,1], minute
+    // return event object: {type, impact}
+    const r = Math.random();
+    if(r < 0.02 + v*0.05) return { type:"dangerous_attack", impact: 0.6 + v*0.6 };
+    if(r < 0.04 + v*0.06) return { type:"set_piece", impact: 0.5 + v*0.4 };
+    if(r < 0.045 + v*0.02) return { type:"turnover", impact: 0.3 + v*0.4 };
+    if(r < 0.005 + ctx.volatility*0.02) return { type:"card", impact: 0.1 + ctx.volatility*0.4 };
+    return { type:"none", impact:0 };
+  };
+
+  PSZ.Momentum.computeMomentumIndex = function(ctx){
+    // simple index based on recent scoring proxies and stability
+    const idxH = 0.3 + ((ctx.scored_last5_home||0)/10) + (ctx.home_press-5)*0.02;
+    const idxA = 0.3 + ((ctx.scored_last5_away||0)/10) + (ctx.away_press-5)*0.02;
+    return { mH: PSZ.clamp(idxH,0,1), mA: PSZ.clamp(idxA,0,1), diff: PSZ.clamp(idxH-idxA,-1,1) };
+  };
+
+  console.log("Momentum engine loaded");
+})(window.PSZ);
+</script>
+<script>
+/* =========================
+   xThreat heatmap 8x8 + µ-xG approximator
+   ========================= */
+(function(PSZ){
+  PSZ.xT = {};
+  PSZ.xT.build8x8 = function(ctx){
+    const grid = [];
+    const homeBias = PSZ.clamp((ctx.pos_home - 50)/50, -0.5, 0.5);
+    for(let r=0;r<8;r++){
+      grid[r] = [];
+      for(let c=0;c<8;c++){
+        const center = 1 - (Math.abs(r-3.5)+Math.abs(c-3.5))/7;
+        let base = 0.02 + center*0.22 + homeBias*0.04;
+        if((ctx.homeFormation||"").includes("3-4-3") || (ctx.homeFormation||"").includes("4-3-3")){
+          if(c<2 || c>5) base += 0.02;
+        }
+        grid[r][c] = PSZ.clamp(base, 0.0001, 1.5);
+      }
+    }
+    return grid;
+  };
+
+  PSZ.xT.microXG = function(zoneVal, shotQuality){
+    // shotQuality in 0..1
+    return PSZ.clamp(zoneVal * (0.5 + shotQuality) * 0.6, 0.001, 2.5);
+  };
+
+  console.log("xT loaded");
+})(window.PSZ);
+</script>
+<script>
+/* =========================
+   Multiverse Manager + WebWorker Pool
+   - builds branches
+   - distributes MC chunks to workers
+   ========================= */
+(function(PSZ){
+  PSZ.WorkerPool = {};
+  PSZ.WorkerPool._workers = [];
+
+  PSZ.WorkerPool.createWorkerFromFn = function(fn){
+    const code = '(' + fn.toString() + ')()';
+    const blob = new Blob([code], { type: "application/javascript" });
+    const url = URL.createObjectURL(blob);
+    const w = new Worker(url);
+    w._url = url;
+    const origTerm = w.terminate.bind(w);
+    w.terminate = function(){ origTerm(); URL.revokeObjectURL(url); };
+    return w;
+  };
+
+  // worker code: receives {cmd:'runChunk', ctx, lamH, lamA, count, branchMod}
+  PSZ.WorkerPool.workerCode = function(){
+    return function(){
+      self.onmessage = function(ev){
+        const msg = ev.data;
+        if(msg && msg.cmd === 'runChunk'){
+          const ctx = msg.ctx || {};
+          const lamH = msg.lamH || 1.2;
+          const lamA = msg.lamA || 1.0;
+          const count = msg.count || 1000;
+          const branch = msg.branch || {};
+          const maxScore = msg.maxScore || 7;
+
+          // tiny poisson sample
+          function poisson(lambda){
+            const L = Math.exp(-lambda);
+            let p=1,k=0;
+            while(p>L){ p *= Math.random(); k++; if(k>1000) break; }
+            return k-1;
+          }
+
+          const matrix = [];
+          for(let i=0;i<=maxScore;i++){ matrix[i] = new Array(maxScore+1).fill(0); }
+
+          let totalGoals = 0;
+          for(let i=0;i<count;i++){
+            // branch modification
+            let bH = lamH * (branch.hFactor || 1);
+            let bA = lamA * (branch.aFactor || 1);
+            // random micro effect:
+            if(branch.chaos) {
+              const noise = (Math.random()-0.5)*branch.chaos*0.3;
+              bH = Math.max(0.02, bH*(1+noise));
+              bA = Math.max(0.02, bA*(1-noise));
+            }
+            const sH = poisson(bH);
+            const sA = poisson(bA);
+            if(sH <= maxScore && sA <= maxScore) matrix[sH][sA] += 1;
+            totalGoals += sH + sA;
+          }
+
+          self.postMessage({ type:'chunkDone', payload:{matrix, total:count, totalGoals} });
+        }
+      };
+    };
+  };
+PSZ.WorkerPool.runMultiverse = function(ctx, branches, lamH, lamA, simTotal, maxScore, onProgress){
+    return new Promise(async (resolve, reject)=>{
+      try{
+        const cpus = Math.max(1, Math.min(6, navigator.hardwareConcurrency || 2));
+        const workers = [];
+        for(let i=0;i<cpus;i++) workers.push( PSZ.WorkerPool.createWorkerFromFn(PSZ.WorkerPool.workerCode) );
+        PSZ.WorkerPool._workers = workers;
+
+        // allocate sim counts per branch proportional to branch weight
+        const branchCounts = branches.map(b => Math.max(20, Math.round(simTotal * (b.w || 0.01))));
+        const totalAlloc = branchCounts.reduce((s,x)=>s+x,0);
+        // scale to simTotal
+        const scale = simTotal / totalAlloc;
+        for(let i=0;i<branchCounts.length;i++) branchCounts[i] = Math.max(20, Math.round(branchCounts[i] * scale));
+
+        // prepare accumulators
+        const maxS = maxScore || 7;
+        const accMat = PSZ.createMatrix(maxS+1, maxS+1);
+        let accTotal = 0;
+        let accGoals = 0;
+        let processed = 0, target = branchCounts.reduce((a,b)=>a+b,0);
+
+        // queue tasks per branch chunk
+        const tasks = [];
+        for(let bi=0; bi<branches.length; bi++){
+          let remaining = branchCounts[bi];
+          const branch = branches[bi];
+          while(remaining > 0){
+            const chunk = Math.min( Math.max(200, Math.floor(simTotal/40)), remaining );
+            tasks.push({ branchIndex: bi, branch, count: chunk });
+            remaining -= chunk;
+          }
+        }
+
+        let taskIndex = 0;
+        function dispatch(worker){
+          if(taskIndex >= tasks.length) return;
+          const tk = tasks[taskIndex++];
+          worker.onmessage = function(ev){
+            const d = ev.data;
+            if(d && d.type === 'chunkDone'){
+              const mat = d.payload.matrix;
+              const t = d.payload.total;
+              const tg = d.payload.totalGoals || 0;
+              // accumulate
+              for(let h=0; h<=maxS; h++){
+                for(let a=0; a<=maxS; a++){
+                  accMat[h][a] += mat[h] || 0;
+                }
+              }
+              accTotal += t;
+              accGoals += tg;
+              processed += t;
+              if(typeof onProgress === "function") onProgress(processed / simTotal);
+              // dispatch next
+              dispatch(worker);
+            }
+          };
+worker.postMessage({ cmd:'runChunk', ctx, lamH, lamA, count: tk.count, branch: { hFactor: tk.branch.hFactor, aFactor: tk.branch.aFactor, chaos: tk.branch.chaos }, maxScore: maxS });
+        }
+
+        // start workers
+        for(const w of workers) dispatch(w);
+
+        // poll until processed reaches simTotal (or tasks exhausted)
+        const wait = setInterval(()=>{
+          if(accTotal >= simTotal || taskIndex >= tasks.length && processed >= simTotal){
+            clearInterval(wait);
+            // terminate workers
+            for(const w of workers) try{ w.terminate(); }catch(e){}
+            // normalize matrix to frequencies
+            const freqMat = PSZ.createMatrix(maxS+1, maxS+1);
+            for(let h=0; h<=maxS; h++){ for(let a=0; a<=maxS; a++){ freqMat[h][a] = accMat[h][a] / Math.max(1, accTotal); } }
+            const bttsCount = (()=>{ let c=0; for(let h=0; h<=maxS; h++){ for(let a=0; a<=maxS; a++){ if(h>0 && a>0) c += accMat[h][a]; } } return c; })();
+            resolve({ matrix: freqMat, simCount: accTotal, avgGoals: accGoals / Math.max(1, accTotal), btts: bttsCount / Math.max(1, accTotal) });
+          }
+        }, 250);
+
+      }catch(err){ reject(err); }
+    });
+  };
+
+  console.log("WorkerPool loaded");
+})(window.PSZ);
+</script>
+<script>
+/* =========================
+   Multiverse branch generator (smart) - more branches at Level1000
+   ========================= */
+(function(PSZ){
+  PSZ.MSB = {};
+  PSZ.MSB.genBranches = function(ctx){
+    // core branches: base, early_goal, collapse, press_burst, red_card, late_spike
+    const base = { name:"base", w:0.45, hFactor:1.0, aFactor:1.0, chaos:0.2 };
+    const early = { name:"early_goal", w:0.12, hFactor:1.25, aFactor:0.9, chaos:0.6 };
+    const collapse = { name:"defensive_collapse", w:0.10, hFactor:1.4, aFactor:1.1, chaos:0.9 };
+    const press = { name:"press_burst", w:0.12, hFactor:1.08, aFactor:1.2, chaos:0.7 };
+    const red = { name:"red_card", w:0.05, hFactor:1.2, aFactor:1.2, chaos:1.2 };
+    const late = { name:"late_spike", w:0.16, hFactor:1.12, aFactor:1.12, chaos:0.8 };
+
+    // adjust weights by context
+    const branches = [base, early, collapse, press, red, late];
+    // if low volatility reduce red/card
+    if(ctx.volatility < 0.3) branches.find(b=>b.name==="red_card").w *= 0.4;
+    // if park bus detected -> reduce early goal
+    if(ctx.park_home) branches.forEach(b=>{ if(b.name==="early_goal") b.w *= 0.5; if(b.name==="press_burst") b.w *= 0.6; });
+    // normalize
+    let s = branches.reduce((a,b)=>a+b.w,0);
+    branches.forEach(b=>b.w = Math.max(0.01, b.w / s));
+    return branches;
+  };
+console.log("MSB generator ready");
+})(window.PSZ);
+</script>
+
+<script>
+/* =========================
+   Monte Carlo Runner (orchestrates multiverse run)
+   ========================= */
+(function(PSZ){
+  PSZ.Engine = {};
+  PSZ.Engine.run = async function(ctx, onProgress){
+    PSZ.log("Engine: preparing...");
+    // prepare lambdas tuned by master + tactics
+    let lamH = PSZ.safeNum(ctx.lamH,1.2);
+    let lamA = PSZ.safeNum(ctx.lamA,1.0);
+
+    // apply basic master adjustments: formation, press, injury
+    lamH *= 1 + (ctx.home_press - 5) * 0.03;
+    lamA *= 1 + (ctx.away_press - 5) * 0.03;
+    if(ctx.park_home) lamH *= 0.78;
+    if(ctx.park_away) lamA *= 0.78;
+    lamH *= (1 - PSZ.clamp((ctx.injury_impact_home + ctx.fatigue*0.05)/6, 0, 0.35));
+    lamA *= (1 - PSZ.clamp((ctx.injury_impact_away + ctx.fatigue*0.05)/6, 0, 0.35));
+
+    // generate branches
+    const branches = PSZ.MSB.genBranches(ctx);
+
+    // compute simTotal from ctx.simIntensity
+    const simTotal = PSZ.safeNum(ctx.simIntensity, 30000);
+    const maxScore = 7;
+
+    // run multiverse using workerpool
+    PSZ.log("Engine: running multiverse (simTotal="+simTotal+")");
+    const res = await PSZ.WorkerPool.runMultiverse(ctx, branches, lamH, lamA, simTotal, maxScore, onProgress);
+
+    // derive probabilities 1X2 from matrix
+    let pH=0,pD=0,pA=0;
+    for(let h=0; h<=maxScore; h++){
+      for(let a=0; a<=maxScore; a++){
+        const p = PSZ.safeNum(res.matrix[h][a],0);
+        if(h>a) pH += p; else if(h===a) pD += p; else pA += p;
+      }
+    }
+    const probs = PSZ.normalize3(pH,pD,pA);
+
+    return {
+      matrix: res.matrix,
+      simCount: res.simCount,
+      avgGoals: res.avgGoals,
+      btts: res.btts,
+      probs,
+      branches
+    };
+  };
+
+  console.log("Engine runner ready");
+})(window.PSZ);
+</script>
+<script>
+/* =========================
+   ML ensemble (simple fusion), Recommender & Output
+   ========================= */
+(function(PSZ){
+  PSZ.ML = {};
+  PSZ.ML.fuse = function(ctx, engineRes, momentum){
+    // components: engine probs, momentum tilt, small tactical bias
+    const e = engineRes.probs;
+    const momTilt = PSZ.clamp((momentum.M.diff || 0)*0.08, -0.12, 0.12);
+    const tacBias = 0; // reserved
+    const rawH = e.pH + momTilt + tacBias;
+    const rawD = e.pD;
+    const rawA = e.pA - momTilt - tacBias;
+    return PSZ.normalize3(rawH, rawD, rawA);
+  };
+
+  PSZ.Reco = {};
+  PSZ.Reco.scanMarket = function(prob, marketOdds){
+    marketOdds = marketOdds || {};
+    const out = { value:[], ev:{}, kelly:{} };
+    if(marketOdds.H && marketOdds.D && marketOdds.A){
+      out.ev.H = prob.pH * marketOdds.H - 1;
+      out.ev.D = prob.pD * marketOdds.D - 1;
+      out.ev.A = prob.pA * marketOdds.A - 1;
+      out.kelly.H = (out.ev.H>0) ? Math.max(0, (marketOdds.H-1)*prob.pH - (1-prob.pH)) / (marketOdds.H-1) : 0;
+      out.kelly.D = (out.ev.D>0) ? Math.max(0, (marketOdds.D-1)*prob.pD - (1-prob.pD)) / (marketOdds.D-1) : 0;
+      out.kelly.A = (out.ev.A>0) ? Math.max(0, (marketOdds.A-1)*prob.pA - (1-prob.pA)) / (marketOdds.A-1) : 0;
+      if(out.ev.H>0) out.value.push({type:"1X2",pick:"Home",ev:out.ev.H,kelly:out.kelly.H});
+      if(out.ev.D>0) out.value.push({type:"1X2",pick:"Draw",ev:out.ev.D,kelly:out.kelly.D});
+      if(out.ev.A>0) out.value.push({type:"1X2",pick:"Away",ev:out.ev.A,kelly:out.kelly.A});
+    }
+    return out;
+  };
+
+  PSZ.Output = {};
+  PSZ.Output.buildText = function(final){
+    let s = "";
+    s += "=== PSZ LEVEL 1000 — REPORT ===\n\n";
+    s += `Match: ${final.meta.home} vs ${final.meta.away}\n`;
+    s += `Sim: ${final.engine.simCount} | AvgGoals: ${final.engine.avgGoals.toFixed(3)} | BTTS: ${(final.engine.btts*100).toFixed(1)}%\n\n`;
+    s += "[PROBABILITIES]\n";
+    s += `Home: ${(final.ml.prob.pH*100).toFixed(1)}%  Draw: ${(final.ml.prob.pD*100).toFixed(1)}%  Away: ${(final.ml.prob.pA*100).toFixed(1)}%\n\n`;
+    s += "[RECOMMENDATIONS]\n";
+    if(final.recs && final.recs.length){
+      final.recs.forEach(r=>{
+        if(r.type==="1X2") s += `1X2 → ${r.pick} | EV=${(r.ev||0).toFixed(3)} | Kelly=${(r.kelly||0).toFixed(3)}\n`;
+      });
+    } else s += "No value bets detected.\n";
+    s += "\n[BRANCHES]\n";
+    final.engine.branches.forEach(b=> s += `${b.name} (w=${(b.w||0).toFixed(2)})\n`);
+    s += "\n=== TRACE ===\n";
+    final.trace.slice(-12).forEach(t=> s += t + "\n");
+    s += "\n=== END ===\n";
+    return s;
+  };
+
+  console.log("ML & Reco loaded");
+})(window.PSZ);
+</script>
+<script>
+/* =========================
+   Runner glue: orchestrates everything & wires UI
+   ========================= */
+(function(PSZ){
+  // helpers to render heatmap
+  function renderHeatmap(grid){
+    const el = document.getElementById("heatmap");
+    if(!el) return;
+    el.innerHTML = "";
+    const flat = [];
+    for(let r=0;r<grid.length;r++){
+      for(let c=0;c<grid[r].length;c++){
+        flat.push(grid[r][c]);
+      }
+    }
+    const max = Math.max(...flat);
+    for(let r=0;r<8;r++){
+      for(let c=0;c<8;c++){
+        const v = grid[r][c];
+        const intensity = Math.round(100 * (v / (max||1)));
+        const div = document.createElement("div");
+        div.className = "zone";
+        div.style.background = `linear-gradient(180deg, rgba(255,255,255,${0.02 + intensity/800}), rgba(51,209,255,${0.06 + intensity/1000}))`;
+        div.textContent = (v).toFixed(2);
+        el.appendChild(div);
+      }
+    }
+  }
+
+  function renderBranches(branches, avgGoals, btts){
+    const el = document.getElementById("branchList");
+    if(!el) return;
+    el.innerHTML = "";
+    branches.forEach(b=>{
+      const d = document.createElement("div");
+      d.textContent = `${b.name} | w=${(b.w||0).toFixed(2)} hF=${(b.hFactor||1).toFixed(2)} aF=${(b.aFactor||1).toFixed(2)}`;
+      el.appendChild(d);
+    });
+    document.getElementById("avgGoals").textContent = (avgGoals||0).toFixed(3);
+    document.getElementById("btts").textContent = ((btts||0)*100).toFixed(1) + "%";
+  }
+
+  function renderReco(list){
+    const el = document.getElementById("recoList");
+    if(!el) return;
+    el.innerHTML = "";
+    if(!list || !list.length){ el.textContent = "No recommendations."; return; }
+    list.forEach(r=>{
+      const d = document.createElement("div");
+      d.style.marginBottom = "6px";
+      if(r.type==="1X2"){
+        d.innerHTML = `<b>${r.pick}</b> — EV ${(r.ev||0).toFixed(3)} | Kelly ${(r.kelly||0).toFixed(3)}`;
+      } else if(r.type==="OU"){
+        d.textContent = `OU: ${r.pick} modelProb ${(r.modelProb*100).toFixed(1)}%`;
+      } else {
+        d.textContent = JSON.stringify(r);
+      }
+      el.appendChild(d);
+    });
+  }
+
+  // draw xG curve simple
+  function drawXGCurve(curve){
+    const canvas = document.getElementById("xgChart");
+    if(!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+    // background grid
+    ctx.fillStyle = "rgba(0,0,0,0.06)"; ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle = "rgba(255,255,255,0.04)";
+    ctx.beginPath(); for(let i=0;i<=9;i++){ const x = i*(w/9); ctx.moveTo(x,0); ctx.lineTo(x,h); } ctx.stroke();
+    ctx.beginPath(); for(let i=0;i<=4;i++){ const y = i*(h/4); ctx.moveTo(0,y); ctx.lineTo(w,y); } ctx.stroke();
+// draw curve
+    ctx.beginPath();
+    ctx.strokeStyle = "#33d1ff";
+    ctx.lineWidth = 2;
+    for(let i=0;i<curve.length;i++){
+      const x = (i/89) * w;
+      const y = h - curve[i] * (h*0.9);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+
+  // main runner
+  PSZ.Runner = {};
+  PSZ.Runner.runCore = async function(){
+    try{
+      PSZ.ENGINE_STATUS = "RUNNING"; document.getElementById("engineStatus").textContent = "ENGINE: RUNNING";
+      PSZ.log("Runner: collecting context...", true);
+      const ctx = PSZ.Auto.gather();
+      PSZ.log(`CTX: ${ctx.home_team} vs ${ctx.away_team} (sim ${ctx.simIntensity})`);
+
+      // init VPS
+      const vps = PSZ.VPS.initMatch(ctx);
+      // minute wave generator
+      const minuteFn = PSZ.Momentum.minuteWaveFunc(ctx);
+
+      // generate multiverse branches
+      const branches = PSZ.MSB.genBranches(ctx);
+
+      // lightweight trace collector
+      const trace = [];
+
+      // run engine with progress hook
+      const engineRes = await PSZ.Engine.run(ctx, function(progressFrac){
+        document.getElementById("runMeta").textContent = `progress ${(progressFrac*100).toFixed(0)}%`;
+      });
+
+      // compute momentum index
+      const momentum = { M: PSZ.Momentum.computeMomentumIndex(ctx), swingPotential: PSZ.Momentum.computeSwingPotential ? PSZ.Momentum.computeSwingPotential(ctx) : 0.5 };
+
+      // fuse ML
+      const fused = PSZ.ML.fuse(ctx, engineRes, momentum);
+
+      // recommendations (market reading optional)
+      // For safety we leave market odds null; user can set via JS console or future UI
+      const marketOdds = {}; // placeholder
+      const scan = PSZ.Reco.scanMarket(fused, marketOdds);
+      const recs = scan.value || [];
+
+      // build minute xG curve sample using minuteFn and xT grid center
+      const grid = PSZ.xT.build8x8(ctx);
+      const centerVal = grid[3][3];
+      const xgCurve = [];
+      for(let m=0;m<90;m++){
+        const p = minuteFn(m);
+        // base minute xG approximated by avgGoals/90 scaled
+        const minuteBase = (engineRes.avgGoals || 2.2) / 90;
+        // zone factor and pressure
+        const zoneFactor = 1 + (centerVal - 0.25);
+        const val = PSZ.clamp(minuteBase * (1 + p*1.6) * zoneFactor, 0, 0.25);
+        xgCurve.push(val);
+      }
+// build final object
+      const final = {
+        meta: { home: ctx.home_team, away: ctx.away_team, match_id: ctx.match_id, timestamp: new Date().toISOString() },
+        ctx, vps,
+        engine: engineRes,
+        momentum,
+        ml: { prob: fused, meta: {} },
+        recs,
+        trace
+      };
+
+      PSZ.LAST_RUN = final;
+      // render UI
+      renderHeatmap(grid);
+      renderBranches(engineRes.branches, engineRes.avgGoals, engineRes.btts);
+      drawXGCurve(xgCurve);
+
+      // build text output
+      const text = PSZ.Output.buildText(final);
+      PSZ.log("===== FINAL OUTPUT =====", true);
+      PSZ.log(text, true);
+
+      // recommendations rendering
+      renderReco(recs);
+
+      // store run
+      try{
+        const db = await PSZ.DB.open();
+        const id = final.meta.match_id;
+        await db.put("runs", Object.assign({ id }, final));
+        PSZ.log("Run saved to IndexedDB id="+id);
+      }catch(e){ PSZ.log("DB save error: " + (e.message||e)); }
+
+      PSZ.ENGINE_STATUS = "IDLE"; document.getElementById("engineStatus").textContent = "ENGINE: IDLE";
+      document.getElementById("runMeta").textContent = `Sim ${engineRes.simCount} | avgG ${(engineRes.avgGoals||0).toFixed(3)}`;
+      return final;
+    }catch(e){
+      PSZ.log("Runner ERROR: " + (e.message||e));
+      PSZ.ENGINE_STATUS = "ERROR"; document.getElementById("engineStatus").textContent = "ENGINE: ERROR";
+      throw e;
+    }
+  };
+
+  // minute sim quick (low sim)
+  PSZ.Runner.minuteSim = async function(){
+    try{
+      PSZ.log("MinuteSim: starting", true);
+      const ctx = PSZ.Auto.gather();
+      const shortCtx = Object.assign({}, ctx, { simIntensity: 1200 });
+      const res = await PSZ.Engine.run(shortCtx, function(p){ PSZ.log("MinuteSim progress " + Math.round(p*100) + "%"); });
+      PSZ.log("MinuteSim done: avgG="+(res.avgGoals||0).toFixed(3)+" BTTS="+((res.btts||0)*100).toFixed(1)+"%");
+      return res;
+    }catch(e){ PSZ.log("MinuteSim error: " + (e.message||e)); }
+  };
+
+  // export JSON
+  PSZ.Runner.exportJSON = function(){
+    const last = PSZ.LAST_RUN;
+    if(!last) { PSZ.log("Export: no last run"); return; }
+    try{
+      const json = JSON.stringify(last, null, 2);
+      if(navigator.clipboard) navigator.clipboard.writeText(json).then(()=>PSZ.log("Export: copied to clipboard"), ()=>{ prompt("Copy JSON", json); });
+      else prompt("Copy JSON", json);
+    }catch(e){ PSZ.log("Export error: " + (e.message||e)); }
+  };
+
+  // bind buttons
+  function wire(){
+    const bAuto = document.getElementById("btn_auto_input");
+    const bRun = document.getElementById("btn_run_core");
+    const bMin = document.getElementById("btn_minute_sim");
+    const bExp = document.getElementById("btn_export_json");
+
+    if(bAuto) bAuto.onclick = function(){ const c = PSZ.Auto.gather(); PSZ.log("AUTO input done: " + c.home_team + " vs " + c.away_team); };
+
+    if(bRun) bRun.onclick = async function(){
+      bRun.disabled = true; try{ await PSZ.Runner.runCore(); }catch(e){ console.error(e); } bRun.disabled = false;
+    };
+
+    if(bMin) bMin.onclick = async function(){ bMin.disabled=true; await PSZ.Runner.minuteSim(); bMin.disabled=false; };
+
+    if(bExp) bExp.onclick = function(){ PSZ.Runner.exportJSON(); };
+  }
+
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire); else wire();
+
+  console.log("Runner wired");
+})(window.PSZ);
+</script>
+
+<!-- EOF -->
+</body>
+</html>
