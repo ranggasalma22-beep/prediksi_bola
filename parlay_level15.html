@@ -1523,18 +1523,10 @@ PSZ.computeBTTS = function(godHL){
 
 })(window.PSZ);
 </script>
-    <script>
+<script>
 // ================================
-// PART I — LEVEL 15: PREDICTIVE INTELLIGENCE SUITE
-// - timeWeightedMomentum
-// - trendDetector (form & xG trends)
-// - formSimulator (MonteCarlo of form sequences)
-// - minuteByMinuteSim (90-min MC with states)
-// - matchStatePredictor (lead changes / comeback probs)
-// - correctScoreOptimizer (value-ish)
-// - autoStakeManager (Kelly with bankroll & risk profile)
-// - adaptiveLineAdjuster (line projection w/ time & trend)
-// Expose as PSZ.Level15
+// PART I — LEVEL 15: PREDICTIVE INTELLIGENCE SUITE (FULL FIXED)
+// Expose as window.PSZ.Level15
 // ================================
 (function(PSZ){
   if(!PSZ) PSZ = window.PSZ = window.PSZ || {};
@@ -1543,16 +1535,15 @@ PSZ.computeBTTS = function(godHL){
 
   // 1) Time-weighted momentum: weight recent events heavier
   PSZ.Level15.timeWeightedMomentum = function(history, decayHalfLife=15){
-    // history: [{minute:10, scored:1, conceded:0, pressedHigh:0, eventNote:"..."} ...]
-    // returns baseline momentum 0..10
+    // history: [{minute:10, scored:1, conceded:0, pressedHigh:0, staminaLow:0, eventNote:"..."} ...]
+    // returns baseline momentum 0.5..10 (centered at ~5)
     if(!Array.isArray(history) || history.length===0) return 5.0;
     const now = 90;
     const lambda = Math.log(2) / Math.max(1, decayHalfLife); // half-life in minutes
     let score = 0, wsum = 0;
     history.forEach(ev=>{
-      const age = Math.max(0, now - (ev.minute || now));
+      const age = Math.max(0, now - (PSZ.safeNum(ev.minute, now)));
       const weight = Math.exp(-lambda * age);
-      // event value
       let val = 0;
       if(ev.scored) val += 1.2;
       if(ev.conceded) val -= 1.4;
@@ -1561,57 +1552,49 @@ PSZ.computeBTTS = function(godHL){
       score += weight * val;
       wsum += weight;
     });
-    // baseline 5, scaled
     const raw = 5 + (score / Math.max(1e-6, wsum)) * 1.8;
     return PSZ.clamp(raw, 0.5, 10);
   };
 
-  // 2) Trend detector: checks xG / shots / form trends (simple linear slope)
+  // 2) Trend detector: checks xG / shots / form trends (linear slope)
   PSZ.Level15.trendDetector = function(series){
-    // series: {minutes:[...], xg:[...], shots:[...], formPts:[...]} arrays same len
-    // returns slopes and normalized trend strength
+    // series: { xg:[...], shots:[...], formPts:[...] }
     function slope(y){
-      if(!y || y.length<2) return 0;
+      if(!Array.isArray(y) || y.length < 2) return 0;
       const n = y.length;
       let sx = 0, sy = 0, sxx = 0, sxy = 0;
       for(let i=0;i<n;i++){
         const x = i;
-        sx += x; sy += y[i];
-        sxx += x*x; sxy += x*y[i];
+        sx += x; sy += PSZ.safeNum(y[i], 0);
+        sxx += x*x; sxy += x * PSZ.safeNum(y[i], 0);
       }
-      const denom = n*sxx - sx*sx;
+      const denom = n * sxx - sx * sx;
       if(Math.abs(denom) < 1e-9) return 0;
-      return (n*sxy - sx*sy) / denom;
+      return (n * sxy - sx * sy) / denom;
     }
-    return {
-      xg_slope: slope(series.xg || []),
-      shots_slope: slope(series.shots || []),
-      form_slope: slope(series.formPts || []),
-      strength: PSZ.clamp(Math.abs(slope(series.xg||[]))*3 + Math.abs(slope(series.shots||[]))*0.8 + Math.abs(slope(series.formPts||[]))*0.6, 0, 5)
-    };
+    const xg_s = slope(series.xg || []);
+    const shots_s = slope(series.shots || []);
+    const form_s = slope(series.formPts || []);
+    const strength = PSZ.clamp(Math.abs(xg_s)*3 + Math.abs(shots_s)*0.8 + Math.abs(form_s)*0.6, 0, 5);
+    return { xg_slope: xg_s, shots_slope: shots_s, form_slope: form_s, strength };
   };
 
-  // 3) Form simulator: small MC that simulates short-run form (next 5 matches)
+  // 3) Form simulator for near-term form (small MC)
   PSZ.Level15.formSimulator = function(currentFormPtsHome, currentFormPtsAway, sims=1000){
     sims = Math.max(10, Math.floor(sims));
     const res = { home:[], away:[] };
     for(let i=0;i<sims;i++){
-      // random walk biased by current form
       const hNext = PSZ.clamp(currentFormPtsHome + (Math.random()-0.45) + (currentFormPtsHome-5)/10, 0, 15);
       const aNext = PSZ.clamp(currentFormPtsAway + (Math.random()-0.55) + (currentFormPtsAway-5)/10, 0, 15);
       res.home.push(hNext); res.away.push(aNext);
     }
-    // summarize
     const mean = arr => arr.reduce((s,v)=>s+v,0)/arr.length;
     return { meanHome: mean(res.home), meanAway: mean(res.away), raw: res };
   };
 
   // 4) Minute-by-minute MC sim (90-min) with simple match-state transitions
-  PSZ.Level15.minuteByMinuteSim = function(adjustedLam, ctx, sims=2000){
-    // adjustedLam: {lamH, lamA}
-    // ctx: includes press & momentum used for dynamic lambda modulation
+  PSZ.Level15.minuteByMinuteSim = function(adjustedLam, ctx, sims=1200){
     sims = Math.max(10, Math.floor(sims));
-    const cap = 10;
     const outcomes = {};
     const summary = { comebacks:0, leadChanges:0, homeLeadingPct:0, awayLeadingPct:0, drawPct:0 };
     for(let i=0;i<sims;i++){
@@ -1620,12 +1603,12 @@ PSZ.computeBTTS = function(godHL){
       let lastLeader = 0; // 0 draw, 1 home, -1 away
       for(let m=1;m<=90;m++){
         // dynamic lambda: small modulation by minute (fatigue & momentum)
-        const minuteFactor = 1 + (Math.sin(m/12) * 0.03); // small cyc
-        const momEffect = 1 + ((ctx.home_mom - ctx.away_mom)/10) * 0.02;
-        const pressEffect = 1 + ((ctx.home_press - ctx.away_press)/10) * 0.015;
-        const hLam = PSZ.clamp(adjustedLam.lamH * minuteFactor * momEffect * pressEffect, 1e-4, 12);
-        const aLam = PSZ.clamp(adjustedLam.lamA * minuteFactor / momEffect / pressEffect, 1e-4, 12);
-        // probability to score in this minute approximated by Poisson(λ/90) => Bernoulli p ~ 1-exp(-λ/90)
+        const minuteFactor = 1 + (Math.sin(m/12) * 0.03);
+        const momEffect = 1 + ((PSZ.safeNum(ctx.home_mom,5) - PSZ.safeNum(ctx.away_mom,5))/10) * 0.02;
+        const pressEffect = 1 + ((PSZ.safeNum(ctx.home_press,5) - PSZ.safeNum(ctx.away_press,5))/10) * 0.015;
+        const hLam = PSZ.clamp(adjustedLam.lamH * minuteFactor * momEffect * pressEffect, 1e-6, 12);
+        const aLam = PSZ.clamp(adjustedLam.lamA * minuteFactor / momEffect / pressEffect, 1e-6, 12);
+        // per-minute probability
         const pH = 1 - Math.exp(-hLam/90);
         const pA = 1 - Math.exp(-aLam/90);
         if(Math.random() < pH) scoreH++;
@@ -1643,7 +1626,6 @@ PSZ.computeBTTS = function(godHL){
       summary.leadChanges += leadChangesLocal;
     }
 
-    // normalize
     const total = sims;
     const matrix = {};
     for(const k in outcomes) matrix[k] = outcomes[k] / total;
@@ -1653,95 +1635,81 @@ PSZ.computeBTTS = function(godHL){
     summary.avgLeadChanges = summary.leadChanges / total;
     summary.comebackRate = summary.comebacks / total;
 
-    return { matrix, sims, summary };
+    return { matrix, sims: total, summary };
   };
 
-  // 5) Match-state predictor: probability of comeback, lead change at halftime, late-goal risk
+  // 5) Match-state predictor: probability of comeback, lead change at time T
   PSZ.Level15.matchStatePredictor = function(ctx, lastScore, minutesElapsed){
-    // lastScore: {home: x, away: y}
-    // minutesElapsed: e.g., 45 or 70
-    // quick heuristic: use adjusted lam and remaining minutes to estimate comeback
-    const adj = PSZ.Master.mergeMaster(ctx).adjustedLam;
-    const rem = Math.max(0, 90 - minutesElapsed);
-    // expectation remaining goals
+    lastScore = lastScore || {home:0, away:0};
+    const adj = PSZ.Master && PSZ.Master.mergeMaster ? PSZ.Master.mergeMaster(ctx).adjustedLam : {lamH: PSZ.safeNum(ctx.lamH,1), lamA: PSZ.safeNum(ctx.lamA,1)};
+    const rem = Math.max(0, 90 - PSZ.safeNum(minutesElapsed,0));
     const expH = adj.lamH * (rem / 90);
     const expA = adj.lamA * (rem / 90);
-    // probability home scores at least k goals: 1 - CDF( k-1)
     function tailPoisson(lambda, k){
       let c = 0;
       for(let i=0;i<k;i++) c += PSZ.poissonPMF(lambda, i);
       return 1 - c;
     }
-    // if home trailing by d, need at least d goals
-    const dHome = Math.max(0, lastScore.away - lastScore.home);
-    const dAway = Math.max(0, lastScore.home - lastScore.away);
+    const dHome = Math.max(0, PSZ.safeNum(lastScore.away,0) - PSZ.safeNum(lastScore.home,0));
+    const dAway = Math.max(0, PSZ.safeNum(lastScore.home,0) - PSZ.safeNum(lastScore.away,0));
     const pHomeComeback = tailPoisson(expH, dHome+1);
     const pAwayComeback = tailPoisson(expA, dAway+1);
-    // late goal risk: probability at least one goal each side in last 15 mins
     const lam15H = adj.lamH * (15/90);
     const lam15A = adj.lamA * (15/90);
     const lateRisk = { homeLate: 1 - PSZ.poissonPMF(lam15H,0), awayLate: 1 - PSZ.poissonPMF(lam15A,0) };
     return { pHomeComeback, pAwayComeback, lateRisk };
   };
 
-  // 6) Correct-score optimizer (find scorelines with best value vs market)
+  // 6) Correct-score optimizer (value vs market)
   PSZ.Level15.correctScoreOptimizer = function(mcMatrix, marketOddsObj, topN=8){
-    // mcMatrix: { '0-0':0.12, '1-0':0.10, ... } probabilities
-    // marketOddsObj: { '0-0': 11.0, '1-0':9.0, ... } market decimal odds (if not provided for a score, skip)
     const arr = [];
     for(const s in mcMatrix){
-      const p = mcMatrix[s];
-      const mo = marketOddsObj && marketOddsObj[s] ? marketOddsObj[s] : null;
+      const p = PSZ.safeNum(mcMatrix[s],0);
+      const mo = marketOddsObj && marketOddsObj[s] ? PSZ.safeNum(marketOddsObj[s],0) : null;
       if(!mo) continue;
       const fair = Math.max(1.01, 1 / Math.max(1e-9, p));
       const value = (fair - mo) / mo;
       arr.push({score:s, p, market:mo, fair, value});
     }
-    arr.sort((a,b) => b.value - a.value);
+    arr.sort((a,b)=> b.value - a.value);
     return arr.slice(0, topN);
   };
 
   // 7) Auto stake manager (Kelly variants)
   PSZ.Level15.autoStakeManager = function(bankroll, edge, marketOdds, riskProfile="balanced"){
-    // edge = p*(odds-1) - (1-p) expected edge ; here we accept edge param or compute from probabilities + market
-    // marketOdds decimal >1
     bankroll = PSZ.safeNum(bankroll, 1000);
     const b = PSZ.safeNum(marketOdds, 1) - 1;
-    if(b <= 0) return { fraction:0, stake:0, advice:"No positive edge" };
     const p = PSZ.safeNum(edge.prob, 0);
     const edgeVal = p * b - (1 - p);
-    if(edgeVal <= 0) return { fraction:0, stake:0, advice:"No edge" };
+    if(b <= 0 || edgeVal <= 0) return { fraction:0, stake:0, advice:"No positive edge", kellyRaw:0 };
     let kelly = edgeVal / b;
-    // adjust by riskProfile
     const factor = (riskProfile==="aggressive")? 1.0 : (riskProfile==="balanced")? 0.5 : 0.25;
-    const frac = PSZ.clamp(kelly * factor, 0, 0.2); // cap
-    return { fraction: frac, stake: PSZ.clamp(bankroll * frac, 0, bankroll), kellyRaw: kelly, advice:`${riskProfile}` };
+    const frac = PSZ.clamp(kelly * factor, 0, 0.2);
+    return { fraction: frac, stake: PSZ.clamp(bankroll * frac, 0, bankroll), kellyRaw: kelly, advice: riskProfile };
   };
 
-  // 8) Adaptive line adjuster: takes trending info & minuteSim to nudge lines
+  // 8) Adaptive line adjuster: trending & volatility nudges
   PSZ.Level15.adaptiveLineAdjust = function(master, trendInfo, minuteSummary){
-    // master.adjustedLam available
-    const lamDiff = master.adjustedLam.lamH - master.adjustedLam.lamA;
+    const lamDiff = PSZ.safeNum(master.adjustedLam.lamH,0) - PSZ.safeNum(master.adjustedLam.lamA,0);
     const trendStrength = PSZ.safeNum(trendInfo.strength,0);
     const recentLeadChanges = PSZ.safeNum(minuteSummary.avgLeadChanges, 0);
-    // base line
-    const base = (master.adjustedLam.lamH + master.adjustedLam.lamA);
-    // nudge: if strong positive trend for home -> increase home line by quarter step
+    const base = (PSZ.safeNum(master.adjustedLam.lamH,0) + PSZ.safeNum(master.adjustedLam.lamA,0));
     let hdpNudge = 0;
     if(trendInfo.xg_slope > 0.06) hdpNudge -= 0.25 * PSZ.clamp(trendInfo.xg_slope/0.2, 0, 1);
     if(trendInfo.xg_slope < -0.06) hdpNudge += 0.25 * PSZ.clamp(Math.abs(trendInfo.xg_slope)/0.2, 0, 1);
-    // if match is very volatile (many lead changes) reduce confidence and shrink line
     const volatilityPenalty = PSZ.clamp(recentLeadChanges/3, 0, 1);
     return { baseTotal: base, hdpNudge: hdpNudge, volatilityPenalty };
   };
 
-  // expose short helper to run a compact L15 pipeline and append summary to output
+  // run full L15 summary (safe)
   PSZ.Level15.runLevel15Summary = function(options){
     options = options || {};
     const outEl = document.getElementById("output");
     if(!outEl) return null;
     try{
-      const ctx = window.PSZ_LAST ? window.PSZ_LAST.ctx : {
+      // build ctx (use PSZ_LAST if present)
+      const last = window.PSZ_LAST || {};
+      const ctx = last.ctx || {
         lamH: PSZ.safeNum(document.getElementById("lamH")?.value,1.2),
         lamA: PSZ.safeNum(document.getElementById("lamA")?.value,1.0),
         home_mom: PSZ.safeNum(document.getElementById("home_mom")?.value,5),
@@ -1753,24 +1721,23 @@ PSZ.computeBTTS = function(godHL){
         formPts_home: PSZ.safeNum(document.getElementById("formPts_home")?.value,6),
         formPts_away: PSZ.safeNum(document.getElementById("formPts_away")?.value,6),
         conceded_last5_home: PSZ.safeNum(document.getElementById("conceded_last5_home")?.value,2),
-        conceded_last5_away: PSZ.safeNum(document.getElementById("conceded_last5_away")?.value,2)
+        conceded_last5_away: PSZ.safeNum(document.getElementById("conceded_last5_away")?.value,2),
+        home_team: (document.getElementById("home_team")?.value || "").toString(),
+        away_team: (document.getElementById("away_team")?.value || "").toString()
       };
-      const master = PSZ.Master.mergeMaster(ctx);
-      // build a quick series from last matches (if user provided history in localStorage meta, else approximate)
-      // look into PSZ.Meta for team history (if present take last 5 xG values)
-      const teamMeta = PSZ.Meta.load ? PSZ.Meta.load() : {teams:{}};
-      const hx = (teamMeta.teams && teamMeta.teams[ctx.home_team] && teamMeta.teams[ctx.home_team].xgSeries) ? teamMeta.teams[ctx.home_team].xgSeries : [ctx.lamH, ctx.lamH*0.9, ctx.lamH*1.05];
-      const ax = (teamMeta.teams && teamMeta.teams[ctx.away_team] && teamMeta.teams[ctx.away_team].xgSeries) ? teamMeta.teams[ctx.away_team].xgSeries : [ctx.lamA, ctx.lamA*1.03, ctx.lamA*0.95];
-      const series = { xg: hx, shots: [ctx.shots_home, ctx.shots_away], formPts:[ctx.formPts_home, ctx.formPts_away] };
+      const master = PSZ.Master.mergeMaster ? PSZ.Master.mergeMaster(ctx) : { adjustedLam: { lamH: ctx.lamH, lamA: ctx.lamA }, xt: {xtHome:0,xtAway:0}, fma: {fmaScore:0} };
 
-      const trend = PSZ.Level15.trendDetector({ xg: hx, shots: [ctx.shots_home], formPts:[ctx.formPts_home] });
-      const formSim = PSZ.Level15.formSimulator(ctx.formPts_home, ctx.formPts_away, 600);
-      // minute-by-minute small sim: fewer sims to save time
-      const minute = PSZ.Level15.minuteByMinuteSim(master.adjustedLam, ctx, PSZ.safeNum(options.minuteSims, 1200));
+      // try to get xG series from PSZ.Meta if available
+      const meta = PSZ.Meta && PSZ.Meta.load ? PSZ.Meta.load() : { teams: {} };
+      const hx = (meta.teams && meta.teams[ctx.home_team] && meta.teams[ctx.home_team].xgSeries) ? meta.teams[ctx.home_team].xgSeries : [ctx.lamH, ctx.lamH*0.95, ctx.lamH*1.05];
+      const ax = (meta.teams && meta.teams[ctx.away_team] && meta.teams[ctx.away_team].xgSeries) ? meta.teams[ctx.away_team].xgSeries : [ctx.lamA, ctx.lamA*1.03, ctx.lamA*0.95];
+
+      const trend = PSZ.Level15.trendDetector({ xg: hx, shots: [ctx.shots_home, ctx.shots_away], formPts:[ctx.formPts_home, ctx.formPts_away] });
+      const formSim = PSZ.Level15.formSimulator(ctx.formPts_home, ctx.formPts_away, PSZ.safeNum(options.formSims, 600));
+      const minute = PSZ.Level15.minuteByMinuteSim(master.adjustedLam, ctx, PSZ.safeNum(options.minuteSims, 800));
       const matchState = PSZ.Level15.matchStatePredictor(ctx, options.lastScore || {home:0, away:0}, PSZ.safeNum(options.minutesElapsed, 0));
       const adapt = PSZ.Level15.adaptiveLineAdjust(master, trend, minute.summary);
 
-      // compose summary
       let txt = "\n\n=== LEVEL 15 — PREDICTIVE SUITE ===\n\n";
       txt += `[Trend Detector] xG slope: ${trend.xg_slope.toFixed(4)} | shots slope: ${trend.shots_slope.toFixed(4)} | strength: ${trend.strength.toFixed(3)}\n\n`;
       txt += `[Form Simulator] meanNext5 Home:${formSim.meanHome.toFixed(2)} Away:${formSim.meanAway.toFixed(2)}\n\n`;
@@ -1778,32 +1745,32 @@ PSZ.computeBTTS = function(godHL){
       txt += ` homeLeading:${(minute.summary.homeLeadingPct*100).toFixed(1)}% awayLeading:${(minute.summary.awayLeadingPct*100).toFixed(1)}% draw:${(minute.summary.drawPct*100).toFixed(1)}%\n\n`;
       txt += `[Match State Predictor] Home comeback prob:${(matchState.pHomeComeback*100).toFixed(1)}% Away comeback prob:${(matchState.pAwayComeback*100).toFixed(1)}% | Late goal risk Home:${(matchState.lateRisk.homeLate*100).toFixed(1)}% Away:${(matchState.lateRisk.awayLate*100).toFixed(1)}%\n\n`;
       txt += `[Adaptive Line] baseTotal:${adapt.baseTotal.toFixed(3)} | hdpNudge:${adapt.hdpNudge.toFixed(3)} | volatilityPenalty:${adapt.volatilityPenalty.toFixed(3)}\n\n`;
-      // recommend stake example if market provided
+
+      // stake advice demo
       const market = { H: PSZ.safeNum(document.getElementById("market_H")?.value,0), D: PSZ.safeNum(document.getElementById("market_D")?.value,0), A: PSZ.safeNum(document.getElementById("market_A")?.value,0) };
-      // simple edge for favorite (home)
       const final = window.PSZ_LAST ? window.PSZ_LAST.final : { pH:0.33, pD:0.34, pA:0.33 };
       const edgeHome = { prob: PSZ.safeNum(final.pH,0.33) };
       const stakeAdvice = PSZ.Level15.autoStakeManager(PSZ.safeNum(options.bankroll,1000), edgeHome, PSZ.safeNum(market.H,0), options.riskProfile || "balanced");
-      txt += `[Stake Advice] bankroll:${PSZ.safeNum(options.bankroll,1000)} stake:${stakeAdvice.stake.toFixed(2)} fraction:${(stakeAdvice.fraction*100).toFixed(2)}% (profile:${stakeAdvice.advice})\n\n`;
+      txt += `[Stake Advice] bankroll:${PSZ.safeNum(options.bankroll,1000)} stake:${PSZ.safeNum(stakeAdvice.stake,0).toFixed(2)} fraction:${(PSZ.safeNum(stakeAdvice.fraction,0)*100).toFixed(2)}% (profile:${stakeAdvice.advice})\n\n`;
       txt += "=== END LEVEL 15 ===\n";
 
       outEl.value += txt;
       window.PSZ_LEVEL15 = { trend, formSim, minute, matchState, adapt, stakeAdvice };
       return window.PSZ_LEVEL15;
-
-    }catch(e){
-      outEl.value += "\n\n[LEVEL15 ERROR] " + (e.message || String(e));
-      console.error(e);
+    }catch(err){
+      const outEl = document.getElementById("output");
+      if(outEl) outEl.value += "\n\n[LEVEL15 ERROR] " + (err && err.message ? err.message : String(err));
+      console.error("LEVEL15 error", err);
       return null;
     }
   };
 
-  console.log("PSZ Level15 module loaded.");
+  console.log("PSZ Level15 module loaded (fixed full).");
 })(window.PSZ);
     </script>
-    <script>
+  <script>
 // ================================
-// PART J — Level15 UI hooks
+// PART J — Level15 UI hooks (fixed)
 // Adds buttons: RUN LEVEL15, RUN MINUTE-SIM, OPT STAKES
 // ================================
 (function(PSZ){
@@ -1827,7 +1794,7 @@ PSZ.computeBTTS = function(godHL){
       try{
         PSZ.Level15.runLevel15Summary({ minuteSims: 800, minutesElapsed: 0, lastScore: {home:0, away:0}, bankroll:1000, riskProfile:"balanced" });
         append("[OK] Level15 executed.");
-      }catch(e){ append("[ERR] Level15 run failed: " + e.message); }
+      }catch(e){ append("[ERR] Level15 run failed: " + (e && e.message ? e.message : String(e))); }
     };
   }
 
@@ -1843,14 +1810,13 @@ PSZ.computeBTTS = function(godHL){
           home_press: PSZ.safeNum(document.getElementById("home_press")?.value,5),
           away_press: PSZ.safeNum(document.getElementById("away_press")?.value,5)
         };
-        const master = PSZ.Master.mergeMaster(ctx);
+        const master = PSZ.Master && PSZ.Master.mergeMaster ? PSZ.Master.mergeMaster(ctx) : { adjustedLam: { lamH: ctx.lamH, lamA: ctx.lamA } };
         const res = PSZ.Level15.minuteByMinuteSim(master.adjustedLam, ctx, 1200);
-        // append quick summary
         const out = document.getElementById("output");
         out.value += `\n\n[MINUTE SIM] sims:${res.sims} avgLeadChanges:${res.summary.avgLeadChanges.toFixed(2)} comebackRate:${(res.summary.comebackRate*100).toFixed(1)}%`;
         window.PSZ_MINUTE_SIM = res;
         append("[OK] Minute sim finished.");
-      }catch(e){ append("[ERR] Minute sim failed: " + e.message); }
+      }catch(e){ append("[ERR] Minute sim failed: " + (e && e.message ? e.message : String(e))); }
     };
   }
 
@@ -1859,24 +1825,23 @@ PSZ.computeBTTS = function(godHL){
     if(b3) b3.onclick = function(){
       try{
         if(!window.PSZ_LAST) { append("[ERR] Run Ultra first."); return; }
-        const final = window.PSZ_LAST.final;
+        const final = window.PSZ_LAST.final || { pH:0.33, pD:0.34, pA:0.33 };
         const marketH = PSZ.safeNum(document.getElementById("market_H")?.value,0);
-        // compute stake for home only demo
         const edge = { prob: final.pH };
         const res = PSZ.Level15.autoStakeManager(PSZ.safeNum(1000,1000), edge, marketH, "balanced");
         append(`[KELLY] stake:${res.stake.toFixed(2)} fraction:${(res.fraction*100).toFixed(2)}% rawKelly:${res.kellyRaw.toFixed(3)}`);
-      }catch(e){ append("[ERR] Optimize stake failed: " + e.message); }
+      }catch(e){ append("[ERR] Optimize stake failed: " + (e && e.message ? e.message : String(e))); }
     };
   }
 
-  // helper append
   function append(msg){
     const out = document.getElementById("output");
     if(out){ out.value += "\n" + msg; out.scrollTop = out.scrollHeight; } else console.log(msg);
   }
 
-  console.log("Level15 UI hooks attached.");
+  console.log("Level15 UI hooks attached (fixed).");
 })(window.PSZ);
-    </script>
+  </script>  
+
 </body>
 </html>
