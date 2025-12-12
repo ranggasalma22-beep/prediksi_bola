@@ -1264,11 +1264,10 @@ window.PSZ = window.PSZ || {};
 })(window.PSZ);
 </script>
 <!-- =========================
-     PART 8 — UI HOOKS FINAL, EXPORT, CALIBRATE, PROTECTIONS (PART 8/8)
+     PART 8 — UI HOOKS FINAL (FULL FIXED)
    ========================= -->
 <script>
 (function(PSZ){
-  // helper to get element safely
   function el(id){ return document.getElementById(id); }
   function log(msg){
     const out = el("output");
@@ -1280,80 +1279,96 @@ window.PSZ = window.PSZ || {};
     }
   }
 
-  // small guard: ensure PSZ.Level20 exists
-  if(!PSZ.Level20) PSZ.Level20 = {};
-
-  // AUTO INPUT (improved): uses conceded_last5 if present, otherwise fallback
+  /* =============================
+      AUTO INPUT (FIXED & COMPLETE)
+     ============================= */
   if(el("btn_auto_input")){
     el("btn_auto_input").addEventListener("click", function(){
-      try{
-        const lamH = PSZ.safeNum(el("lamH").value,1.2);
-        const lamA = PSZ.safeNum(el("lamA").value,1.0);
-        const shotsH = PSZ.safeNum(el("shots_home").value,8);
-        const shotsA = PSZ.safeNum(el("shots_away").value,7);
-        const formH = PSZ.safeNum(el("formPts_home").value,6);
-        const formA = PSZ.safeNum(el("formPts_away").value,6);
-        const concededH = PSZ.safeNum(el("conceded_last5_home")?.value, 0);
-        const concededA = PSZ.safeNum(el("conceded_last5_away")?.value, 0);
-        const tempo = PSZ.safeNum(el("tempo").value,5);
 
-        // stability derived from conceded + form (lower conceded -> higher stability)
+      try{
+        const lamH = PSZ.safeNum(el("lamH")?.value,1.2);
+        const lamA = PSZ.safeNum(el("lamA")?.value,1.0);
+        const shotsH = PSZ.safeNum(el("shots_home")?.value,8);
+        const shotsA = PSZ.safeNum(el("shots_away")?.value,7);
+        const formH = PSZ.safeNum(el("formPts_home")?.value,6);
+        const formA = PSZ.safeNum(el("formPts_away")?.value,6);
+
+        const concededH = PSZ.safeNum(el("conceded_last5_home")?.value,0);
+        const concededA = PSZ.safeNum(el("conceded_last5_away")?.value,0);
+        const tempo = PSZ.safeNum(el("tempo")?.value,5);
+
+        // ============================
+        // Stability Auto
+        // ============================
         const stH = PSZ.clamp(10 - concededH*0.6 + (formH/2), 1, 10);
         const stA = PSZ.clamp(10 - concededA*0.6 + (formA/2), 1, 10);
         el("home_st").value = stH.toFixed(2);
         el("away_st").value = stA.toFixed(2);
 
-        // momentum from form + lam + recent conceded
-        const momH = PSZ.clamp((formH/2.5) + (lamH-1.0)*2 + (6 - concededH)/2, 1, 10);
-        const momA = PSZ.clamp((formA/2.5) + (lamA-1.0)*2 + (6 - concededA)/2, 1, 10);
+        // ============================
+        // Momentum Auto
+        // ============================
+        const momH = PSZ.clamp((formH/2.5)+(lamH-1)*2+(6-concededH)/2,1,10);
+        const momA = PSZ.clamp((formA/2.5)+(lamA-1)*2+(6-concededA)/2,1,10);
         el("home_mom").value = momH.toFixed(2);
         el("away_mom").value = momA.toFixed(2);
 
-        // press from stability + tempo + shots
-        const pressH = PSZ.clamp(stH*0.45 + tempo*0.35 + (shotsH/12)*2, 1, 10);
-        const pressA = PSZ.clamp(stA*0.45 + tempo*0.35 + (shotsA/12)*2, 1, 10);
+        // ============================
+        // Press Intensity Auto
+        // ============================
+        const pressH = PSZ.clamp(stH*0.45 + tempo*0.35 + (shotsH/12)*2,1,10);
+        const pressA = PSZ.clamp(stA*0.45 + tempo*0.35 + (shotsA/12)*2,1,10);
         el("home_press").value = pressH.toFixed(2);
         el("away_press").value = pressA.toFixed(2);
 
-        // ppda infer (also editable)
+        // ============================
+        // PPDA Auto
+        // ============================
         const pp = PSZ.Master.autoPPDA({
-          home_press: pressH, away_press: pressA, tempo: tempo,
-          homeFormation: el("homeFormation")?.value, awayFormation: el("awayFormation")?.value
+          home_press: pressH,
+          away_press: pressA,
+          tempo,
+          homeFormation: el("homeFormation")?.value,
+          awayFormation: el("awayFormation")?.value
         });
         el("ppda_home").value = pp.ppdaH.toFixed(2);
         el("ppda_away").value = pp.ppdaA.toFixed(2);
 
-        log("[AUTO INPUT] Completed auto-fill.");
+        log("[AUTO INPUT] Complete.");
       }catch(e){
         log("[AUTO INPUT ERROR] " + (e.message || e));
       }
     });
   }
 
-  // RUN CORE (fast) - runs Level20.run with low sim count to give immediate feedback
+  /* =============================
+        RUN CORE (FAST)
+     ============================= */
   if(el("btn_run_core")){
     el("btn_run_core").addEventListener("click", function(){
       try{
-        log("[RUN CORE] Starting fast core run...");
-        // call Level20.run but with low simIntensity to be quick
-        PSZ.Level20.run({ simIntensity: 1200, bankroll: 1000, riskProfile: "balanced" }).then(res=>{
-          if(res) log("[RUN CORE] Completed (fast).");
-          else log("[RUN CORE] No result returned.");
-        }).catch(err=>{
-          log("[RUN CORE ERROR] " + (err.message || String(err)));
+        log("[CORE] Running fast engine...");
+        PSZ.Level20.run({
+          simIntensity: 1200,
+          bankroll: 1000,
+          riskProfile: "balanced"
+        }).then(res=>{
+          log("[CORE DONE]");
         });
       }catch(e){
-        log("[RUN CORE SYNC ERROR] " + (e.message || String(e)));
+        log("[CORE ERROR] " + (e.message || e));
       }
     });
   }
 
-  // RUN MINUTE SIM (async chunked)
+  /* =============================
+        RUN MINUTE SIM
+     ============================= */
   if(el("btn_run_minute")){
     el("btn_run_minute").addEventListener("click", function(){
       try{
-        log("[MINUTE SIM] Starting minute-by-minute summary (fast)...");
-        // gather ctx
+        log("[MINUTE SIM] Running...");
+
         const ctx = {
           lamH: PSZ.safeNum(el("lamH")?.value,1.2),
           lamA: PSZ.safeNum(el("lamA")?.value,1.0),
@@ -1364,173 +1379,105 @@ window.PSZ = window.PSZ || {};
           shots_home: PSZ.safeNum(el("shots_home")?.value,8),
           shots_away: PSZ.safeNum(el("shots_away")?.value,7)
         };
+
         const master = PSZ.Master.mergeMaster(ctx);
-        PSZ.SimMinute.runMinuteSummary(master.adjustedLam, ctx, 1200).then(res=>{
-          log("[MINUTE SIM] Done. Summary:");
-          log(` homeLead:${(res.summary.homeLeadingPct*100).toFixed(1)}% draw:${(res.summary.drawPct*100).toFixed(1)}% awayLead:${(res.summary.awayLeadingPct*100).toFixed(1)}% comeback:${(res.summary.comebackRate*100).toFixed(1)}%`);
-        }).catch(err=>{
-          log("[MINUTE SIM ERROR] " + (err.message || String(err)));
+
+        PSZ.SimMinute.runMinuteSummary(master.adjustedLam, ctx, 1200)
+        .then(sum=>{
+          log("[MINUTE SIM DONE]");
+          log("HomeLead: " + (sum.summary.homeLeadingPct*100).toFixed(1) + "%");
+          log("AwayLead: " + (sum.summary.awayLeadingPct*100).toFixed(1) + "%");
+          log("Draws: " + (sum.summary.drawPct*100).toFixed(1) + "%");
         });
+
       }catch(e){
-        log("[MINUTE SIM START ERROR] " + (e.message || String(e)));
+        log("[MINUTE SIM ERROR] " + (e.message || e));
       }
     });
   }
 
-  // RUN LEVEL 20 (full heavy run) - with confirmation if simIntensity large
-  (function attachRunFull(){
+  /* =============================
+        RUN LEVEL 20 (GOD MODE)
+     ============================= */
+  (function attachRunLevel20(){
     const btn = document.createElement("button");
     btn.textContent = "RUN LEVEL 20 (GOD)";
     btn.className = "mini";
-    btn.style.marginTop = "8px";
+    btn.style.marginTop = "10px";
+
     btn.addEventListener("click", async function(){
       try{
-        const simIntensity = PSZ.safeNum(el("simIntensity")?.value, 40000);
-        if(simIntensity > 30000){
-          if(!confirm(`SimIntensity set to ${simIntensity} — this is CPU-heavy and may freeze the browser. Proceed?`)) {
-            log("[RUN LEVEL20] Aborted by user (heavy sim).");
+        const sims = PSZ.safeNum(el("simIntensity")?.value, 40000);
+        if(sims > 30000){
+          if(!confirm(`Sim = ${sims} (very heavy). Continue?`)){
+            log("[LEVEL20] Cancelled.");
             return;
           }
         }
-        log(`[RUN LEVEL20] Starting full run (simIntensity=${simIntensity}) — this may take a while...`);
-        // attach progress hook for minute sim if wanted
-        if(PSZ.SimMinute) PSZ.SimMinute.onProgress = function(p){ log(`[MINUTE SIM PROGRESS] ${(p*100).toFixed(1)}%`); };
 
-        // run full
-        const res = await PSZ.Level20.run({ simIntensity: simIntensity, bankroll: 1000, riskProfile: "balanced" });
-        if(res) log("[RUN LEVEL20] Completed successfully.");
-        else log("[RUN LEVEL20] Completed with no result.");
-      }catch(e){
-        log("[RUN LEVEL20 ERROR] " + (e.message || String(e)));
-      }
-    });
-    // append to left panel
-    const lp = el("leftPanel");
-    if(lp) lp.appendChild(btn);
-  })();
+        log("[LEVEL20] Running full engine...");
 
-  // CALIBRATE probabilities from pasted samples
-  (function attachCalibrate(){
-    const btn = document.createElement("button");
-    btn.textContent = "IMPORT CALIBRATION SAMPLES";
-    btn.className = "alt mini";
-    btn.style.marginTop = "6px";
-    btn.addEventListener("click", function(){
-      try{
-        const raw = prompt("Paste calibration samples JSON: [{predProb:0.6,outcome:1}, ...] OR [{pred:0.6,outcome:'H'}, ...] :");
-        if(!raw) { log("[CALIBRATE] Cancelled."); return; }
-        const samples = JSON.parse(raw);
-        // normalize to expected format {predProb, outcome}
-        const norm = samples.map(s=>{
-          if(typeof s === "number") return { predProb: s, outcome: null };
-          if(typeof s.outcome === "string") return { predProb: s.predProb || s.pred || 0, outcome: s.outcome };
-          return { predProb: s.predProb || s.pred || 0, outcome: s.outcome || null };
+        if(PSZ.SimMinute)
+          PSZ.SimMinute.onProgress = p => log(`[MinuteSim] ${(p*100).toFixed(1)}%`);
+
+        const res = await PSZ.Level20.run({
+          simIntensity: sims,
+          bankroll: 1000,
+          riskProfile: "balanced"
         });
-        PSZ.Level20.calibrateProbabilities(norm, 18);
-        log(`[CALIBRATE] Calibration imported (${norm.length} samples).`);
+
+        log("[LEVEL20 DONE]");
       }catch(e){
-        log("[CALIBRATE ERROR] " + (e.message || String(e)));
+        log("[LEVEL20 ERROR] " + (e.message || e));
       }
     });
+
     const lp = el("leftPanel");
     if(lp) lp.appendChild(btn);
   })();
 
-  // CALIBRATE ENSEMBLE
-  (function attachCalEnsemble(){
-    const btn = document.createElement("button");
-    btn.textContent = "CALIBRATE ENSEMBLE";
-    btn.className = "alt mini";
-    btn.style.marginTop = "6px";
-    btn.addEventListener("click", function(){
-      try{
-        const raw = prompt("Paste validation samples JSON: [{ preds:{det:{pH,pD,pA},detChaos:{...},ml:{...},mc_full:{...}}, outcome:'H' }, ...]");
-        if(!raw) { log("[CAL ENSEMBLE] Cancelled."); return; }
-        const samples = JSON.parse(raw);
-        if(!Array.isArray(samples) || samples.length === 0) { log("[CAL ENSEMBLE] Invalid samples."); return; }
-        const modelNames = Object.keys(samples[0].preds || {});
-        const ens = PSZ.Level20.calibrateEnsemble(modelNames, samples);
-        log(`[CAL ENSEMBLE] Done. models:${modelNames.join(",")} weights:${JSON.stringify(ens.weights)}`);
-      }catch(e){
-        log("[CAL ENSEMBLE ERROR] " + (e.message || String(e)));
-      }
-    });
-    const lp = el("leftPanel");
-    if(lp) lp.appendChild(btn);
-  })();
 
-  // EXPORT last run as JSON
+  /* =============================
+        EXPORT LAST RUN
+     ============================= */
   (function attachExport(){
     const btn = document.createElement("button");
     btn.textContent = "EXPORT LAST RUN JSON";
     btn.className = "alt mini";
     btn.style.marginTop = "6px";
+
     btn.addEventListener("click", function(){
       try{
-        const last = window.PSZ.LAST_RUN || window.PSZ_LAST_FULL || null;
-        if(!last){ log("[EXPORT] No run available."); return; }
-        const s = JSON.stringify(last, null, 2);
-        // try copy to clipboard
-        if(navigator.clipboard && navigator.clipboard.writeText){
-          navigator.clipboard.writeText(s).then(()=> log("[EXPORT] JSON copied to clipboard."), ()=> log("[EXPORT] Clipboard failed, showing in prompt."));
-        } else {
-          prompt("Copy JSON (Ctrl+C)", s);
+        const last = PSZ.LAST_RUN || null;
+        if(!last){ log("[EXPORT] No run data."); return; }
+
+        const text = JSON.stringify(last, null, 2);
+
+        if(navigator.clipboard){
+          navigator.clipboard.writeText(text);
+          log("[EXPORT] Copied to clipboard.");
+        }else{
+          prompt("Copy JSON below:", text);
         }
+
       }catch(e){
-        log("[EXPORT ERROR] " + (e.message || String(e)));
+        log("[EXPORT ERROR] " + (e.message || e));
       }
     });
+
     const lp = el("leftPanel");
     if(lp) lp.appendChild(btn);
   })();
 
-  // quick import of market snapshot into local store
-  (function attachPushMarket()){
-    const btn = document.createElement("button");
-    btn.textContent = "PUSH MARKET SNAP";
-    btn.className = "mini";
-    btn.style.marginTop = "6px";
-    btn.addEventListener("click", function(){
-      try{
-        const id = el("match_id")?.value || ("m_"+Date.now());
-        const odds = { H: PSZ.safeNum(el("market_H")?.value,0), D: PSZ.safeNum(el("market_D")?.value,0), A: PSZ.safeNum(el("market_A")?.value,0) };
-        PSZ.Store.pushMarketSnap(id, odds);
-        log("[MARKET] Snapshot pushed.");
-      }catch(e){
-        log("[MARKET PUSH ERROR] " + (e.message || String(e)));
-      }
-    });
-    const lp = el("leftPanel");
-    if(lp) lp.appendChild(btn);
-  })();
 
-  // small safety: on page unload, warn if heavy sim likely running
-  window.addEventListener("beforeunload", function(e){
-    const running = false; // we don't have a running flag but avoid false positive
-    if(running){
-      e.preventDefault();
-      e.returnValue = '';
-    }
-  });
+  /* =============================
+        FINAL LOG
+     ============================= */
+  log("[UI HOOKS] READY.");
 
-  // attach shortcut keys for power users: Ctrl+R to run core, Ctrl+G to run level20
-  window.addEventListener("keydown", function(evt){
-    if((evt.ctrlKey || evt.metaKey) && evt.key.toLowerCase() === 'r'){
-      if(el("btn_run_core")) el("btn_run_core").click();
-    }
-    if((evt.ctrlKey || evt.metaKey) && evt.key.toLowerCase() === 'g'){
-      // find RUN LEVEL 20 button and click
-      const nodes = document.querySelectorAll("#leftPanel button");
-      for(const n of nodes){
-        if(n.textContent && n.textContent.toLowerCase().includes("run level 20")) { n.click(); break; }
-      }
-    }
-  });
-
-  // final log to indicate hooks ready
-  log("[UI HOOKS] All hooks attached. Ready.");
 })(window.PSZ);
 </script>
 
 </body>
 </html>
+  
