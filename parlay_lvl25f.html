@@ -1,0 +1,1707 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <title>PARLAY — REBUILD (LEVEL-CLEAN)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#07141a; --panel:#082029; --card:#0b2b33; --accent:#00d7b8; --muted:#9fc5c9; --text:#e9fbf7;
+      --mono: "Courier New", Courier, monospace;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;background:linear-gradient(180deg,var(--bg),#021018);color:var(--text);padding:12px;}
+    .wrap{display:flex;gap:12px;align-items:flex-start;}
+    .panel{background:linear-gradient(180deg,var(--panel),#041b24);border-radius:12px;padding:12px;width:380px;max-height:92vh;overflow:auto;box-shadow:0 10px 30px rgba(0,0,0,0.6);}
+    .main{flex:1;display:flex;flex-direction:column;gap:12px;max-height:92vh;}
+    h1{margin:0;font-size:16px;color:var(--accent)}
+    .section{background:var(--card);padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);margin-bottom:10px;}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;}
+    input[type="text"], input[type="number"], select, textarea{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:var(--text);}
+    textarea{min-height:160px;font-family:var(--mono);font-size:13px;resize:vertical;}
+    .row{display:flex;gap:8px;}
+    .col{display:flex;flex-direction:column;gap:8px;}
+    button{background:var(--accent);color:#042827;padding:8px 10px;border-radius:8px;border:none;cursor:pointer;font-weight:700}
+    button.alt{background:transparent;color:var(--accent);border:1px solid rgba(0,215,184,0.10)}
+    .muted{color:var(--muted);font-size:12px}
+    .tag{display:inline-block;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,0.02);font-size:12px;color:var(--muted);}
+    .kbd{background:#042b2c;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.02);font-family:var(--mono);font-size:12px}
+    @media (max-width:900px){ .panel{width:340px} }
+    @media (max-width:700px){ .wrap{flex-direction:column} .panel{width:auto} .main{max-height:none} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- LEFT PANEL: Inputs -->
+    <div class="panel" id="leftPanel">
+      <h1>PARLAY — REBUILD (CLEAN)</h1>
+      <div class="muted" style="margin:6px 0 12px 0">Mode: UI2 · Engine: E5 (clean) · Output: O5</div>
+
+      <!-- MATCH INFO -->
+      <div class="section">
+        <label>Match ID</label>
+        <input id="match_id" type="text" value="M_CLEAN_0001">
+        <div class="row">
+          <div style="flex:1"><label>Home Team</label><input id="home_team" type="text" value="Home FC"></div>
+          <div style="flex:1"><label>Away Team</label><input id="away_team" type="text" value="Away FC"></div>
+        </div>
+
+        <label>Match Type</label>
+        <select id="match_type">
+          <option value="league">League</option>
+          <option value="cup">Domestic Cup</option>
+          <option value="ucl">UEFA Champions League</option>
+          <option value="uel">UEFA Europa League</option>
+          <option value="uecl">UEFA Conference League</option>
+          <option value="supercup">Super Cup</option>
+          <option value="playoff">Playoff/Relegation</option>
+          <option value="intl">International</option>
+          <option value="friendly">Friendly</option>
+        </select>
+      </div>
+
+      <!-- SOURCE DATA -->
+      <div class="section">
+        <h3 class="muted">SOURCE DATA (optional - won't be overridden)</h3>
+        <label>λH (xG Home)</label><input id="lamH" type="number" step="0.01" placeholder="auto if blank">
+        <label>λA (xG Away)</label><input id="lamA" type="number" step="0.01" placeholder="auto if blank">
+
+        <div class="row">
+          <div style="flex:1"><label>Shots Home</label><input id="shots_home" type="number"></div>
+          <div style="flex:1"><label>Shots Away</label><input id="shots_away" type="number"></div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1"><label>SOT Home</label><input id="sot_home" type="number"></div>
+          <div style="flex:1"><label>SOT Away</label><input id="sot_away" type="number"></div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1"><label>Possession Home (%)</label><input id="pos_home" type="number"></div>
+          <div style="flex:1"><label>Possession Away (%)</label><input id="pos_away" type="number"></div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1"><label>FormPts Home</label><input id="formPts_home" type="number"></div>
+          <div style="flex:1"><label>FormPts Away</label><input id="formPts_away" type="number"></div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1"><label>Scored last5 Home</label><input id="scored_last5_home" type="number"></div>
+          <div style="flex:1"><label>Scored last5 Away</label><input id="scored_last5_away" type="number"></div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1"><label>Conceded last5 Home</label><input id="conceded_last5_home" type="number"></div>
+          <div style="flex:1"><label>Conceded last5 Away</label><input id="conceded_last5_away" type="number"></div>
+        </div>
+      </div>
+
+      <!-- TACTICAL / DERIVED -->
+      <div class="section">
+        <h3 class="muted">TACTICAL / DERIVED (AUTO akan mengisi jika kosong)</h3>
+
+        <div class="row">
+          <div style="flex:1"><label>Home Formation</label><input id="homeFormation" type="text" value="4-3-3"></div>
+          <div style="flex:1"><label>Away Formation</label><input id="awayFormation" type="text" value="4-4-2"></div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1"><label>Stability Home (1-10)</label><input id="home_st" type="number" step="0.01"></div>
+          <div style="flex:1"><label>Stability Away (1-10)</label><input id="away_st" type="number" step="0.01"></div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1"><label>Momentum Home (1-10)</label><input id="home_mom" type="number" step="0.01"></div>
+          <div style="flex:1"><label>Momentum Away (1-10)</label><input id="away_mom" type="number" step="0.01"></div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1"><label>Press Intensity Home (1-10)</label><input id="home_press" type="number" step="0.01"></div>
+          <div style="flex:1"><label>Press Intensity Away (1-10)</label><input id="away_press" type="number" step="0.01"></div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1"><label>PPDA Home</label><input id="ppda_home" type="number" step="0.01"></div>
+          <div style="flex:1"><label>PPDA Away</label><input id="ppda_away" type="number" step="0.01"></div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1"><label>Flex Home (0-1)</label><input id="home_flex" type="number" step="0.01"></div>
+          <div style="flex:1"><label>Flex Away (0-1)</label><input id="away_flex" type="number" step="0.01"></div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1"><label>Manager Aggression (0-10)</label><input id="manager_aggr" type="number" step="0.01"></div>
+          <div style="flex:1"><label>Defensive Line (0-10)</label><input id="def_line" type="number" step="0.01"></div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1"><label>Injury Impact Home (0-1)</label><input id="injury_impact_home" type="number" step="0.01"></div>
+          <div style="flex:1"><label>Injury Impact Away (0-1)</label><input id="injury_impact_away" type="number" step="0.01"></div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1"><label>Transition Eff (0-1)</label><input id="transition_eff" type="number" step="0.01"></div>
+          <div style="flex:1"><label>Chaos (1-10)</label><input id="chaos" type="number" step="0.01"></div>
+        </div>
+
+        <div class="row" style="margin-top:8px">
+          <div style="flex:1">
+            <label>Park the Bus / Anti-Attack (home)</label>
+            <select id="park_home">
+              <option value="none">None</option>
+              <option value="park">Park the Bus</option>
+              <option value="contain">Contain</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <label>Park the Bus / Anti-Attack (away)</label>
+            <select id="park_away">
+              <option value="none">None</option>
+              <option value="park">Park the Bus</option>
+              <option value="contain">Contain</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="muted" style="margin-top:8px">Auto-fill akan mengisi field kosong. Pilih "Park the Bus" untuk menekan pressing & xG.</div>
+      </div>
+
+      <!-- MARKET & RUN -->
+      <div class="section">
+        <h3 class="muted">MARKET & RUN</h3>
+        <div class="row">
+          <div style="flex:1"><label>Market Odds Home</label><input id="market_H" type="number" step="0.01"></div>
+          <div style="flex:1"><label>Market Odds Draw</label><input id="market_D" type="number" step="0.01"></div>
+        </div>
+        <label>Market Odds Away</label><input id="market_A" type="number" step="0.01">
+
+        <label style="margin-top:8px">Simulation Intensity (default 20000)</label>
+        <input id="simIntensity" type="number" value="20000" step="1000">
+
+        <div class="row" style="margin-top:8px">
+          <button id="btn_auto_input">AUTO INPUT (SMART)</button>
+          <button id="btn_run_core">RUN CORE (ASYNC)</button>
+          <button id="btn_run_minute">RUN MINUTE SIM</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: OUTPUT / LOG -->
+    <div class="main">
+      <div class="section" style="flex:1;background:#001e1b;">
+        <label>OUTPUT / LOG</label>
+        <textarea id="output" readonly style="width:100%;height:100%;font-family:var(--mono);">=== PARLAY REBUILD — PART 1 LOADED ===
+Paste PART 2 next (Core Utilities).</textarea>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- PART 1 END - Paste PART 2 next -->
+<!-- =====================================================
+     PART 2 — CORE UTILITIES (PSZ CORE MATH & HELPERS)
+     Clean, Non-duplicated, Safe
+===================================================== -->
+<script>
+window.PSZ = window.PSZ || {};
+
+(function(PSZ){
+
+  /* ------------------------------------
+     BASIC SAFE UTILS
+  ------------------------------------ */
+
+  // Safe number
+  PSZ.safeNum = function(v, def = 0){
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : def;
+  };
+
+  // Clamp number
+  PSZ.clamp = function(x, a, b){
+    return Math.min(b, Math.max(a, x));
+  };
+
+  // Random normal (Gaussian)
+  PSZ.randNorm = function(mean = 0, std = 1){
+    // Box–Muller
+    const u = Math.random() || 1e-9;
+    const v = Math.random() || 1e-9;
+    return mean + std * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  };
+
+  // Sigmoid / logistic
+  PSZ.sigmoid = function(x){
+    return 1 / (1 + Math.exp(-x));
+  };
+
+  // Logit
+  PSZ.logit = function(p){
+    p = PSZ.clamp(p, 1e-12, 1 - 1e-12);
+    return Math.log(p / (1 - p));
+  };
+
+  // Normalize 3 probabilities
+  PSZ.normalize3 = function(a, b, c){
+    let s = a + b + c;
+    if(s <= 0) return { pH:1/3, pD:1/3, pA:1/3 };
+    return { pH:a/s, pD:b/s, pA:c/s };
+  };
+
+  /* ------------------------------------
+     POISSON LOGIC
+  ------------------------------------ */
+
+  // Factorial cache (for speed)
+  const factCache = [1];
+  for(let i=1;i<30;i++) factCache[i] = factCache[i-1]*i;
+
+  // Poisson PMF
+  PSZ.poissonPMF = function(lambda, k){
+    lambda = Math.max(lambda, 0.000001);
+    if(k < 0) return 0;
+    if(k < factCache.length){
+      return Math.exp(-lambda) * Math.pow(lambda, k) / factCache[k];
+    }
+    // fallback general formula
+    return Math.exp(-lambda + k*Math.log(lambda) - PSZ.logFactorial(k));
+  };
+
+  // Log factorial (Stirling approx fallback)
+  PSZ.logFactorial = function(n){
+    if(n < factCache.length) return Math.log(factCache[n]);
+    return n*Math.log(n) - n + 0.5*Math.log(2*Math.PI*n);
+  };
+
+  // Poisson sampler
+  PSZ.poissonSample = function(lambda){
+    lambda = Math.max(lambda, 0.000001);
+    const L = Math.exp(-lambda);
+    let p = 1, k = 0;
+    do{
+      k++;
+      p *= Math.random();
+    }while(p > L);
+    return k - 1;
+  };
+
+  /* ------------------------------------
+     DIXON–COLES CORRELATION FACTOR
+     Handles low-scoring correlation bias.
+  ------------------------------------ */
+
+  PSZ.dixonColes = function(lamH, lamA, rho = 0.05){
+    // returns function f(h,a)
+    return function(h,a){
+      // special correction only for low scores
+      if(h === 0 && a === 0) return 1 - rho;
+      if(h === 0 && a === 1) return 1 + rho;
+      if(h === 1 && a === 0) return 1 + rho;
+      if(h === 1 && a === 1) return 1 - rho;
+      return 1;
+    };
+  };
+
+  /* ------------------------------------
+     WEIGHTED FUSION HELPER
+  ------------------------------------ */
+
+  PSZ.weighted3 = function(a, wa, b, wb, c, wc){
+    const s = wa + wb + wc;
+    if(s <= 0) return {pH:1/3,pD:1/3,pA:1/3};
+    return {
+      pH:(a.pH*wa + b.pH*wb + c.pH*wc)/s,
+      pD:(a.pD*wa + b.pD*wb + c.pD*wc)/s,
+      pA:(a.pA*wa + b.pA*wb + c.pA*wc)/s,
+    };
+  };
+
+  /* ------------------------------------
+     FAIR ODDS & KELLY
+  ------------------------------------ */
+
+  PSZ.fairOdds = function(p){
+    return p > 0 ? 1/p : 999;
+  };
+
+  PSZ.kelly = function(p, odds){
+    // b = odds - 1
+    const b = Math.max(odds - 1, 0);
+    // f* = (b*p - (1-p)) / b
+    const f = (b*p - (1-p)) / Math.max(b, 1e-9);
+    return Math.max(0, f);
+  };
+
+  /* ------------------------------------
+     MATRIX CREATION
+  ------------------------------------ */
+
+  PSZ.createMatrix = function(n){
+    return [...Array(n)].map(()=>Array(n).fill(0));
+  };
+
+  console.log("PART 2 — CORE UTILITIES LOADED");
+
+})(window.PSZ);
+</script>
+<!-- END PART 2 -->
+<!-- =====================================================
+     PART 3 — MASTER CONTEXT ENGINE (AUTO INPUT & PRESETS)
+     - Match presets
+     - Auto inference for stability/momentum/press/flex/etc.
+     - autoPPDA (pressing-based) with Park-the-Bus support
+     - Public API: PSZ.AutoInput.smartFillFromDOM(ctxOverride)
+===================================================== -->
+<script>
+(function(PSZ){
+  PSZ.AutoInput = PSZ.AutoInput || {};
+  PSZ.Master = PSZ.Master || {};
+
+  /* -----------------------------
+     Match Type Presets
+  ----------------------------- */
+  PSZ.AutoInput.MatchPreset = {
+    league:    { tempo:5.0, chaos:5.0, importance:5.0, xgMultiplier:1.00, volatility:1.0 },
+    cup:       { tempo:5.4, chaos:6.0, importance:7.0, xgMultiplier:1.05, volatility:1.12 },
+    ucl:       { tempo:6.0, chaos:6.0, importance:9.0, xgMultiplier:1.12, volatility:1.25 },
+    uel:       { tempo:5.5, chaos:5.8, importance:8.0, xgMultiplier:1.07, volatility:1.15 },
+    uecl:      { tempo:5.3, chaos:6.2, importance:7.0, xgMultiplier:1.04, volatility:1.12 },
+    supercup:  { tempo:5.0, chaos:6.0, importance:6.0, xgMultiplier:1.03, volatility:1.08 },
+    playoff:   { tempo:4.6, chaos:7.0, importance:10.0, xgMultiplier:0.92, volatility:1.4 },
+    intl:      { tempo:4.7, chaos:7.5, importance:9.0, xgMultiplier:0.88, volatility:1.5 },
+    friendly:  { tempo:5.6, chaos:7.2, importance:2.0, xgMultiplier:1.10, volatility:1.2 }
+  };
+
+  PSZ.AutoInput.getPreset = function(key){
+    return PSZ.AutoInput.MatchPreset[key] || PSZ.AutoInput.MatchPreset.league;
+  };
+
+  /* -----------------------------
+     autoPPDA - infer PPDA from pressing, formation, tempo, shots
+     - respects manual PPDA if provided (>0)
+     - returns {ppdaH, ppdaA, source}
+  ----------------------------- */
+  PSZ.Master.autoPPDA = function(ctx){
+    ctx = ctx || {};
+    const manualH = PSZ.safeNum(ctx.ppda_home, 0);
+    const manualA = PSZ.safeNum(ctx.ppda_away, 0);
+    if(manualH > 0 && manualA > 0) return { ppdaH: manualH, ppdaA: manualA, source: "manual" };
+
+    // read inputs
+    const pressH = PSZ.safeNum(ctx.home_press, PSZ.safeNum(ctx.press_home, 5));
+    const pressA = PSZ.safeNum(ctx.away_press, PSZ.safeNum(ctx.press_away, 5));
+    const tempo  = PSZ.safeNum(ctx.tempo, 5);
+    const hf = (ctx.homeFormation || "").toLowerCase();
+    const af = (ctx.awayFormation || "").toLowerCase();
+    const shotsH = PSZ.safeNum(ctx.shots_home, 8);
+    const shotsA = PSZ.safeNum(ctx.shots_away, 7);
+    const parkH = (ctx.park_home === "park");
+    const parkA = (ctx.park_away === "park");
+    const containH = (ctx.park_home === "contain");
+    const containA = (ctx.park_away === "contain");
+
+    // base league-average proxy
+    let base = 18.0;
+
+    // pressing score: higher press -> lower PPDA (more aggressive)
+    let pressScoreH = (pressH - 5) * 1.35 + (tempo - 5) * 0.35 + ((shotsH - 8) / 6);
+    let pressScoreA = (pressA - 5) * 1.35 + (tempo - 5) * 0.35 + ((shotsA - 7) / 6);
+
+    // formation bias (attacking shapes reduce PPDA)
+    const formBiasH = (hf.includes("4-3-3") || hf.includes("3-4-3") || hf.includes("3-5-2")) ? -1.0 : 0;
+    const formBiasA = (af.includes("4-3-3") || af.includes("3-4-3") || af.includes("3-5-2")) ? -1.0 : 0;
+
+    // park the bus increases PPDA (less pressing)
+    if(parkH) pressScoreH -= 3.0;
+    if(parkA) pressScoreA -= 3.0;
+    if(containH) pressScoreH -= 1.4;
+    if(containA) pressScoreA -= 1.4;
+
+    let ppdaH = base - pressScoreH + formBiasH;
+    let ppdaA = base - pressScoreA + formBiasA;
+
+    ppdaH = PSZ.clamp(Math.round(ppdaH * 100) / 100, 4, 60);
+    ppdaA = PSZ.clamp(Math.round(ppdaA * 100) / 100, 4, 60);
+
+    // ensure ratios are realistic
+    const ratio = ppdaA / (ppdaH || 1);
+    if(ratio > 4) ppdaA = PSZ.clamp(ppdaH * 2.5, 4, 60);
+    if(ratio < 0.25) ppdaH = PSZ.clamp(ppdaA * 2.5, 4, 60);
+
+    return { ppdaH, ppdaA, source: "inferred_pressing" };
+  };
+
+  /* -----------------------------
+     Inference utilities (return bounded values)
+     - stability: 1..10
+     - momentum: 1..10
+     - press: 1..10
+     - flex: 0.05..0.95
+     - manager aggr: 0..10
+     - def line: 0..10
+     - injury impact: 0..0.9
+     - transition: 0.02..0.95
+     - chaos inference
+  ----------------------------- */
+
+  PSZ.AutoInput.inferStability = function(opts){
+    opts = opts || {};
+    const conceded = PSZ.safeNum(opts.conceded_last5, 3);
+    const form = PSZ.safeNum(opts.formPts, 6);
+    const inj = PSZ.safeNum(opts.injuryImpact, 0);
+    let base = 5 + ((6 - conceded) * 0.25) + ((form - 5) * 0.35) - (inj * 3);
+    if(opts.park === "park") base += 0.8;
+    return PSZ.clamp(base, 1, 10);
+  };
+
+  PSZ.AutoInput.inferMomentum = function(opts){
+    opts = opts || {};
+    const form = PSZ.safeNum(opts.formPts, 6);
+    const lam = PSZ.safeNum(opts.lam, 1.1);
+    const scored = PSZ.safeNum(opts.scored_last5, 3);
+    let base = 5 + (form - 5) * 0.55 + (lam - 1) * 1.5 + ((scored - 3) * 0.3);
+    if(opts.park === "park") base -= 1.1;
+    return PSZ.clamp(base, 1, 10);
+  };
+
+  PSZ.AutoInput.inferPress = function(opts){
+    opts = opts || {};
+    const st = PSZ.safeNum(opts.st, 5);
+    const tempo = PSZ.safeNum(opts.tempo, 5);
+    const shots = PSZ.safeNum(opts.shots, 8);
+    const mg = PSZ.safeNum(opts.manager_aggr, 5);
+    let base = 4.5 + ((10 - st) * 0.12) + ((tempo - 5) * 0.45) + ((shots - 8) * 0.08) + ((mg - 5) * 0.15);
+    if(opts.park === "park") base = PSZ.clamp(base - 3.0, 1, 10);
+    if(opts.park === "contain") base = PSZ.clamp(base - 1.3, 1, 10);
+    return PSZ.clamp(base, 1, 10);
+  };
+
+  PSZ.AutoInput.inferFlex = function(opts){
+    opts = opts || {};
+    const formation = (opts.formation || "").toLowerCase();
+    const tempo = PSZ.safeNum(opts.tempo, 5);
+    let base = 0.45 + (tempo - 5) * 0.04 + ((formation.includes("3-4-3")||formation.includes("4-3-3"))?0.08:0);
+    if(opts.park === "park") base = PSZ.clamp(base - 0.22, 0.05, 0.95);
+    return PSZ.clamp(base, 0.05, 0.95);
+  };
+
+  PSZ.AutoInput.inferManagerAggression = function(opts){
+    opts = opts || {};
+    const tempo = PSZ.safeNum(opts.tempo,5);
+    const press = PSZ.safeNum(opts.press,5);
+    const formation = (opts.formation||"").toLowerCase();
+    let base = 5 + (tempo - 5) * 0.6 + (press - 5) * 0.55;
+    if(formation.includes("5-") || opts.park === "park") base -= 1.5;
+    return PSZ.clamp(base, 0, 10);
+  };
+
+  PSZ.AutoInput.inferDefLine = function(opts){
+    opts = opts || {};
+    const press = PSZ.safeNum(opts.press,5);
+    const mg = PSZ.safeNum(opts.manager_aggr,5);
+    let base = 4 + (press - 5) * 0.55 + (mg - 5) * 0.4;
+    if(opts.park === "park") base = PSZ.clamp(base - 2.5, 0, 10);
+    return PSZ.clamp(base, 0, 10);
+  };
+
+  PSZ.AutoInput.inferInjuryImpact = function(opts){
+    opts = opts || {};
+    const explicit = PSZ.safeNum(opts.explicit, 0);
+    if(explicit > 0) return PSZ.clamp(explicit, 0, 0.9);
+    const conceded = PSZ.safeNum(opts.conceded_last5, 3);
+    if(conceded > 6) return 0.22;
+    if(conceded > 4) return 0.12;
+    if(conceded > 2) return 0.05;
+    return 0.02;
+  };
+
+  PSZ.AutoInput.inferTransition = function(opts){
+    opts = opts || {};
+    const pos = PSZ.safeNum(opts.pos, 50);
+    const shots = PSZ.safeNum(opts.shots, 8);
+    const ratio = Math.max(0.05, shots / Math.max(1, pos));
+    let base = 0.45 + (ratio - 0.12) * 1.2;
+    if(opts.park === "park") base = PSZ.clamp(base - 0.12, 0.02, 0.95);
+    return PSZ.clamp(base, 0.02, 0.95);
+  };
+
+  PSZ.AutoInput.inferChaos = function(ctx, preset){
+    const userChaos = PSZ.safeNum(ctx.chaos, 0);
+    if(userChaos > 0) return PSZ.clamp(userChaos, 1, 10);
+    const vol = PSZ.safeNum(preset && preset.volatility, 1.0);
+    const scoredDiff = Math.abs(PSZ.safeNum(ctx.scored_last5_home,0) - PSZ.safeNum(ctx.conceded_last5_home,0));
+    const base = 5 + (vol - 1) * 1.3 + (scoredDiff * 0.25) + PSZ.randNorm(0,0.25);
+    return PSZ.clamp(base, 1, 10);
+  };
+
+  /* -----------------------------
+     MASTER INIT: derive master adjustments (includes chaos noise)
+  ----------------------------- */
+  PSZ.Master.init = function(ctx){
+    ctx = ctx || {};
+    const chaos = PSZ.safeNum(ctx.chaos,5);
+    const lamH = PSZ.safeNum(ctx.lamH, 0);
+    const lamA = PSZ.safeNum(ctx.lamA, 0);
+    const preset = PSZ.AutoInput.getPreset(ctx.match_type || "league");
+
+    // If lam missing, use preset multipliers as base
+    const baseLamH = lamH > 0 ? lamH : 1.2 * preset.xgMultiplier;
+    const baseLamA = lamA > 0 ? lamA : 1.0 * preset.xgMultiplier;
+
+    // small chaos noise
+    const noise = PSZ.randNorm(0, (chaos - 5) * 0.03);
+
+    return {
+      lamH_adj: PSZ.clamp(baseLamH * (1 + noise), 0.05, 12),
+      lamA_adj: PSZ.clamp(baseLamA * (1 + noise), 0.05, 12),
+      chaosAdj: noise,
+      volatility: PSZ.safeNum(preset.volatility, 1.0)
+    };
+  };
+
+  /* -----------------------------
+     Public API: smartFillFromDOM
+     - reads DOM fields, fills derived values only if empty
+     - returns ctx object
+  ----------------------------- */
+  PSZ.AutoInput.smartFillFromDOM = function(ctxOverride){
+    try{
+      function E(id){ return document.getElementById(id); }
+      const preset = PSZ.AutoInput.getPreset( (E("match_type") && E("match_type").value) || "league" );
+
+      // read DOM fields safely (do not override manual non-empty)
+      const dom = {
+        match_type: (E("match_type")?.value) || "league",
+        lamH: PSZ.safeNum(E("lamH")?.value, 0),
+        lamA: PSZ.safeNum(E("lamA")?.value, 0),
+        shots_home: PSZ.safeNum(E("shots_home")?.value, NaN),
+        shots_away: PSZ.safeNum(E("shots_away")?.value, NaN),
+        sot_home: PSZ.safeNum(E("sot_home")?.value, NaN),
+        sot_away: PSZ.safeNum(E("sot_away")?.value, NaN),
+        pos_home: PSZ.safeNum(E("pos_home")?.value, NaN),
+        pos_away: PSZ.safeNum(E("pos_away")?.value, NaN),
+        formPts_home: PSZ.safeNum(E("formPts_home")?.value, NaN),
+        formPts_away: PSZ.safeNum(E("formPts_away")?.value, NaN),
+        scored_last5_home: PSZ.safeNum(E("scored_last5_home")?.value, NaN),
+        scored_last5_away: PSZ.safeNum(E("scored_last5_away")?.value, NaN),
+        conceded_last5_home: PSZ.safeNum(E("conceded_last5_home")?.value, NaN),
+        conceded_last5_away: PSZ.safeNum(E("conceded_last5_away")?.value, NaN),
+        home_st: PSZ.safeNum(E("home_st")?.value, 0),
+        away_st: PSZ.safeNum(E("away_st")?.value, 0),
+        home_mom: PSZ.safeNum(E("home_mom")?.value, 0),
+        away_mom: PSZ.safeNum(E("away_mom")?.value, 0),
+        home_press: PSZ.safeNum(E("home_press")?.value, 0),
+        away_press: PSZ.safeNum(E("away_press")?.value, 0),
+        ppda_home: PSZ.safeNum(E("ppda_home")?.value, 0),
+        ppda_away: PSZ.safeNum(E("ppda_away")?.value, 0),
+        home_flex: PSZ.safeNum(E("home_flex")?.value, 0),
+        away_flex: PSZ.safeNum(E("away_flex")?.value, 0),
+        manager_aggr: PSZ.safeNum(E("manager_aggr")?.value, NaN),
+        def_line: PSZ.safeNum(E("def_line")?.value, NaN),
+        injury_impact_home: PSZ.safeNum(E("injury_impact_home")?.value, NaN),
+        injury_impact_away: PSZ.safeNum(E("injury_impact_away")?.value, NaN),
+        transition_eff: PSZ.safeNum(E("transition_eff")?.value, NaN),
+        chaos: PSZ.safeNum(E("chaos")?.value, 0),
+        tempo: PSZ.safeNum(E("tempo")?.value, 0),
+        importance: PSZ.safeNum(E("importance")?.value, 0),
+        homeFormation: (E("homeFormation")?.value) || "",
+        awayFormation: (E("awayFormation")?.value) || "",
+        park_home: (E("park_home")?.value) || "none",
+        park_away: (E("park_away")?.value) || "none",
+        simIntensity: PSZ.safeNum(E("simIntensity")?.value, 20000)
+      };
+
+      // apply ctxOverride
+      const ctx = Object.assign({}, dom, ctxOverride || {});
+
+      // fill tempo/chaos/importance from preset only if empty
+      if(!PSZ.safeNum(ctx.tempo,0)) ctx.tempo = preset.tempo;
+      if(!PSZ.safeNum(ctx.chaos,0)) ctx.chaos = preset.chaos;
+      if(!PSZ.safeNum(ctx.importance,0)) ctx.importance = preset.importance;
+
+      // lam base fill from preset xgMultiplier if empty
+      if(!(PSZ.safeNum(ctx.lamH,0) > 0)) ctx.lamH = 1.2 * preset.xgMultiplier;
+      if(!(PSZ.safeNum(ctx.lamA,0) > 0)) ctx.lamA = 1.0 * preset.xgMultiplier;
+
+      // Park the Bus adjustments (early)
+      if(ctx.park_home === "park"){
+        ctx.lamH = PSZ.clamp(ctx.lamH * 0.78, 0.01, 12);
+        ctx.home_press = PSZ.clamp(PSZ.safeNum(ctx.home_press,5) - 2.2, 1, 10);
+        ctx.home_flex = PSZ.clamp(PSZ.safeNum(ctx.home_flex,0.5) - 0.25, 0.05, 0.95);
+      }
+      if(ctx.park_away === "park"){
+        ctx.lamA = PSZ.clamp(ctx.lamA * 0.78, 0.01, 12);
+        ctx.away_press = PSZ.clamp(PSZ.safeNum(ctx.away_press,5) - 2.2, 1, 10);
+        ctx.away_flex = PSZ.clamp(PSZ.safeNum(ctx.away_flex,0.5) - 0.25, 0.05, 0.95);
+      }
+      if(ctx.park_home === "contain") ctx.home_press = PSZ.clamp(PSZ.safeNum(ctx.home_press,5) - 1.1, 1, 10);
+      if(ctx.park_away === "contain") ctx.away_press = PSZ.clamp(PSZ.safeNum(ctx.away_press,5) - 1.1, 1, 10);
+
+      // Fill stability (if empty)
+      if(!(PSZ.safeNum(ctx.home_st,0) > 0)){
+        ctx.home_st = PSZ.AutoInput.inferStability({ conceded_last5: PSZ.safeNum(ctx.conceded_last5_home, NaN), formPts: PSZ.safeNum(ctx.formPts_home, NaN), injuryImpact: PSZ.safeNum(ctx.injury_impact_home,0), park: ctx.park_home });
+        if(document.getElementById("home_st")) document.getElementById("home_st").value = ctx.home_st.toFixed(2);
+      }
+      if(!(PSZ.safeNum(ctx.away_st,0) > 0)){
+        ctx.away_st = PSZ.AutoInput.inferStability({ conceded_last5: PSZ.safeNum(ctx.conceded_last5_away, NaN), formPts: PSZ.safeNum(ctx.formPts_away, NaN), injuryImpact: PSZ.safeNum(ctx.injury_impact_away,0), park: ctx.park_away });
+        if(document.getElementById("away_st")) document.getElementById("away_st").value = ctx.away_st.toFixed(2);
+      }
+
+      // Fill momentum (if empty)
+      if(!(PSZ.safeNum(ctx.home_mom,0) > 0)){
+        ctx.home_mom = PSZ.AutoInput.inferMomentum({ formPts: PSZ.safeNum(ctx.formPts_home, NaN), lam: ctx.lamH, scored_last5: PSZ.safeNum(ctx.scored_last5_home, NaN), park: ctx.park_home });
+        if(document.getElementById("home_mom")) document.getElementById("home_mom").value = ctx.home_mom.toFixed(2);
+      }
+      if(!(PSZ.safeNum(ctx.away_mom,0) > 0)){
+        ctx.away_mom = PSZ.AutoInput.inferMomentum({ formPts: PSZ.safeNum(ctx.formPts_away, NaN), lam: ctx.lamA, scored_last5: PSZ.safeNum(ctx.scored_last5_away, NaN), park: ctx.park_away });
+        if(document.getElementById("away_mom")) document.getElementById("away_mom").value = ctx.away_mom.toFixed(2);
+      }
+
+      // Fill press (if empty)
+      if(!(PSZ.safeNum(ctx.home_press,0) > 0)){
+        ctx.home_press = PSZ.AutoInput.inferPress({ st: ctx.home_st, tempo: ctx.tempo, shots: PSZ.safeNum(ctx.shots_home, NaN), manager_aggr: PSZ.safeNum(ctx.manager_aggr, NaN), park: ctx.park_home });
+        if(document.getElementById("home_press")) document.getElementById("home_press").value = ctx.home_press.toFixed(2);
+      }
+      if(!(PSZ.safeNum(ctx.away_press,0) > 0)){
+        ctx.away_press = PSZ.AutoInput.inferPress({ st: ctx.away_st, tempo: ctx.tempo, shots: PSZ.safeNum(ctx.shots_away, NaN), manager_aggr: PSZ.safeNum(ctx.manager_aggr, NaN), park: ctx.park_away });
+        if(document.getElementById("away_press")) document.getElementById("away_press").value = ctx.away_press.toFixed(2);
+      }
+
+      // Fill PPDA (if empty)
+      const pp = PSZ.Master.autoPPDA(ctx);
+      if(!(PSZ.safeNum(ctx.ppda_home,0) > 0)){ ctx.ppda_home = pp.ppdaH; if(document.getElementById("ppda_home")) document.getElementById("ppda_home").value = ctx.ppda_home.toFixed(2); }
+      if(!(PSZ.safeNum(ctx.ppda_away,0) > 0)){ ctx.ppda_away = pp.ppdaA; if(document.getElementById("ppda_away")) document.getElementById("ppda_away").value = ctx.ppda_away.toFixed(2); }
+
+      // Fill flex
+      if(!(PSZ.safeNum(ctx.home_flex,0) > 0)){
+        ctx.home_flex = PSZ.AutoInput.inferFlex({ formation: ctx.homeFormation, tempo: ctx.tempo, park: ctx.park_home });
+        if(document.getElementById("home_flex")) document.getElementById("home_flex").value = ctx.home_flex.toFixed(3);
+      }
+      if(!(PSZ.safeNum(ctx.away_flex,0) > 0)){
+        ctx.away_flex = PSZ.AutoInput.inferFlex({ formation: ctx.awayFormation, tempo: ctx.tempo, park: ctx.park_away });
+        if(document.getElementById("away_flex")) document.getElementById("away_flex").value = ctx.away_flex.toFixed(3);
+      }
+
+      // Manager aggression
+      if(!(PSZ.safeNum(ctx.manager_aggr,0) > 0)){
+        ctx.manager_aggr = PSZ.AutoInput.inferManagerAggression({ tempo: ctx.tempo, press: (ctx.home_press + ctx.away_press)/2, formation: ctx.homeFormation, park: ctx.park_home });
+        if(document.getElementById("manager_aggr")) document.getElementById("manager_aggr").value = ctx.manager_aggr.toFixed(2);
+      }
+
+      // Defensive line
+      if(!(PSZ.safeNum(ctx.def_line,0) > 0)){
+        ctx.def_line = PSZ.AutoInput.inferDefLine({ press: (ctx.home_press + ctx.away_press)/2, manager_aggr: ctx.manager_aggr, park: ctx.park_home });
+        if(document.getElementById("def_line")) document.getElementById("def_line").value = ctx.def_line.toFixed(2);
+      }
+
+      // Injury impact
+      if(!(PSZ.safeNum(ctx.injury_impact_home,0) > 0)){
+        ctx.injury_impact_home = PSZ.AutoInput.inferInjuryImpact({ explicit: PSZ.safeNum(ctx.injury_impact_home,0), conceded_last5: PSZ.safeNum(ctx.conceded_last5_home, NaN) });
+        if(document.getElementById("injury_impact_home")) document.getElementById("injury_impact_home").value = ctx.injury_impact_home.toFixed(3);
+      }
+      if(!(PSZ.safeNum(ctx.injury_impact_away,0) > 0)){
+        ctx.injury_impact_away = PSZ.AutoInput.inferInjuryImpact({ explicit: PSZ.safeNum(ctx.injury_impact_away,0), conceded_last5: PSZ.safeNum(ctx.conceded_last5_away, NaN) });
+        if(document.getElementById("injury_impact_away")) document.getElementById("injury_impact_away").value = ctx.injury_impact_away.toFixed(3);
+      }
+
+      // Transition eff
+      if(!(PSZ.safeNum(ctx.transition_eff,0) > 0)){
+        const teH = PSZ.AutoInput.inferTransition({ pos: PSZ.safeNum(ctx.pos_home, NaN), shots: PSZ.safeNum(ctx.shots_home, NaN), park: ctx.park_home });
+        const teA = PSZ.AutoInput.inferTransition({ pos: PSZ.safeNum(ctx.pos_away, NaN), shots: PSZ.safeNum(ctx.shots_away, NaN), park: ctx.park_away });
+        ctx.transition_eff = PSZ.clamp((teH + teA)/2, 0.02, 0.95);
+        if(document.getElementById("transition_eff")) document.getElementById("transition_eff").value = ctx.transition_eff.toFixed(3);
+      }
+
+      // Chaos if empty
+      if(!(PSZ.safeNum(ctx.chaos,0) > 0)){
+        ctx.chaos = PSZ.AutoInput.inferChaos(ctx, preset);
+        if(document.getElementById("chaos")) document.getElementById("chaos").value = ctx.chaos.toFixed(2);
+      }
+
+      // ensure tempo/importance visible
+      if(document.getElementById("tempo") && (!document.getElementById("tempo").value || Number(document.getElementById("tempo").value) === 0)) document.getElementById("tempo").value = ctx.tempo.toFixed(2);
+      if(document.getElementById("importance") && (!document.getElementById("importance").value || Number(document.getElementById("importance").value) === 0)) document.getElementById("importance").value = ctx.importance.toFixed(2);
+
+      // write back lam only if initially empty
+      if(PSZ.safeNum(document.getElementById("lamH")?.value,0) <= 0) document.getElementById("lamH").value = ctx.lamH.toFixed(3);
+      if(PSZ.safeNum(document.getElementById("lamA")?.value,0) <= 0) document.getElementById("lamA").value = ctx.lamA.toFixed(3);
+
+      // return ctx
+      return ctx;
+
+    }catch(e){
+      console.error("AutoInput.smartFillFromDOM error", e);
+      return null;
+    }
+  };
+
+  console.log("PART 3 — MASTER CONTEXT ENGINE LOADED (AUTO INPUT + PPDA + PARK BUS)");
+})(window.PSZ);
+</script>
+<!-- END PART 3 -->
+<!-- =====================================================
+     PART 4 — TACTICAL ENGINE (formation effect, xT proxy,
+     press/flex interplay, late-tactical shifts, shot quality,
+     defensive collapse risk)
+===================================================== -->
+<script>
+(function(PSZ){
+  PSZ.Tactics = PSZ.Tactics || {};
+
+  // formation effect: attack/defence/width biases
+  PSZ.Tactics.formationEffect = function(formation){
+    const f = (formation||"").toLowerCase();
+    let attackBias = 0, defenceBias = 0, widthBias = 0;
+    if(f.includes("4-3-3") || f.includes("3-4-3") || f.includes("4-2-3-1")){
+      attackBias += 0.12; widthBias += 0.08;
+    } else if(f.includes("4-4-2") || f.includes("3-5-2")){
+      attackBias += 0.06; widthBias += 0.04;
+    } else if(f.includes("5-") || f.includes("5-4-1") || f.includes("5-3-2")){
+      defenceBias += 0.16; attackBias -= 0.08;
+    } else if(f.includes("4-5-1") || f.includes("4-1-4-1")){
+      defenceBias += 0.06; attackBias -= 0.04;
+    }
+    return { attackBias, defenceBias, widthBias };
+  };
+
+  // simple xT proxy: uses SOT/shots/press/transition/possession
+  PSZ.Tactics.computexTProxy = function(opts){
+    opts = opts || {};
+    const sot = PSZ.safeNum(opts.sot, NaN);
+    const shots = PSZ.safeNum(opts.shots, NaN);
+    const press = PSZ.safeNum(opts.press, 5);
+    const trans = PSZ.safeNum(opts.transition, 0.45);
+    const pos = PSZ.safeNum(opts.pos, 50);
+
+    let shotQuality = 0.28;
+    if(Number.isFinite(sot) && Number.isFinite(shots) && shots > 0) shotQuality = PSZ.clamp(sot / shots, 0.05, 0.9);
+
+    const pressEffect = PSZ.clamp((press - 4.5) * 0.06, -0.25, 0.6);
+    const transEffect = PSZ.clamp((trans - 0.45) * 0.9, -0.4, 0.8);
+    const posEffect = (pos > 60) ? -0.06 : (pos < 40 ? 0.04 : 0);
+
+    const xT = PSZ.clamp( shotQuality * 0.6 + pressEffect * 0.25 + transEffect * 0.2 + posEffect, 0.02, 1.25 );
+    return { xT, shotQuality, pressEffect, transEffect, posEffect };
+  };
+
+  // press-flex interplay returns attack/defence modifiers and shotQualityShift
+  PSZ.Tactics.pressFlexInterplay = function(home, away){
+    const hPress = PSZ.safeNum(home.press,5), aPress = PSZ.safeNum(away.press,5);
+    const hFlex = PSZ.safeNum(home.flex,0.5), aFlex = PSZ.safeNum(away.flex,0.5);
+
+    const pressDiff = (hPress - aPress) / 10;
+    const flexDiff = (hFlex - aFlex);
+
+    const attackModifier = PSZ.clamp(0.08 * pressDiff + 0.12 * flexDiff, -0.5, 0.5);
+    const defenceModifier = PSZ.clamp(-0.06 * pressDiff - 0.08 * flexDiff, -0.5, 0.5);
+    const shotQualityShift = PSZ.clamp(0.12 * flexDiff + 0.06 * pressDiff, -0.4, 0.4);
+
+    return { attackModifier, defenceModifier, shotQualityShift, pressDiff, flexDiff };
+  };
+
+  // Late Tactical Shift Multiplier (LTSM)
+  PSZ.Tactics.lateTacticalShiftMultiplier = function(ctx, minute){
+    ctx = ctx || {};
+    minute = PSZ.safeNum(minute, 0);
+    const importance = PSZ.safeNum(ctx.importance, 5);
+    const managerAgg = PSZ.safeNum(ctx.manager_aggr, 5);
+    const injured = PSZ.safeNum(ctx.injury_impact_home, 0) + PSZ.safeNum(ctx.injury_impact_away, 0);
+    const baseProb = PSZ.clamp((importance - 4)/6 + (managerAgg - 5)/10 + injured/4, 0, 0.95);
+    const lateFactor = (minute >= 70) ? 1.6 : (minute >= 55 ? 1.1 : 0.6);
+    const rand = PSZ.randNorm(0, 0.06);
+    const shift = 1 + (PSZ.clamp(baseProb * 0.5 * lateFactor, 0, 0.9) * rand);
+    return PSZ.clamp(shift, 0.7, 1.45);
+  };
+
+  // shot quality estimation (per-shot conversion)
+  PSZ.Tactics.shotQualityEstimation = function(opts){
+    opts = opts || {};
+    const baseSQ = 0.09;
+    const shotQual = PSZ.safeNum(opts.shotQuality, 0.28);
+    const press = PSZ.safeNum(opts.press, 5);
+    const transition = PSZ.safeNum(opts.transition, 0.45);
+
+    const pressPenalty = (press > 7) ? -0.015 : (press < 4 ? 0.01 : 0);
+    const transBoost = PSZ.clamp((transition - 0.45) * 0.06, -0.02, 0.05);
+
+    const final = PSZ.clamp(baseSQ + (shotQual - 0.28) * 0.22 + pressPenalty + transBoost, 0.02, 0.35);
+    return final;
+  };
+
+  // defensive collapse risk 0..1
+  PSZ.Tactics.defensiveCollapseRisk = function(opts){
+    opts = opts || {};
+    const fatigue = PSZ.safeNum(opts.fatigue, 0);
+    const injury = PSZ.safeNum(opts.injuryImpact, 0);
+    const stability = PSZ.safeNum(opts.stability, 5);
+    const chaos = PSZ.safeNum(opts.chaos,5);
+    const fragility = PSZ.safeNum(opts.fragility, 0);
+
+    const raw = 0.06*fatigue + 0.35*injury + 0.09*(5 - (stability-5)) + 0.06*(chaos-5) + 0.12*fragility;
+    return PSZ.clamp(raw, 0, 0.95);
+  };
+
+  // applyTactics: returns adjustedLam + tactics summary
+  PSZ.Tactics.applyTactics = function(ctx, master){
+    try{
+      ctx = ctx || {};
+      master = master || PSZ.Master.init(ctx);
+
+      const feH = PSZ.Tactics.formationEffect(ctx.homeFormation);
+      const feA = PSZ.Tactics.formationEffect(ctx.awayFormation);
+
+      const xTh = PSZ.Tactics.computexTProxy({ sot: PSZ.safeNum(ctx.sot_home, NaN), shots: PSZ.safeNum(ctx.shots_home, NaN), press: PSZ.safeNum(ctx.home_press,5), transition: PSZ.safeNum(ctx.transition_eff,0.45), pos: PSZ.safeNum(ctx.pos_home,50) });
+      const xTa = PSZ.Tactics.computexTProxy({ sot: PSZ.safeNum(ctx.sot_away, NaN), shots: PSZ.safeNum(ctx.shots_away, NaN), press: PSZ.safeNum(ctx.away_press,5), transition: PSZ.safeNum(ctx.transition_eff,0.45), pos: PSZ.safeNum(ctx.pos_away,50) });
+
+      const pf = PSZ.Tactics.pressFlexInterplay({ press: PSZ.safeNum(ctx.home_press,5), flex: PSZ.safeNum(ctx.home_flex,0.5) }, { press: PSZ.safeNum(ctx.away_press,5), flex: PSZ.safeNum(ctx.away_flex,0.5) });
+
+      let lamH_base = PSZ.safeNum(master.lamH_adj, PSZ.safeNum(ctx.lamH,1.2));
+      let lamA_base = PSZ.safeNum(master.lamA_adj, PSZ.safeNum(ctx.lamA,1.0));
+
+      const attackAddH = feH.attackBias + (xTh.xT - xTa.xT) * 0.8 + pf.attackModifier;
+      const attackAddA = feA.attackBias + (xTa.xT - xTh.xT) * 0.8 - pf.attackModifier;
+
+      const shotQualityH = PSZ.Tactics.shotQualityEstimation({ shotQuality: xTh.shotQuality, press: ctx.home_press, transition: ctx.transition_eff });
+      const shotQualityA = PSZ.Tactics.shotQualityEstimation({ shotQuality: xTa.shotQuality, press: ctx.away_press, transition: ctx.transition_eff });
+
+      if(ctx.park_home === "park") lamH_base *= 0.78;
+      if(ctx.park_away === "park") lamA_base *= 0.78;
+
+      let lamH = PSZ.clamp(lamH_base * (1 + attackAddH), 0.05, 12);
+      let lamA = PSZ.clamp(lamA_base * (1 + attackAddA), 0.05, 12);
+
+      if(shotQualityH > 0.16 && lamH < 0.9) lamH *= (1 + (shotQualityH - 0.12) * 0.9);
+      if(shotQualityA > 0.16 && lamA < 0.9) lamA *= (1 + (shotQualityA - 0.12) * 0.9);
+
+      const fragilityProxy = PSZ.safeNum(ctx.fragility || 0, 0);
+      const collapseH = PSZ.Tactics.defensiveCollapseRisk({ fatigue: PSZ.safeNum(ctx.fatigue, 0), injuryImpact: PSZ.safeNum(ctx.injury_impact_home, 0), stability: PSZ.safeNum(ctx.home_st, 5), chaos: PSZ.safeNum(ctx.chaos,5), fragility: fragilityProxy });
+      const collapseA = PSZ.Tactics.defensiveCollapseRisk({ fatigue: PSZ.safeNum(ctx.fatigue, 0), injuryImpact: PSZ.safeNum(ctx.injury_impact_away, 0), stability: PSZ.safeNum(ctx.away_st, 5), chaos: PSZ.safeNum(ctx.chaos,5), fragility: fragilityProxy });
+
+      lamH = PSZ.clamp(lamH * (1 + collapseA * 0.18), 0.05, 14);
+      lamA = PSZ.clamp(lamA * (1 + collapseH * 0.18), 0.05, 14);
+
+      const tactics = {
+        formationH: ctx.homeFormation, formationA: ctx.awayFormation,
+        feH, feA, xT: { home: xTh, away: xTa }, pf, shotQuality: { home: shotQualityH, away: shotQualityA }, collapseRisk: { home: collapseH, away: collapseA },
+        attackAdd: { home: attackAddH, away: attackAddA }
+      };
+
+      const notes = `attackAddH=${attackAddH.toFixed(3)}, attackAddA=${attackAddA.toFixed(3)}, xTdiff=${(xTh.xT - xTa.xT).toFixed(3)}`;
+
+      return { adjustedLam: { lamH, lamA }, tactics, notes };
+
+    }catch(e){
+      console.error("Tactics.applyTactics error", e);
+      return { adjustedLam: { lamH: PSZ.safeNum((PSZ.Master && PSZ.Master.init) ? PSZ.Master.init({}).lamH_adj : 1.2, 1.2), lamA: PSZ.safeNum((PSZ.Master && PSZ.Master.init) ? PSZ.Master.init({}).lamA_adj : 1.0, 1.0) }, tactics:{}, notes:"error" };
+    }
+  };
+
+  console.log("PART 4 — TACTICS LOADED");
+})(window.PSZ);
+</script>
+<!-- END PART 4 -->
+<!-- =====================================================
+     PART 5 — ENGINE OMEGA (Poisson + DC + Tactical Fusion + Non-blocking MC)
+===================================================== -->
+<script>
+(function(PSZ){
+  PSZ.Engine = PSZ.Engine || {};
+
+  // Deterministic Poisson + Dixon-Coles model (small matrix 0..7)
+  PSZ.Engine.detModel = function(lamH, lamA, rho = 0.05){
+    const dc = PSZ.dixonColes(lamH, lamA, rho);
+    const max = 7;
+    const matrix = PSZ.createMatrix(max+1);
+    let pH = 0, pD = 0, pA = 0;
+    for(let h=0; h<=max; h++){
+      for(let a=0; a<=max; a++){
+        const p = PSZ.poissonPMF(lamH, h) * PSZ.poissonPMF(lamA, a) * dc(h,a);
+        matrix[h][a] = p;
+        if(h > a) pH += p;
+        else if(h === a) pD += p;
+        else pA += p;
+      }
+    }
+    const s = pH + pD + pA;
+    if(s <= 0) return { pH:1/3, pD:1/3, pA:1/3, matrix };
+    return { pH: pH/s, pD: pD/s, pA: pA/s, matrix };
+  };
+
+  // Non-blocking chunked Monte-Carlo sampler (E5-style)
+  PSZ.Engine.mcE5Chunked = function(ctx, tacticsAdjustedLam, totalSim){
+    totalSim = PSZ.safeNum(totalSim, 20000);
+    const chunk = Math.min(4000, Math.max(250, Math.floor(totalSim/8)));
+    let completed = 0;
+    const maxGoal = 8;
+    const aggMatrix = [...Array(maxGoal)].map(()=>Array(maxGoal).fill(0));
+    let wH_count = 0, wD_count = 0, wA_count = 0, totalGoals = 0;
+
+    const lamBaseH = PSZ.safeNum(tacticsAdjustedLam && tacticsAdjustedLam.lamH, PSZ.safeNum(ctx.lamH, 1.2));
+    const lamBaseA = PSZ.safeNum(tacticsAdjustedLam && tacticsAdjustedLam.lamA, PSZ.safeNum(ctx.lamA, 1.0));
+    const chaos = PSZ.safeNum(ctx.chaos, 5);
+    const vol = PSZ.safeNum(ctx.volatility || ctx.vol || 0.5);
+
+    return new Promise((resolve, reject)=>{
+      function runChunk(){
+        try{
+          const toRun = Math.min(chunk, totalSim - completed);
+          for(let i=0;i<toRun;i++){
+            const ph1 = 1 + PSZ.randNorm(0, (chaos-5)*0.03);
+            const ph2 = PSZ.Tactics ? PSZ.Tactics.lateTacticalShiftMultiplier(ctx, 55) * (1 + vol*0.04) : 1;
+            const ph3 = PSZ.Tactics ? PSZ.Tactics.lateTacticalShiftMultiplier(ctx, 75) * (1 + vol*0.07) : 1;
+
+            const lamH1 = PSZ.clamp(lamBaseH * ph1 * 0.35, 0.001, 12);
+            const lamH2 = PSZ.clamp(lamBaseH * ph2 * 0.33, 0.001, 12);
+            const lamH3 = PSZ.clamp(lamBaseH * ph3 * 0.32, 0.001, 12);
+
+            const lamA1 = PSZ.clamp(lamBaseA * ph1 * 0.35, 0.001, 12);
+            const lamA2 = PSZ.clamp(lamBaseA * ph2 * 0.33, 0.001, 12);
+            const lamA3 = PSZ.clamp(lamBaseA * ph3 * 0.32, 0.001, 12);
+
+            const gH = PSZ.poissonSample(lamH1) + PSZ.poissonSample(lamH2) + PSZ.poissonSample(lamH3);
+            const gA = PSZ.poissonSample(lamA1) + PSZ.poissonSample(lamA2) + PSZ.poissonSample(lamA3);
+
+            const hh = Math.min(gH, maxGoal-1);
+            const aa = Math.min(gA, maxGoal-1);
+            aggMatrix[hh][aa] += 1;
+            totalGoals += (gH + gA);
+
+            if(gH > gA) wH_count++;
+            else if(gH === gA) wD_count++;
+            else wA_count++;
+          }
+          completed += toRun;
+
+          if(typeof PSZ.onMCProgress === "function"){
+            try{ PSZ.onMCProgress(Math.min(1, completed / totalSim)); } catch(e){ /* ignore */ }
+          }
+
+          if(completed < totalSim) setTimeout(runChunk, 12);
+          else {
+            const simCount = completed;
+            for(let h=0; h<maxGoal; h++) for(let a=0; a<maxGoal; a++) aggMatrix[h][a] = aggMatrix[h][a] / simCount;
+            const res = {
+              pH: wH_count / simCount,
+              pD: wD_count / simCount,
+              pA: wA_count / simCount,
+              matrix: aggMatrix,
+              avgGoals: totalGoals / simCount,
+              simCount
+            };
+            resolve(res);
+          }
+        }catch(ex){
+          reject(ex);
+        }
+      }
+      setTimeout(runChunk, 0);
+    });
+  };
+
+  // Fusion: blend det + tactical det + MC using chaos/importance
+  PSZ.Engine.fuse = function(det, tac, mc, ctx){
+    const chaos = PSZ.safeNum(ctx.chaos,5);
+    const importance = PSZ.safeNum(ctx.importance,5);
+    const wDet = PSZ.clamp(1.0 - (chaos-5)*0.07, 0.2, 1.4);
+    const wTac = PSZ.clamp(0.8 + (importance-5)*0.1, 0.3, 1.6);
+    const wMC  = PSZ.clamp(0.8 + (chaos-5)*0.12, 0.3, 1.8);
+
+    const pH = (det.pH*wDet + tac.pH*wTac + mc.pH*wMC) / (wDet+wTac+wMC);
+    const pD = (det.pD*wDet + tac.pD*wTac + mc.pD*wMC) / (wDet+wTac+wMC);
+    const pA = (det.pA*wDet + tac.pA*wTac + mc.pA*wMC) / (wDet+wTac+wMC);
+
+    return PSZ.normalize3(pH,pD,pA);
+  };
+
+  // compute OU from matrix
+  PSZ.Engine.computeOU = function(matrix, simCount){
+    simCount = PSZ.safeNum(simCount, 1);
+    function pctOver(line){
+      const cut = Math.floor(line);
+      let over=0, under=0;
+      for(let h=0; h<matrix.length; h++){
+        for(let a=0; a<matrix[h].length; a++){
+          const sum = h+a;
+          const ct = matrix[h][a];
+          if(sum > cut) over += ct; else under += ct;
+        }
+      }
+      return { over: over/simCount, under: under/simCount };
+    }
+    return { "0.5": pctOver(0.5), "1.5": pctOver(1.5), "2.5": pctOver(2.5), "3.5": pctOver(3.5), "4.5": pctOver(4.5) };
+  };
+
+  // compute BTTS
+  PSZ.Engine.computeBTTS = function(matrix, simCount){
+    simCount = PSZ.safeNum(simCount,1);
+    let yes=0;
+    for(let h=0; h<matrix.length; h++) for(let a=0; a<matrix[h].length; a++) if(h>0 && a>0) yes += matrix[h][a];
+    return yes/simCount;
+  };
+
+  // risk & fragility
+  PSZ.Engine.computeRisk = function(ctx){
+    const chaos = PSZ.safeNum(ctx.chaos,5);
+    const vol = PSZ.safeNum(ctx.volatility||0.5,0.5);
+    return PSZ.clamp((chaos-5)*0.08 + vol*0.25, 0, 1);
+  };
+
+  PSZ.Engine.computeFragility = function(ctx){
+    const stH = PSZ.safeNum(ctx.home_st,5);
+    const stA = PSZ.safeNum(ctx.away_st,5);
+    const injH = PSZ.safeNum(ctx.injury_impact_home,0);
+    const injA = PSZ.safeNum(ctx.injury_impact_away,0);
+    const c = PSZ.safeNum(ctx.chaos,5);
+    const raw = (injH+injA)*0.4 + (10-stH-stA)*0.03 + (c-5)*0.04;
+    return PSZ.clamp(raw, 0, 1);
+  };
+
+  PSZ.Engine.computeUncertainty = function(prob){
+    const maxP = Math.max(prob.pH, prob.pD, prob.pA);
+    const entropy = -(prob.pH*Math.log(prob.pH+1e-12) + prob.pD*Math.log(prob.pD+1e-12) + prob.pA*Math.log(prob.pA+1e-12));
+    const Hmax = Math.log(3);
+    return PSZ.clamp(entropy/Hmax, 0, 1);
+  };
+
+  // main runner for engine (synchronous parts + call chunked MC)
+  PSZ.Engine.runE5 = async function(ctx, tacticsRes){
+    ctx = ctx || {};
+    tacticsRes = tacticsRes || { adjustedLam: { lamH: PSZ.safeNum(ctx.lamH,1.2), lamA: PSZ.safeNum(ctx.lamA,1.0) } };
+
+    // deterministic
+    const det = PSZ.Engine.detModel(tacticsRes.adjustedLam.lamH, tacticsRes.adjustedLam.lamA, 0.05);
+    const tacDet = PSZ.Engine.detModel(tacticsRes.adjustedLam.lamH, tacticsRes.adjustedLam.lamA, 0.04);
+
+    // monte-carlo chunked
+    const mc = await PSZ.Engine.mcE5Chunked(ctx, tacticsRes.adjustedLam, PSZ.safeNum(ctx.simIntensity, 20000));
+
+    // fusion
+    const prob = PSZ.Engine.fuse(det, tacDet, mc, ctx);
+
+    const ou = PSZ.Engine.computeOU(mc.matrix, mc.simCount);
+    const btts = PSZ.Engine.computeBTTS(mc.matrix, mc.simCount);
+    const risk = PSZ.Engine.computeRisk(ctx);
+    const frag = PSZ.Engine.computeFragility(ctx);
+    const unc = PSZ.Engine.computeUncertainty(prob);
+
+    return {
+      lamH: tacticsRes.adjustedLam.lamH,
+      lamA: tacticsRes.adjustedLam.lamA,
+      det, tacDet, mc,
+      prob, matrix: mc.matrix, avgGoals: mc.avgGoals,
+      ou, btts, risk, frag, unc
+    };
+  };
+
+  console.log("PART 5 — ENGINE OMEGA LOADED (non-blocking MC)");
+})(window.PSZ);
+</script>
+<!-- END PART 5 -->
+<!-- =====================================================
+     PART 6 — MOMENTUM ENGINE + WIN-PATH MODEL (E6)
+     Provides: Momentum Strength, Control Index, Swing Index,
+     Match Path Probabilities (control, swing, chaotic, stalled)
+===================================================== -->
+<script>
+(function(PSZ){
+  PSZ.Momentum = PSZ.Momentum || {};
+
+  /* -------------------------------------------------------
+     1. MOMENTUM INDEX (form pts + stability + press + recent goals)
+  ------------------------------------------------------- */
+  PSZ.Momentum.computeMomentumIndex = function(ctx){
+    const fH = PSZ.safeNum(ctx.formPts_home, 6);
+    const fA = PSZ.safeNum(ctx.formPts_away, 6);
+
+    const stH = PSZ.safeNum(ctx.home_st, 5);
+    const stA = PSZ.safeNum(ctx.away_st, 5);
+
+    const momH = PSZ.safeNum(ctx.home_mom, 5);
+    const momA = PSZ.safeNum(ctx.away_mom, 5);
+
+    const pressH = PSZ.safeNum(ctx.home_press, 5);
+    const pressA = PSZ.safeNum(ctx.away_press, 5);
+
+    const scoredH = PSZ.safeNum(ctx.scored_last5_home, 6);
+    const scoredA = PSZ.safeNum(ctx.scored_last5_away, 6);
+
+    const idxH = (fH*0.25 + stH*0.25 + momH*0.25 + pressH*0.10 + scoredH*0.15) / 10;
+    const idxA = (fA*0.25 + stA*0.25 + momA*0.25 + pressA*0.10 + scoredA*0.15) / 10;
+
+    const mH = PSZ.clamp(idxH, 0, 1);
+    const mA = PSZ.clamp(idxA, 0, 1);
+    return { mH, mA, diff: mH - mA };
+  };
+
+  /* -------------------------------------------------------
+     2. CONTROL INDEX (possession + formation + xT proxy)
+  ------------------------------------------------------- */
+  PSZ.Momentum.computeControl = function(ctx){
+    const posH = PSZ.safeNum(ctx.pos_home, 50);
+    const posA = PSZ.safeNum(ctx.pos_away, 50);
+    const fH = (ctx.homeFormation || "").toLowerCase();
+    const fA = (ctx.awayFormation || "").toLowerCase();
+
+    let formBiasH = 0, formBiasA = 0;
+    if(fH.includes("4-3-3") || fH.includes("4-2-3-1")) formBiasH += 0.05;
+    if(fA.includes("4-3-3") || fA.includes("4-2-3-1")) formBiasA += 0.05;
+    if(fH.includes("5-") || fH.includes("3-5-2")) formBiasH -= 0.05;
+    if(fA.includes("5-") || fA.includes("3-5-2")) formBiasA -= 0.05;
+
+    const xtH = PSZ.safeNum(ctx.xT_home || 0.30, 0.30);
+    const xtA = PSZ.safeNum(ctx.xT_away || 0.30, 0.30);
+
+    const rawH = (posH - posA)/100 * 0.45 + (xtH - xtA)*0.35 + formBiasH;
+    let ctrl = PSZ.clamp((rawH + 1)/2, 0, 1);
+    return { controlH: ctrl, controlA: 1-ctrl, diff: ctrl - (1-ctrl) };
+  };
+
+  /* -------------------------------------------------------
+     3. MOMENTUM SWING POTENTIAL (chance of big shift)
+  ------------------------------------------------------- */
+  PSZ.Momentum.computeSwingPotential = function(ctx, M){
+    const chaos = PSZ.safeNum(ctx.chaos,5);
+    const vol = PSZ.safeNum(ctx.volatility||0.5,0.5);
+
+    const baseSwing = Math.abs(M.diff)*0.35 + (chaos-5)*0.07 + vol*0.22;
+    return PSZ.clamp(baseSwing, 0, 1);
+  };
+
+  /* -------------------------------------------------------
+     4. MATCH PATH PROBABILITY (control, swing, chaotic, stalled)
+  ------------------------------------------------------- */
+  PSZ.Momentum.computeWinPath = function(ctx, M, C){
+    const chaos = PSZ.safeNum(ctx.chaos,5);
+    const imp = PSZ.safeNum(ctx.importance,5);
+
+    const swingPotential = PSZ.Momentum.computeSwingPotential(ctx, M);
+    const controlAbs = Math.abs(C.diff);
+
+    let pControl = PSZ.clamp(0.45*controlAbs + 0.20*(imp-5)/5, 0, 1);
+    let pSwing   = PSZ.clamp(swingPotential*0.65, 0, 1);
+    let pChaos   = PSZ.clamp((chaos-5)*0.12 + swingPotential*0.20, 0, 1);
+    let pStalled = PSZ.clamp(1 - (pControl+pSwing+pChaos), 0, 1);
+
+    const s = pControl+pSwing+pChaos+pStalled;
+    return {
+      control: pControl/s,
+      swing: pSwing/s,
+      chaotic: pChaos/s,
+      stalled: pStalled/s
+    };
+  };
+
+  /* -------------------------------------------------------
+     5. PRESSURE MAP (early, mid, late)
+  ------------------------------------------------------- */
+  PSZ.Momentum.computePressureMap = function(ctx, M, C){
+    const chaos = PSZ.safeNum(ctx.chaos,5);
+    const imp = PSZ.safeNum(ctx.importance,5);
+    const base = 0.28 + (chaos-5)*0.04 + (imp-5)*0.05;
+
+    const early = PSZ.clamp(base * (0.8 + M.diff*0.4), 0, 1);
+    const mid   = PSZ.clamp(base * (1.0 + C.diff*0.6), 0, 1);
+    const late  = PSZ.clamp(base * (1.4 + Math.abs(M.diff)*0.6), 0, 1);
+
+    return { early, mid, late };
+  };
+
+  /* -------------------------------------------------------
+     6. MOMENTUM PROJECTION (used by final engine)
+  ------------------------------------------------------- */
+  PSZ.Momentum.project = function(ctx){
+    const M = PSZ.Momentum.computeMomentumIndex(ctx);
+    const C = PSZ.Momentum.computeControl(ctx);
+    const P = PSZ.Momentum.computePressureMap(ctx, M, C);
+    const W = PSZ.Momentum.computeWinPath(ctx, M, C);
+
+    return {
+      M, C, swingPotential: PSZ.Momentum.computeSwingPotential(ctx, M),
+      pressure: P,
+      path: W
+    };
+  };
+
+  console.log("PART 6 — MOMENTUM ENGINE LOADED");
+})(window.PSZ);
+</script>
+<!-- END PART 6 -->
+<!-- =====================================================
+     PART 7 — MARKET, ML ENSEMBLE & RECOMMENDER (VALUE ENGINE)
+     - Adaptive ensemble
+     - Calibration (softmax-temp + small Platt tweak)
+     - Market deviation / value scanner
+     - Recommendations + Kelly stake
+===================================================== -->
+<script>
+(function(PSZ){
+  PSZ.ML = PSZ.ML || {};
+  PSZ.Recommender = PSZ.Recommender || {};
+
+  /* ----------------------
+     Small helpers
+  ---------------------- */
+  PSZ.ML.softmaxTemp = function(prob, temp){
+    temp = PSZ.safeNum(temp, 1.0);
+    // convert p->logit-like via ln(p), then softmax with temp across 3 outcomes
+    // safer: use logs and exponentiate scaled
+    const lH = Math.log(PSZ.clamp(prob.pH,1e-12,1));
+    const lD = Math.log(PSZ.clamp(prob.pD,1e-12,1));
+    const lA = Math.log(PSZ.clamp(prob.pA,1e-12,1));
+    const sH = Math.exp(lH / temp), sD = Math.exp(lD / temp), sA = Math.exp(lA / temp);
+    const sm = sH + sD + sA;
+    return { pH: sH/sm, pD: sD/sm, pA: sA/sm };
+  };
+
+  PSZ.ML.plattTweak = function(prob, a=0.9){
+    // small sharpening: boost favourite slightly
+    const maxP = Math.max(prob.pH, prob.pD, prob.pA);
+    let out = Object.assign({}, prob);
+    if(maxP > 0.52){
+      if(prob.pH === maxP) out.pH = PSZ.clamp(prob.pH * (1 + 0.06*a), 1e-6, 0.98);
+      else if(prob.pA === maxP) out.pA = PSZ.clamp(prob.pA * (1 + 0.06*a), 1e-6, 0.98);
+      else out.pD = PSZ.clamp(prob.pD * (1 + 0.03*a), 1e-6, 0.98);
+      // renormalize
+      const s = out.pH + out.pD + out.pA;
+      out.pH/=s; out.pD/=s; out.pA/=s;
+    }
+    return out;
+  };
+
+  /* ----------------------
+     Adaptive ensemble weights
+     - decide weights for det/tac/mc based on chaos, importance, momentum pattern
+  ---------------------- */
+  PSZ.ML.adaptiveEnsembleWeights = function(ctx, momentum){
+    const chaos = PSZ.safeNum(ctx.chaos,5);
+    const importance = PSZ.safeNum(ctx.importance,5);
+    const uncertainty = PSZ.safeNum(momentum && momentum.indicators && momentum.indicators.uncertainty, 0.4);
+
+    let wDet = PSZ.clamp(1.0 - (chaos-5)*0.08, 0.2, 1.4);
+    let wTac = PSZ.clamp(0.9 + (importance-5)*0.12, 0.3, 1.8);
+    let wMC  = PSZ.clamp(0.9 + (chaos-5)*0.14 + uncertainty*0.6, 0.3, 2.2);
+
+    if(momentum && momentum.path && momentum.path.control > 0.5){ wDet *= 1.1; wTac *= 1.05; }
+    if(momentum && momentum.path && momentum.path.swing > 0.4){ wMC *= 1.25; wDet *= 0.9; }
+    if(momentum && momentum.path && momentum.path.chaotic > 0.45){ wMC *= 1.6; wDet *= 0.8; wTac *= 0.9; }
+
+    return { wDet: +wDet.toFixed(3), wTac: +wTac.toFixed(3), wMC: +wMC.toFixed(3) };
+  };
+
+  /* ----------------------
+     Apply ensemble: fuse engine parts with adaptive weights and calibrate
+     - engineResult must contain det, tacDet, mc (or at least prob)
+  ---------------------- */
+  PSZ.ML.applyEnsemble = function(ctx, engineResult, momentum){
+    try{
+      const det = engineResult.det || engineResult.detModel || { pH:0.33,pD:0.33,pA:0.34 };
+      const tac = engineResult.tacDet || det;
+      const mc  = engineResult.mc || { pH:0.33,pD:0.33,pA:0.34 };
+
+      // normalize in case
+      const detP = PSZ.normalize3(det.pH||det.pH===0?det.pH:0.33, det.pD||det.pD===0?det.pD:0.33, det.pA||det.pA===0?det.pA:0.34);
+      const tacP = PSZ.normalize3(tac.pH||0.33, tac.pD||0.33, tac.pA||0.34);
+      const mcP  = PSZ.normalize3(mc.pH||0.33, mc.pD||0.33, mc.pA||0.34);
+
+      const w = PSZ.ML.adaptiveEnsembleWeights(ctx, momentum);
+      const sumW = w.wDet + w.wTac + w.wMC;
+      const fused = {
+        pH: (detP.pH*w.wDet + tacP.pH*w.wTac + mcP.pH*w.wMC) / sumW,
+        pD: (detP.pD*w.wDet + tacP.pD*w.wTac + mcP.pD*w.wMC) / sumW,
+        pA: (detP.pA*w.wDet + tacP.pA*w.wTac + mcP.pA*w.wMC) / sumW
+      };
+
+      // softmax temperature (softer when uncertainty high)
+      const unc = PSZ.safeNum(engineResult.unc, PSZ.Engine ? PSZ.Engine.computeUncertainty(fused) : 0.4);
+      const temp = PSZ.clamp(1 + unc*1.1 + PSZ.safeNum(ctx.volatility,0.5)*0.25, 0.6, 2.2);
+      const softened = PSZ.ML.softmaxTemp(fused, temp);
+
+      // small platt tweak depending on pattern
+      const pl = PSZ.ML.plattTweak(softened, (momentum && momentum.indicators && momentum.indicators.msi) ? Math.abs(momentum.indicators.msi) : 0.8);
+
+      return {
+        prob: PSZ.normalize3(pl.pH, pl.pD, pl.pA),
+        meta: { weights: w, temp: temp, unc }
+      };
+
+    }catch(e){
+      console.error("ML.applyEnsemble error", e);
+      return { prob: {pH:0.33,pD:0.33,pA:0.34}, meta:{} };
+    }
+  };
+
+  /* ----------------------
+     Market scanner: compare model fair odds vs market odds, compute EV and Kelly
+     marketOdds: {H,D,A, BTTS, OUx (optional)}
+  ---------------------- */
+  PSZ.Recommender.scanMarket = function(prob, marketOdds){
+    marketOdds = marketOdds || {};
+    const out = { ev: {}, kelly: {}, value: {} };
+
+    if(marketOdds.H && marketOdds.D && marketOdds.A){
+      const fairH = PSZ.fairOdds(prob.pH), fairD = PSZ.fairOdds(prob.pD), fairA = PSZ.fairOdds(prob.pA);
+      const evH = prob.pH * marketOdds.H - 1;
+      const evD = prob.pD * marketOdds.D - 1;
+      const evA = prob.pA * marketOdds.A - 1;
+      out.ev = { H: evH, D: evD, A: evA };
+      out.kelly = { H: PSZ.kelly(prob.pH, marketOdds.H), D: PSZ.kelly(prob.pD, marketOdds.D), A: PSZ.kelly(prob.pA, marketOdds.A) };
+      out.value = { H: evH > 0, D: evD > 0, A: evA > 0 };
+      out.fair = { H: fairH, D: fairD, A: fairA };
+    }
+    return out;
+  };
+
+  /* ----------------------
+     Generate recommendations
+     - finalResult: { prob, matrix, avgGoals, ou, btts, ... }
+     - ctx: context (market odds inside ctx or explicitly passed)
+     - marketOdds: optional override
+     returns array of recommendation objects
+  ---------------------- */
+  PSZ.Recommender.generateRecommendations = function(finalResult, ctx, marketOdds){
+    ctx = ctx || {};
+    marketOdds = marketOdds || { H: PSZ.safeNum(ctx.market_H, null), D: PSZ.safeNum(ctx.market_D, null), A: PSZ.safeNum(ctx.market_A, null), BTTS: PSZ.safeNum(ctx.market_BTTS, null) };
+
+    const prob = (finalResult && finalResult.prob) ? finalResult.prob : { pH:0.33, pD:0.33, pA:0.34 };
+    const recs = [];
+
+    // 1X2 value
+    if(marketOdds.H && marketOdds.D && marketOdds.A){
+      const scan = PSZ.Recommender.scanMarket(prob, marketOdds);
+      if(scan.ev.H > 0.02 && scan.kelly.H > 0.02) recs.push({ type:"1X2", pick:"Home", prob:prob.pH, odds:marketOdds.H, ev:scan.ev.H, kelly:scan.kelly.H });
+      if(scan.ev.D > 0.02 && scan.kelly.D > 0.02) recs.push({ type:"1X2", pick:"Draw", prob:prob.pD, odds:marketOdds.D, ev:scan.ev.D, kelly:scan.kelly.D });
+      if(scan.ev.A > 0.02 && scan.kelly.A > 0.02) recs.push({ type:"1X2", pick:"Away", prob:prob.pA, odds:marketOdds.A, ev:scan.ev.A, kelly:scan.kelly.A });
+    }
+
+    // OU 2.5 via model mc or avgGoals
+    if(finalResult.ou){
+      const modelOver = finalResult.ou["2.5"] ? finalResult.ou["2.5"].over : (finalResult.avgGoals > 2.5 ? 0.62 : 0.38);
+      // market probability unknown -> accept if model shows strong over/under
+      if(modelOver > 0.66) recs.push({ type:"OU", pick:"Over 2.5", modelProb:modelOver, note:"strong over signal" });
+      if(modelOver < 0.32) recs.push({ type:"OU", pick:"Under 2.5", modelProb:modelOver, note:"strong under signal" });
+    }
+
+    // BTTS
+    if(finalResult.btts !== undefined){
+      if(finalResult.btts > 0.70) recs.push({ type:"BTTS", pick:"Yes", modelProb:finalResult.btts });
+      else if(finalResult.btts < 0.30) recs.push({ type:"BTTS", pick:"No", modelProb:finalResult.btts });
+    }
+
+    // Correct Score shortlist (top N from matrix)
+    if(finalResult.matrix){
+      const flat = [];
+      for(let h=0; h< finalResult.matrix.length; h++){
+        for(let a=0; a< finalResult.matrix[h].length; a++){
+          flat.push({ score: `${h}-${a}`, p: finalResult.matrix[h][a] });
+        }
+      }
+      flat.sort((x,y)=>y.p - x.p);
+      const cs = flat.slice(0,10).filter(x=>x.p > 0.004).map(x=>({ type:"CS", score:x.score, prob:x.p }));
+      recs.push(...cs);
+    }
+
+    // Sort recommendations: positive EV first, then OU/BTTS strong signals, then CS
+    recs.sort((A,B)=>{
+      const scoreA = (A.ev||0) + (A.modelProb?A.modelProb:0) + (A.prob?A.prob:0);
+      const scoreB = (B.ev||0) + (B.modelProb?B.modelProb:0) + (B.prob?B.prob:0);
+      return scoreB - scoreA;
+    });
+
+    return recs;
+  };
+
+  console.log("PART 7 — MARKET & ML ENSEMBLE + RECOMMENDER LOADED");
+})(window.PSZ);
+</script>
+<!-- END PART 7 -->
+<!-- =====================================================
+     PART 8 — RUNNER, UI HOOKS, PROGRESS, EXPORT (FINAL)
+     Paste this AFTER PART 7
+===================================================== -->
+<script>
+(function(PSZ){
+  if(!window || !PSZ) { console.error("PSZ namespace missing"); return; }
+
+  // simple logger: append to textarea 'output'
+  function appendLog(msg, replace=false){
+    const out = document.getElementById("output");
+    if(!out) return;
+    const time = (new Date()).toISOString().replace('T',' ').split('.')[0];
+    const line = `[${time}] ${msg}`;
+    if(replace) out.value = line;
+    else out.value += "\n" + line;
+    out.scrollTop = out.scrollHeight;
+    console.log(line);
+  }
+
+  // create small progress bar UI if not exists
+  function ensureProgressUI(){
+    let bar = document.getElementById("psz_progress");
+    if(bar) return bar;
+    const lp = document.getElementById("leftPanel") || document.body;
+    const wrap = document.createElement("div");
+    wrap.id = "psz_progress_wrap";
+    wrap.style.marginTop = "8px";
+    wrap.style.padding = "6px";
+    wrap.style.background = "linear-gradient(90deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02))";
+    wrap.style.borderRadius = "8px";
+    wrap.style.display = "flex";
+    wrap.style.flexDirection = "column";
+    wrap.style.gap = "6px";
+
+    const label = document.createElement("div");
+    label.id = "psz_progress_label";
+    label.textContent = "Progress: Idle";
+    label.style.fontSize = "12px";
+    label.style.color = "var(--muted)";
+    wrap.appendChild(label);
+
+    const barContainer = document.createElement("div");
+    barContainer.style.width = "100%";
+    barContainer.style.height = "10px";
+    barContainer.style.background = "rgba(255,255,255,0.03)";
+    barContainer.style.borderRadius = "6px";
+    barContainer.style.overflow = "hidden";
+
+    bar = document.createElement("div");
+    bar.id = "psz_progress";
+    bar.style.width = "0%";
+    bar.style.height = "100%";
+    bar.style.background = "linear-gradient(90deg, var(--accent), #00a88a)";
+    bar.style.transition = "width 180ms linear";
+
+    barContainer.appendChild(bar);
+    wrap.appendChild(barContainer);
+
+    // append after simIntensity field if possible
+    const simEl = document.getElementById("simIntensity");
+    if(simEl && simEl.parentNode) simEl.parentNode.appendChild(wrap);
+    else lp.appendChild(wrap);
+    return bar;
+  }
+
+  // hook used by MC chunked to update progress
+  PSZ.onMCProgress = PSZ.onMCProgress || function(fraction){
+    try{
+      const bar = ensureProgressUI();
+      const label = document.getElementById("psz_progress_label");
+      const pct = Math.round(fraction * 100);
+      if(bar) bar.style.width = pct + "%";
+      if(label) label.textContent = `Progress: ${pct}%`;
+      if(pct >= 100){
+        if(label) label.textContent = "Progress: Complete";
+        setTimeout(()=>{ if(bar) bar.style.width = "0%"; if(label) label.textContent = "Progress: Idle"; }, 900);
+      }
+    }catch(e){ console.error(e); }
+  };
+
+  // Validate simIntensity and cap
+  function normalizeSimIntensity(n){
+    n = PSZ.safeNum(n, 20000);
+    n = Math.max(500, Math.min(n, 120000)); // cap upper bound
+    return Math.round(n);
+  }
+
+  // Convert engine result to readable output string
+  function formatFinalOutput(final){
+    try{
+      const e = final.engine || final;
+      const ml = final.ml || {};
+      const prob = (final.ml && final.ml.prob) ? final.ml.prob : (e.prob || {pH:0.33,pD:0.33,pA:0.34});
+      const lines = [];
+      lines.push("=== PARLAY — FINAL OUTPUT ===");
+      lines.push(`Match: ${final.meta.home} vs ${final.meta.away} | id:${final.meta.match_id}`);
+      lines.push("");
+      lines.push("[PROBABILITIES]");
+      lines.push(`Home : ${(prob.pH*100).toFixed(1)}%`);
+      lines.push(`Draw : ${(prob.pD*100).toFixed(1)}%`);
+      lines.push(`Away : ${(prob.pA*100).toFixed(1)}%`);
+      lines.push("");
+      lines.push("[ENGINE METRICS]");
+      lines.push(`AvgGoals: ${(e.avgGoals||0).toFixed(3)}, BTTS: ${(e.btts*100||0).toFixed(1)}%`);
+      lines.push(`Risk: ${(e.risk*100||0).toFixed(1)}% Frag: ${(e.frag*100||0).toFixed(1)}% Unc: ${(e.unc*100||0).toFixed(1)}%`);
+      lines.push("");
+      if(final.recs && final.recs.length){
+        lines.push("[RECOMMENDATIONS]");
+        final.recs.forEach(r=>{
+          if(r.type === "1X2") lines.push(`- 1X2: ${r.pick} | prob ${(r.prob*100).toFixed(1)}% | odds ${r.odds} | EV ${(r.ev*100).toFixed(1)}% | Kelly ${(r.kelly*100||0).toFixed(1)}%`);
+          else if(r.type === "OU") lines.push(`- OU: ${r.pick} | model ${(r.modelProb*100).toFixed(1)}% | ${r.note||''}`);
+          else if(r.type === "BTTS") lines.push(`- BTTS: ${r.pick} | prob ${(r.modelProb*100).toFixed(1)}%`);
+          else if(r.type === "CS") lines.push(`- CS: ${r.score} | prob ${(r.prob*100).toFixed(2)}%`);
+        });
+      } else {
+        lines.push("[RECOMMENDATIONS] No value found.");
+      }
+      return lines.join("\n");
+    }catch(e){
+      console.error(e);
+      return "Error formatting final output";
+    }
+  }
+
+  /* ====== MAIN RUNNER: runFullAsync ======
+     Steps:
+     1) smartFillFromDOM -> ctx
+     2) master init
+     3) applyTactics
+     4) engine.runE5 (async chunked)
+     5) momentum.project
+     6) ml.applyEnsemble
+     7) recommender.generateRecommendations
+     8) final object stored PSZ.LAST_RUN
+  ========================================= */
+  PSZ.Runner = PSZ.Runner || {};
+
+  PSZ.Runner.runFullAsync = async function(ctxOverride){
+    try{
+      appendLog("RUNNER: Starting full pipeline...");
+      // 1. auto input
+      const ctx = PSZ.AutoInput.smartFillFromDOM(ctxOverride || {});
+      if(!ctx) throw new Error("AutoInput failed.");
+
+      // normalize simIntensity & safety
+      ctx.simIntensity = normalizeSimIntensity(PSZ.safeNum(ctx.simIntensity, 20000));
+      appendLog(`RUNNER: simIntensity=${ctx.simIntensity}`);
+
+      // 2. master init
+      const master = PSZ.Master.init(ctx);
+      appendLog(`RUNNER: Master init done. lamH_adj=${master.lamH_adj.toFixed(3)} lamA_adj=${master.lamA_adj.toFixed(3)}`);
+
+      // 3. tactics
+      const tacticsRes = PSZ.Tactics.applyTactics(ctx, master);
+      appendLog(`RUNNER: Tactics applied: ${tacticsRes.notes}`);
+
+      // 4. engine run (async)
+      appendLog("RUNNER: Running Engine (E5) — Monte Carlo chunked (non-blocking) ...");
+      const engineResult = await PSZ.Engine.runE5(ctx, tacticsRes);
+      appendLog(`RUNNER: Engine done. sim=${engineResult.mc.simCount} avgGoals=${(engineResult.avgGoals||0).toFixed(3)}`);
+
+      // 5. momentum
+      // ensure ctx gets some xT for control compute if not present
+      if(tacticsRes.tactics && tacticsRes.tactics.xT){
+        ctx.xT_home = PSZ.safeNum(tacticsRes.tactics.xT.home.xT, ctx.xT_home || 0.30);
+        ctx.xT_away = PSZ.safeNum(tacticsRes.tactics.xT.away.xT, ctx.xT_away || 0.30);
+      }
+      const momentum = PSZ.Momentum.project(ctx);
+      appendLog(`RUNNER: Momentum computed. path=${Object.keys(momentum.path).sort((a,b)=>momentum.path[b]-momentum.path[a])[0]} swing=${(momentum.swingPotential||0).toFixed(3)}`);
+
+      // 6. ML ensemble & calibration
+      const mlOut = PSZ.ML.applyEnsemble(ctx, engineResult, momentum);
+      appendLog(`RUNNER: ML ensemble done. fav=${mlOut.meta && mlOut.meta.fav ? mlOut.meta.fav : 'N/A'} maxProb=${((mlOut.prob && Math.max(mlOut.prob.pH, mlOut.prob.pD, mlOut.prob.pA)||0)*100).toFixed(1)}%`);
+
+      // 7. recommendations
+      const finalEngineView = Object.assign({}, engineResult, { prob: mlOut.prob, ou: engineResult.ou, btts: engineResult.btts, matrix: engineResult.matrix, avgGoals: engineResult.avgGoals });
+      const recs = PSZ.Recommender.generateRecommendations(finalEngineView, ctx, { H: ctx.market_H, D: ctx.market_D, A: ctx.market_A, BTTS: ctx.market_BTTS });
+      appendLog(`RUNNER: Recommendations: ${recs.length} items`);
+
+      // 8. final object
+      const final = {
+        meta: { match_id: ctx.match_id || ("M_AUTO_"+Date.now()), home: ctx.home_team || "Home", away: ctx.away_team || "Away", timestamp: (new Date()).toISOString() },
+        ctx, master, tactics: tacticsRes, engine: engineResult, momentum, ml: mlOut, recs
+      };
+
+      // store and display
+      PSZ.LAST_RUN = final;
+      const outText = formatFinalOutput(final);
+      appendLog("RUNNER: Finalizing output...", true);
+      appendLog(outText, true);
+
+      return final;
+
+    }catch(err){
+      appendLog("RUNNER ERROR: " + (err && err.message ? err.message : String(err)));
+      console.error(err);
+      throw err;
+    }
+  };
+
+  /* ====== Button wiring & export ====== */
+  function wireButtons(){
+    // create export button if missing
+    if(!document.getElementById("btn_export_json")){
+      const b = document.createElement("button");
+      b.id = "btn_export_json";
+      b.textContent = "EXPORT LAST RUN JSON";
+      b.className = "alt";
+      b.style.marginTop = "8px";
+      b.addEventListener("click", function(){
+        const last = PSZ.LAST_RUN || null;
+        if(!last){ appendLog("EXPORT: No last run."); return; }
+        const text = JSON.stringify(last, null, 2);
+        // try clipboard
+        if(navigator.clipboard){
+          navigator.clipboard.writeText(text).then(()=> appendLog("EXPORT: JSON copied to clipboard."), ()=> { prompt("COPY JSON:", text); appendLog("EXPORT: Clipboard failed, used prompt."); });
+        } else {
+          prompt("COPY JSON:", text);
+          appendLog("EXPORT: Clipboard not available, used prompt.");
+        }
+      });
+      const lp = document.getElementById("leftPanel");
+      if(lp) lp.appendChild(b);
+    }
+
+    // wire existing buttons
+    const bAuto = document.getElementById("btn_auto_input");
+    const bRun = document.getElementById("btn_run_core");
+    const bMin = document.getElementById("btn_run_minute");
+
+    if(bAuto) bAuto.addEventListener("click", function(){
+      try{
+        appendLog("UI: AUTO INPUT pressed.");
+        const ctx = PSZ.AutoInput.smartFillFromDOM();
+        if(ctx) appendLog("UI: AUTO INPUT complete.");
+        else appendLog("UI: AUTO INPUT failed.");
+      }catch(e){ appendLog("UI AUTO ERROR: "+e.message); }
+    });
+
+    if(bRun) bRun.addEventListener("click", async function(){
+      try{
+        bRun.disabled = true;
+        appendLog("UI: RUN pressed.");
+        await PSZ.Runner.runFullAsync();
+      }catch(e){
+        appendLog("UI RUN ERROR: " + (e && e.message ? e.message : e));
+      }finally{
+        bRun.disabled = false;
+      }
+    });
+
+    if(bMin) bMin.addEventListener("click", function(){
+      appendLog("UI: MINUTE SIM pressed.");
+      try{
+        const ctx = PSZ.AutoInput.smartFillFromDOM();
+        const master = PSZ.Master.init(ctx);
+        const tactics = PSZ.Tactics.applyTactics(ctx, master);
+        PSZ.Momentum.simulationFast = PSZ.Momentum.simulationFast || function(){
+          // fallback short-run: run a small chunked MC via Engine.mcE5Chunked with small sim
+          return PSZ.Engine.mcE5Chunked(ctx, tactics.adjustedLam, 1200);
+        };
+        PSZ.Engine.mcE5Chunked(ctx, tactics.adjustedLam, 1200).then(res=>{
+          appendLog(`MINUTE SIM: done sim=${res.simCount} avgGoals=${res.avgGoals.toFixed(3)} BTTS=${(PSZ.Engine.computeBTTS(res.matrix,res.simCount)*100).toFixed(1)}%`);
+        }).catch(e=>{
+          appendLog("MINUTE SIM ERROR: "+e.message);
+        });
+      }catch(e){
+        appendLog("MINUTE SIM SETUP ERROR: "+e.message);
+      }
+    });
+  }
+
+  // wire on DOM ready
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", wireButtons);
+  } else {
+    wireButtons();
+  }
+
+  appendLog("PART 8 — RUNNER & UI HOOKS LOADED. Ready.");
+  console.log("PART 8 — RUNNER LOADED");
+
+})(window.PSZ);
+</script>
+<!-- END PART 8 -->
+</body>
+</html>
