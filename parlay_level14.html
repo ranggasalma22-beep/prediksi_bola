@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>DEWA ULTRA LEVEL 14 HYBRID</title>
+<style>
+body {
+    background:#111;
+    color:#f5f5f5;
+    font-family: Arial, sans-serif;
+    margin:0;
+    padding:0;
+}
+.wrap {
+    display:flex;
+    width:100%;
+    height:100vh;
+}
+.panel {
+    width:260px;
+    padding:12px;
+    background:#181818;
+    overflow-y:auto;
+}
+.panel h3 {
+    margin:12px 0 4px 0;
+}
+input, select {
+    width:100%;
+    padding:6px;
+    margin:3px 0 10px 0;
+    border-radius:4px;
+    border:1px solid #444;
+    background:#222;
+    color:#fff;
+}
+button {
+    width:100%;
+    padding:10px;
+    margin:6px 0;
+    border:none;
+    background:#3498db;
+    color:#fff;
+    font-weight:bold;
+    border-radius:4px;
+    cursor:pointer;
+}
+button.smallbtn {
+    padding:7px 5px;
+    font-size:14px;
+    margin-top:8px;
+    width:auto;
+}
+#output {
+    width:100%;
+    height:100%;
+    background:#000;
+    color:#0f0;
+    padding:10px;
+    font-family: monospace;
+}
+.main {
+    flex:1;
+    padding:12px;
+}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+    <!-- LEFT PANEL -->
+    <div class="panel">
+        <h3>INPUT MATCH</h3>
+
+        <label>Home xG (λH)</label>
+        <input id="lamH" value="1.42">
+
+        <label>Away xG (λA)</label>
+        <input id="lamA" value="1.11">
+
+        <label>Shots Home</label>
+        <input id="shots_home" value="11">
+
+        <label>Shots Away</label>
+        <input id="shots_away" value="9">
+
+        <label>Form Pts Home (5M)</label>
+        <input id="formPts_home" value="7">
+
+        <label>Form Pts Away (5M)</label>
+        <input id="formPts_away" value="8">
+
+        <label>Conceded Home (5M)</label>
+        <input id="conceded_last5_home" value="6">
+
+        <label>Conceded Away (5M)</label>
+        <input id="conceded_last5_away" value="5">
+
+        <label>Chaos Level (1–10)</label>
+        <input id="chaos" value="5">
+
+        <label>Importance (1–10)</label>
+        <input id="importance" value="6">
+
+        <h3>AUTO INPUT</h3>
+        <button id="btn_auto_ultra">AUTO INPUT ULTRA</button>
+
+        <h3>RUN ENGINE</h3>
+        <button id="btn_run_ultra">RUN DEWA ULTRA</button>
+        <button id="btn_run_scoreline">RUN SCORELINE SIM</button>
+
+        <h3>MARKET ODDS (OPTIONAL)</h3>
+        <label>Home Odds</label>
+        <input id="market_H" value="0">
+
+        <label>Draw Odds</label>
+        <input id="market_D" value="0">
+
+        <label>Away Odds</label>
+        <input id="market_A" value="0">
+
+        <button id="btn_value_calc">CALC VALUE</button>
+
+        <h3>LEVEL 14</h3>
+        <button id="btn_run_level14_manual">RUN LEVEL 14</button>
+    </div>
+
+    <!-- MAIN OUTPUT -->
+    <div class="main">
+        <textarea id="output"></textarea>
+    </div>
+
+</div>
+<script>
+// ==========================================
+// PART B — UTIL + CORE MATH ENGINE (LEVEL 11–14 BASE)
+// ==========================================
+
+window.PSZ = {};
+
+// -------------------------
+// BASIC UTIL
+// -------------------------
+PSZ.safeNum = function(v, d=0){
+    let x = Number(v);
+    return isFinite(x) ? x : d;
+};
+
+PSZ.clamp = function(v, min, max){
+    return Math.max(min, Math.min(max, v));
+};
+
+PSZ.rng = function(min, max){
+    return min + Math.random() * (max - min);
+};
+
+
+// -------------------------
+// POISSON CORE
+// -------------------------
+PSZ.factMemo = {};
+PSZ.fact = function(n){
+    if(n <= 1) return 1;
+    if(PSZ.factMemo[n]) return PSZ.factMemo[n];
+    let r = 1;
+    for(let i=2; i<=n; i++) r *= i;
+    PSZ.factMemo[n] = r;
+    return r;
+};
+
+PSZ.poissonPMF = function(lambda, k){
+    if(lambda <= 0) return (k===0?1:0);
+    let L = Math.pow(lambda, k) * Math.exp(-lambda) / PSZ.fact(k);
+    return L;
+};
+
+
+// -------------------------
+// EXPECTED SCORE PROBABILITIES (DET MODEL)
+// -------------------------
+PSZ.detSim = function(lambda){
+    let lamH = lambda.lamH;
+    let lamA = lambda.lamA;
+
+    let pH=0, pD=0, pA=0;
+
+    for(let h=0; h<=6; h++){
+        for(let a=0; a<=6; a++){
+            let ph = PSZ.poissonPMF(lamH, h);
+            let pa = PSZ.poissonPMF(lamA, a);
+            let p = ph * pa;
+            if(h > a) pH += p;
+            else if(h === a) pD += p;
+            else pA += p;
+        }
+    }
+
+    return { pH, pD, pA };
+};
+
+
+// -------------------------
+// CHAOS MODEL (holds main Level-11 adjustments)
+// -------------------------
+PSZ.chaosModel = function(lambda, ctx){
+    let lamH = lambda.lamH;
+    let lamA = lambda.lamA;
+
+    let chaosF  = (ctx.chaos - 5) / 5;     // -1..1
+    let tempoF  = (ctx.tempo - 5) / 5;     // -1..1
+    let impF    = (ctx.importance - 5)/5;  // -1..1
+
+    // chaos increases variance, importance stabilizes, tempo slightly boosts goal rate
+    lamH *= (1 + 0.15 * chaosF + 0.06 * tempoF - 0.05 * impF);
+    lamA *= (1 + 0.15 * chaosF + 0.06 * tempoF - 0.05 * impF);
+
+    // clamp
+    lamH = PSZ.clamp(lamH, 0.3, 6.0);
+    lamA = PSZ.clamp(lamA, 0.3, 6.0);
+
+    return { lamH, lamA };
+};
+
+
+// -------------------------
+// MONTE CARLO SCORE SIM (Level 11)
+// -------------------------
+PSZ.monteCarlo = function(lambda, ctx, simCount=4000, scoreCap=6, home, away, tact){
+
+    const lamH = lambda.lamH;
+    const lamA = lambda.lamA;
+
+    let matrix = [];
+    for(let h=0; h<=scoreCap; h++){
+        matrix[h] = [];
+        for(let a=0; a<=scoreCap; a++){
+            matrix[h][a] = 0;
+        }
+    }
+
+    let totalGoals = 0;
+
+    // press/momentum small effect
+    let pressBias = (tact.home.pressIntensity - tact.away.pressIntensity) * 0.02;
+    let momBias   = (home.momentum - away.momentum) * 0.02;
+
+    for(let i=0; i<simCount; i++){
+        // adjusted lambda
+        let hLam = lamH * (1 + pressBias + momBias);
+        let aLam = lamA * (1 - pressBias - momBias);
+
+        // sample
+        let h = samplePoisson(hLam, scoreCap);
+        let a = samplePoisson(aLam, scoreCap);
+
+        matrix[h][a]++;
+        totalGoals += (h+a);
+    }
+
+    // normalize
+    let pH=0, pD=0, pA=0;
+    for(let h=0; h<=scoreCap; h++){
+        for(let a=0; a<=scoreCap; a++){
+            let p = matrix[h][a] / simCount;
+            if(h>a) pH += p;
+            else if(h===a) pD += p;
+            else pA += p;
+        }
+    }
+
+    return {
+        pH, pD, pA,
+        matrix,
+        simCount,
+        scoreCap,
+        avgGoals: totalGoals / simCount,
+        god: {               // minimal internal "hyper-lambda" artifact
+            hyperLambda: { lamH, lamA },
+            pattern: { control:0.25, swing:0.25, stalled:0.25, chaotic:0.25 }
+        }
+    };
+
+    function samplePoisson(lambda, cap){
+        let L = Math.exp(-lambda);
+        let p = 1.0;
+        let k = 0;
+
+        while(p > L && k < cap){
+            p *= Math.random();
+            k++;
+        }
+        return (k===0?0:k-1);
+    }
+};
+
+
+// -------------------------
+// FUSED OUTPUT (Math + Chaos + MC)
+// -------------------------
+PSZ.fuseOutputs = function(det, detChaos, mc){
+    return {
+        final: {
+            pH: (det.pH + detChaos.pH + mc.pH)/3,
+            pD: (det.pD + detChaos.pD + mc.pD)/3,
+            pA: (det.pA + detChaos.pA + mc.pA)/3
+        }
+    };
+};
+
+
+// -------------------------
+// UNCERTAINTY
+// -------------------------
+PSZ.computeUncertainty = function(pH,pD,pA){
+    let arr = [pH,pD,pA];
+    let e = 0;
+    for(let v of arr){
+        if(v>0) e -= v * Math.log2(v);
+    }
+    // scale 0..100
+    let score = PSZ.clamp(e/1.6 * 100, 0, 100);
+    return { e, score };
+};
+
+
+// -------------------------
+// BTTS ANALYTIC
+// -------------------------
+PSZ.computeBTTS = function(godHL){
+    let lamH = godHL.lamH;
+    let lamA = godHL.lamA;
+    let pH0  = Math.exp(-lamH);
+    let pA0  = Math.exp(-lamA);
+    return (1 - pH0) * (1 - pA0);
+};
+
+
+</script>
+<script>
+// ==========================================
+// PART C — MASTER TACTICAL ENGINE (DLA, xT-lite, FMA2, Momentum, Feature Builder)
+// ==========================================
+(function(PSZ){
+  if(!PSZ) PSZ = window.PSZ = window.PSZ || {};
+
+  PSZ.Master = PSZ.Master || {};
+
+  // Dynamic Lambda Adjustment (tactical adjustments to λ)
+  PSZ.Master.DLA = function(ctx){
+    // ctx expects lamH, lamA, home_mom, away_mom, home_st, away_st, home_press, away_press
+    const lamH = PSZ.safeNum(ctx.lamH,1.2);
+    const lamA = PSZ.safeNum(ctx.lamA,1.0);
+    const momDiff = (PSZ.safeNum(ctx.home_mom,5) - PSZ.safeNum(ctx.away_mom,5)) / 10; // -0.9..0.9
+    const stDiff  = (PSZ.safeNum(ctx.home_st,5) - PSZ.safeNum(ctx.away_st,5)) / 10;
+    const pressDiff = (PSZ.safeNum(ctx.home_press,5) - PSZ.safeNum(ctx.away_press,5)) / 10;
+
+    // weights tuned for hybrid offline:
+    let adjH = lamH * (1 + momDiff*0.22 + stDiff*0.12 + pressDiff*0.09);
+    let adjA = lamA * (1 - momDiff*0.22 - stDiff*0.12 - pressDiff*0.09);
+
+    // small formation bias placeholder (can be replaced by FMA)
+    if(ctx.homeFormation && ctx.awayFormation){
+      if(String(ctx.homeFormation).includes("4-3-3") && String(ctx.awayFormation).includes("4-4-2")) { adjH *= 1.03; adjA *= 0.97; }
+      if(String(ctx.homeFormation).includes("3-5-2") && String(ctx.awayFormation).includes("4-3-3")) { adjH *= 0.96; adjA *= 1.04; }
+    }
+
+    adjH = PSZ.clamp(adjH, 0.05, 8.0);
+    adjA = PSZ.clamp(adjA, 0.05, 8.0);
+
+    return { lamH: adjH, lamA: adjA };
+  };
+
+  // xT-lite: simplified expected threat proxy
+  PSZ.Master.xT_v3 = function(ctx){
+    // ctx: pos_home, pos_away (possession % scaled 0-100), shots_home, shots_away, shotq_home, shotq_away, homeFormation, awayFormation
+    const posH = PSZ.safeNum(ctx.pos_home,50);
+    const posA = PSZ.safeNum(ctx.pos_away,50);
+    const shotsH = PSZ.safeNum(ctx.shots_home,8);
+    const shotsA = PSZ.safeNum(ctx.shots_away,7);
+    const shotqH = PSZ.safeNum(ctx.shotq_home,0.12);
+    const shotqA = PSZ.safeNum(ctx.shotq_away,0.10);
+
+    // progressive chances proxy
+    const progH = (shotsH * shotqH) * (posH/50);
+    const progA = (shotsA * shotqA) * (posA/50);
+
+    // formation bias (small)
+    const formBias = function(f){
+      if(!f) return 0;
+      f = String(f).toLowerCase();
+      if(f.includes("4-3-3")) return 0.06;
+      if(f.includes("3-5")) return -0.04;
+      if(f.includes("4-2-3-1")) return 0.03;
+      return 0;
+    };
+
+    const zH = formBias(ctx.homeFormation);
+    const zA = formBias(ctx.awayFormation);
+
+    const xtH = PSZ.clamp(0.6*(posH/50) + 0.25*(progH/5) + zH, 0, 6);
+    const xtA = PSZ.clamp(0.6*(posA/50) + 0.25*(progA/5) + zA, 0, 6);
+
+    return { xtHome: xtH, xtAway: xtA };
+  };
+
+  // Formation Match Advantage (FMA) — alignment favor/disfavor
+  PSZ.Master.FMA2 = function(ctx){
+    // simple deterministic table; return small positive for home advantage, negative otherwise
+    const fH = (ctx.homeFormation||"").toString();
+    const fA = (ctx.awayFormation||"").toString();
+    let s = 0;
+    if(fH.includes("4-3-3") && fA.includes("4-4-2")) s = 0.12;
+    if(fH.includes("3-5") && fA.includes("4-3-3")) s = -0.10;
+    if(fH.includes("4-2-3-1") && fA.includes("5-3-2")) s = 0.09;
+    // default small home bias
+    if(!s) s = 0.02;
+    return { fmaScore: s };
+  };
+
+  // merge master: produce adjusted lambda and summary
+  PSZ.Master.mergeMaster = function(ctx){
+    const dla = PSZ.Master.DLA(ctx);
+    const xt = PSZ.Master.xT_v3(ctx);
+    const fma = PSZ.Master.FMA2(ctx);
+    // final adjusted lam is DLA modified by small FMA and xt signals
+    let adjH = dla.lamH * (1 + (fma.fmaScore || 0) * 0.08 + (xt.xtHome - xt.xtAway) * 0.01);
+    let adjA = dla.lamA * (1 - (fma.fmaScore || 0) * 0.08 + (xt.xtAway - xt.xtHome) * 0.01);
+    adjH = PSZ.clamp(adjH, 0.05, 8.0);
+    adjA = PSZ.clamp(adjA, 0.05, 8.0);
+    return { dla, xt, fma, adjustedLam: { lamH: adjH, lamA: adjA } };
+  };
+
+  // Momentum decay model (simple, deterministic)
+  PSZ.Momentum = PSZ.Momentum || {};
+  PSZ.Momentum.decay = function(current, events){
+    // current: numeric 0..10, events: {scored, conceded, pressedHigh, staminaLow}
+    let v = PSZ.safeNum(current,5);
+    if(events && typeof events === "object"){
+      if(events.scored) v += 0.9;
+      if(events.conceded) v -= 1.2;
+      if(events.pressedHigh) v += 0.25;
+      if(events.staminaLow) v -= 0.6;
+    }
+    const baseline = 5.0;
+    const alpha = 0.08;
+    v = baseline + (v - baseline) * Math.exp(-alpha);
+    return PSZ.clamp(v, 0.5, 10);
+  };
+
+  // feature builder for ML & explainability
+  PSZ.buildFeatureMap = function(ctx, master){
+    ctx = ctx || {};
+    master = master || {};
+    const feat = {};
+    feat.lamDiff = PSZ.safeNum(ctx.lamH,1.0) - PSZ.safeNum(ctx.lamA,1.0);
+    feat.totalLam = PSZ.safeNum(ctx.lamH,1.0) + PSZ.safeNum(ctx.lamA,1.0);
+    feat.tempo_scaled = (PSZ.safeNum(ctx.tempo,5) - 5) / 5.0;
+    feat.chaos_scaled = (PSZ.safeNum(ctx.chaos,5) - 5) / 5.0;
+    feat.momDiff = PSZ.safeNum(ctx.home_mom,5) - PSZ.safeNum(ctx.away_mom,5);
+    feat.stDiff = PSZ.safeNum(ctx.home_st,5) - PSZ.safeNum(ctx.away_st,5);
+    feat.ppdaDiff = PSZ.safeNum(ctx.ppda_home,12) - PSZ.safeNum(ctx.ppda_away,12);
+    const xtH = master && master.xt ? PSZ.safeNum(master.xt.xtHome,0.5) : PSZ.safeNum(ctx.xt_home,0.5);
+    const xtA = master && master.xt ? PSZ.safeNum(master.xt.xtAway,0.5) : PSZ.safeNum(ctx.xt_away,0.4);
+    feat.xtDiff = xtH - xtA;
+    feat.fmaScore = (master && master.fma) ? PSZ.safeNum(master.fma.fmaScore,0) : 0;
+    feat.formDiff = PSZ.safeNum(ctx.formPts_home,6) - PSZ.safeNum(ctx.formPts_away,6);
+    feat.concededDiff = PSZ.safeNum(ctx.conceded_last5_home,2) - PSZ.safeNum(ctx.conceded_last5_away,2);
+    feat.shotDiff = PSZ.safeNum(ctx.shots_home,8) - PSZ.safeNum(ctx.shots_away,7);
+    // optional extras
+    feat.home_press = PSZ.safeNum(ctx.home_press,5);
+    feat.away_press = PSZ.safeNum(ctx.away_press,5);
+    return feat;
+  };
+
+  console.log("PSZ Master Tactical loaded.");
+})(window.PSZ);
+</script>
+<script>
+// ==========================================
+// PART D — ML Engine, Tree Interpreter, Meta Memory, Value 2.0
+// ==========================================
+(function(PSZ){
+  if(!PSZ) PSZ = window.PSZ = window.PSZ || {};
+
+  // -------------------------
+  // TREE INTERPRETER (simple)
+  // - model JSON expected:
+  //   { features: [...], trees: [ { nodes: [...], scale:1 }, ... ] }
+  // - node format: { id:0, feature:"lamDiff", threshold:0.3, left:1, right:2 }
+  // - leaf: node.leaf (numeric)
+  // -------------------------
+  PSZ.Tree = (function(){
+    let MODEL = null;
+
+    function loadFromJSON(obj){
+      if(!obj || !Array.isArray(obj.trees) || !Array.isArray(obj.features)) {
+        return { ok: false, error: "invalid model" };
+      }
+      MODEL = obj;
+      return { ok: true };
+    }
+
+    function reset(){
+      MODEL = null;
+    }
+
+    function evalNode(list, id, feat){
+      const node = list.find(n => n.id === id);
+      if(!node) return 0;
+      if(typeof node.leaf !== "undefined") return node.leaf;
+      const f = node.feature;
+      const v = PSZ.safeNum(feat[f], 0);
+      if(v <= PSZ.safeNum(node.threshold, 0)) return evalNode(list, node.left, feat);
+      return evalNode(list, node.right, feat);
+    }
+
+    function predict(feat){
+      if(!MODEL) return { ok:false, error:"no model loaded" };
+      let logit = 0;
+      for(const t of MODEL.trees){
+        const val = evalNode(t.nodes, 0, feat);
+        logit += (t.scale || 1) * PSZ.safeNum(val, 0);
+      }
+      return { ok:true, logit };
+    }
+
+    function getModel(){ return MODEL; }
+
+    return { loadFromJSON, reset, predict, getModel };
+  })();
+
+
+  // -------------------------
+  // ML Linear (demo) — multi-class + OU + BTTS
+  // -------------------------
+  PSZ.ML = (function(){
+    // demo weights tuned roughly for hybrid engine
+    const FEATURES = ["lamDiff","momDiff","xtDiff","ppdaDiff","formDiff","concededDiff","tempo_scaled","chaos_scaled","shotDiff"];
+    const MODEL = {
+      features: FEATURES,
+      multiclass: {
+        // 3 x feature-length weights (home, draw, away) and bias
+        weights: [
+          [ 0.18, 0.06, 0.03, -0.02, 0.03, -0.02, 0.05, 0.02, 0.02 ], // home
+          [ -0.02, 0.01, 0.00, 0.01, 0.00, 0.01, 0.00, 0.00, 0.00 ], // draw
+          [ -0.16, -0.07, -0.03, 0.02, -0.03, 0.03, -0.05, -0.02, -0.02 ] // away
+        ],
+        bias: [0.08, 0.02, -0.10]
+      },
+      ou25: { weights: [0.06, 0.02, 0.03, -0.02, 0.02, -0.01, 0.04, 0.01, 0.02], bias: -0.10 },
+      btts: { weights: [0.10, 0.05, 0.02, -0.01, 0.01, -0.01, 0.02, 0.01, 0.01], bias: -0.08 }
+    };
+
+    function softmax(arr){
+      const mx = Math.max(...arr);
+      const ex = arr.map(x => Math.exp(x - mx));
+      const s = ex.reduce((a,b)=>a+b,0) || 1;
+      return ex.map(x => x / s);
+    }
+
+    function predictMulticlass(feat){
+      const w = MODEL.multiclass.weights;
+      const bias = MODEL.multiclass.bias;
+      const logits = [];
+      for(let c=0;c<w.length;c++){
+        let s = PSZ.safeNum(bias[c],0);
+        for(let i=0;i<MODEL.features.length;i++){
+          s += PSZ.safeNum(w[c][i],0) * PSZ.safeNum(feat[MODEL.features[i]],0);
+        }
+        logits.push(s);
+      }
+      const probs = softmax(logits);
+      return { pH: probs[0], pD: probs[1], pA: probs[2] };
+    }
+
+    function predictLogistic(weights, bias, feat){
+      let s = PSZ.safeNum(bias,0);
+      for(let i=0;i<weights.length;i++){
+        s += PSZ.safeNum(weights[i],0) * PSZ.safeNum(feat[MODEL.features[i]],0);
+      }
+      return 1 / (1 + Math.exp(-s));
+    }
+
+    function predictAll(feat){
+      return {
+        ml1x2: predictMulticlass(feat),
+        ml_ou25: predictLogistic(MODEL.ou25.weights, MODEL.ou25.bias, feat),
+        ml_btts: predictLogistic(MODEL.btts.weights, MODEL.btts.bias, feat)
+      };
+    }
+
+    function getModel(){ return MODEL; }
+
+    return { predictAll, getModel };
+  })();
+
+
+  // -------------------------
+  // META MEMORY (localStorage)
+  // - store team biases: { teams: { "TeamA": { bias:0.05 }, ... }, leagues: {...} }
+  // -------------------------
+  PSZ.Meta = (function(){
+    const KEY = "psz_level14_meta_v1";
+    function load(){
+      try{
+        const s = localStorage.getItem(KEY);
+        return s ? JSON.parse(s) : { teams:{}, leagues:{} };
+      }catch(e){
+        return { teams:{}, leagues:{} };
+      }
+    }
+    function save(obj){
+      try{
+        localStorage.setItem(KEY, JSON.stringify(obj));
+        return true;
+      }catch(e){ return false; }
+    }
+    function setTeamBias(team, bias){
+      const m = load();
+      m.teams = m.teams || {};
+      m.teams[team] = m.teams[team] || {};
+      m.teams[team].bias = PSZ.safeNum(bias,0);
+      return save(m);
+    }
+    function getTeamBias(team){
+      const m = load();
+      return (m.teams && m.teams[team]) ? PSZ.safeNum(m.teams[team].bias,0) : 0;
+    }
+    return { load, save, setTeamBias, getTeamBias };
+  })();
+
+
+  // -------------------------
+  // VALUE 2.0 ENGINE
+  // - fair odds from prob
+  // - value_pct = (fair - market)/market
+  // - adjusted_value = value_pct * (1 - riskPenalty)
+  // - kelly: fractional kelly (edge / odds-1) adjusted for variance
+  // -------------------------
+  PSZ.Value2 = (function(){
+    function fairFromP(p){
+      p = PSZ.safeNum(p, 1e-9);
+      if(p <= 1e-9) return null;
+      return Math.max(1.01, 1/p);
+    }
+
+    function compute(probs, market){
+      // probs: {pH,pD,pA}, market: {H,D,A}
+      const fair = { H: fairFromP(probs.pH), D: fairFromP(probs.pD), A: fairFromP(probs.pA) };
+      const arr = [];
+      ["H","D","A"].forEach(k=>{
+        const m = PSZ.safeNum(market[k],0);
+        const f = fair[k];
+        if(m > 1e-6 && f){
+          const value_pct = (f - m) / m;
+          // kelly: (b*p - (1-p))/b ; b = market-1
+          const b = m - 1;
+          let kelly = 0;
+          if(b > 0 && probs["p"+k] > 0){
+            kelly = Math.max(0, (b * probs["p"+k] - (1 - probs["p"+k])) / b);
+          }
+          arr.push({ side: k, market: m, fair: f, value_pct, kelly });
+        }
+      });
+      // sort by value_pct desc
+      arr.sort((a,b)=> b.value_pct - a.value_pct);
+      return { fair, value_list: arr };
+    }
+
+    // risk adjusted values: reduce value based on riskIndex (0..100)
+    function riskAdjust(valueList, riskIdx){
+      const out = (valueList||[]).map(v=>{
+        const penalty = PSZ.clamp(riskIdx/200, 0, 0.5); // up to 50% reduction
+        const adjusted_value = v.value_pct * (1 - penalty);
+        const adjusted_kelly = v.kelly * (1 - penalty);
+        return { ...v, adjusted_value, adjusted_kelly };
+      });
+      return out;
+    }
+
+    return { compute, riskAdjust };
+  })();
+
+  console.log("PSZ ML/Meta/Value2 loaded.");
+})(window.PSZ);
+</script>
+<script>
+// ==========================================
+// PART E — Auto Input Ultra + Scoreline Simulator
+// (define functions only; UI binding in Part H)
+// ==========================================
+(function(PSZ){
+  if(!PSZ) PSZ = window.PSZ = window.PSZ || {};
+
+  // ------------ util sampling --------------
+  PSZ.samplePoisson = function(lambda){
+    // safe discrete sampling (Knuth) with cap protection
+    lambda = PSZ.safeNum(lambda, 0.0001);
+    const L = Math.exp(-lambda);
+    let p = 1.0;
+    let k = 0;
+    while(p > L && k < 1000){
+      p *= Math.random();
+      k++;
+    }
+    return Math.max(0, k-1);
+  };
+
+  // ------------ autoAllInputs --------------
+  PSZ.autoAllInputs = function(){
+    // read basic visible inputs
+    const get = id => document.getElementById(id) ? PSZ.safeNum(document.getElementById(id).value,0) : 0;
+
+    const lamH = get("lamH"), lamA = get("lamA");
+    const shotsH = get("shots_home") || 8, shotsA = get("shots_away") || 7;
+    const formH = get("formPts_home") || 6, formA = get("formPts_away") || 6;
+    const concH = get("conceded_last5_home") || 2, concA = get("conceded_last5_away") || 2;
+    const chaos = get("chaos") || 5, importance = get("importance") || 5;
+
+    // Stability
+    const stH = PSZ.clamp(10 - (concH/2), 1, 10);
+    const stA = PSZ.clamp(10 - (concA/2), 1, 10);
+    ensureFieldAndSet("home_st", stH.toFixed(2));
+    ensureFieldAndSet("away_st", stA.toFixed(2));
+
+    // Momentum
+    const momH = PSZ.clamp((formH/2.2) + (lamH - 1.0)*2 + stH/3, 1, 10);
+    const momA = PSZ.clamp((formA/2.2) + (lamA - 1.0)*2 + stA/3, 1, 10);
+    ensureFieldAndSet("home_mom", momH.toFixed(2));
+    ensureFieldAndSet("away_mom", momA.toFixed(2));
+
+    // Tempo (global)
+    const totalShots = Math.max(1, shotsH + shotsA);
+    const tempo = PSZ.clamp(Math.log(totalShots)/Math.log(2.8) + (chaos - 5)/3, 1, 10);
+    if(document.getElementById("tempo")) document.getElementById("tempo").value = tempo.toFixed(2);
+
+    // Press level
+    const pressH = PSZ.clamp(stH*0.5 + tempo*0.4 + chaos*0.2, 1, 10);
+    const pressA = PSZ.clamp(stA*0.5 + tempo*0.4 + chaos*0.2, 1, 10);
+    ensureFieldAndSet("home_press", pressH.toFixed(2));
+    ensureFieldAndSet("away_press", pressA.toFixed(2));
+
+    // PPDA (only if empty/0)
+    ensureField("ppda_home");
+    ensureField("ppda_away");
+    const curPPDAH = PSZ.safeNum(document.getElementById("ppda_home").value, 0);
+    const curPPDAA = PSZ.safeNum(document.getElementById("ppda_away").value, 0);
+    if(!curPPDAH || curPPDAH <= 0){
+      let ppdaH = 18 - pressH*1.3 - (momH - 5)*0.5 - (stH - 5)*0.3;
+      ppdaH = PSZ.clamp(ppdaH, 4, 25);
+      document.getElementById("ppda_home").value = ppdaH.toFixed(2);
+    }
+    if(!curPPDAA || curPPDAA <= 0){
+      let ppdaA = 18 - pressA*1.3 - (momA - 5)*0.5 - (stA - 5)*0.3;
+      ppdaA = PSZ.clamp(ppdaA, 4, 25);
+      document.getElementById("ppda_away").value = ppdaA.toFixed(2);
+    }
+
+    // Defensive line
+    const defH = PSZ.clamp(pressH*0.6 + stH*0.3, 1, 10);
+    const defA = PSZ.clamp(pressA*0.6 + stA*0.3, 1, 10);
+    ensureFieldAndSet("home_defline", defH.toFixed(2));
+    ensureFieldAndSet("away_defline", defA.toFixed(2));
+
+    // Flex & manager aggression
+    const flex = PSZ.clamp(0.4 + (importance/20), 0.1, 1.0);
+    ensureFieldAndSet("home_flex", flex.toFixed(2));
+    ensureFieldAndSet("away_flex", flex.toFixed(2));
+
+    const mgrH = PSZ.clamp((pressH - 5)/3, -2, 2);
+    const mgrA = PSZ.clamp((pressA - 5)/3, -2, 2);
+    ensureFieldAndSet("home_aggr", mgrH.toFixed(2));
+    ensureFieldAndSet("away_aggr", mgrA.toFixed(2));
+
+    // Transition speed
+    const trans = PSZ.clamp((tempo + chaos)/2, 1, 10);
+    ensureFieldAndSet("transition", trans.toFixed(2));
+
+    // xT proxies
+    const xtH = PSZ.clamp((shotsH * 0.25) + (pressH * 0.15), 0.05, 6);
+    const xtA = PSZ.clamp((shotsA * 0.25) + (pressA * 0.15), 0.05, 6);
+    ensureFieldAndSet("xt_home", xtH.toFixed(3));
+    ensureFieldAndSet("xt_away", xtA.toFixed(3));
+
+    // debug feedback (append small message)
+    appendOutput("[AUTO] autoAllInputs applied.");
+    return true;
+
+    // ---------- helpers ----------
+    function ensureField(id){
+      if(!document.getElementById(id)){
+        const inp = document.createElement("input");
+        inp.type = "hidden";
+        inp.id = id;
+        document.body.appendChild(inp);
+      }
+    }
+    function ensureFieldAndSet(id, val){
+      ensureField(id);
+      document.getElementById(id).value = val;
+    }
+    function appendOutput(msg){
+      const out = document.getElementById("output");
+      if(out){
+        out.value = (out.value || "") + "\n" + msg;
+      } else console.log(msg);
+    }
+  };
+
+
+  // ------------ runScorelineSimFull --------------
+  // ctxOverride optional: if provided uses that ctx (object)
+  PSZ.runScorelineSimFull = function(ctxOverride, options){
+    options = options || {};
+    const simCount = PSZ.safeNum(options.simCount, 8000);
+    const scoreCap = PSZ.safeNum(options.scoreCap, 6);
+
+    // build ctx from DOM if not provided
+    const ctx = ctxOverride || {
+      lamH: PSZ.safeNum(document.getElementById("lamH")?.value, 1.2),
+      lamA: PSZ.safeNum(document.getElementById("lamA")?.value, 1.0),
+      home_mom: PSZ.safeNum(document.getElementById("home_mom")?.value, 5),
+      away_mom: PSZ.safeNum(document.getElementById("away_mom")?.value, 5),
+      home_st: PSZ.safeNum(document.getElementById("home_st")?.value, 5),
+      away_st: PSZ.safeNum(document.getElementById("away_st")?.value, 5),
+      home_press: PSZ.safeNum(document.getElementById("home_press")?.value, 5),
+      away_press: PSZ.safeNum(document.getElementById("away_press")?.value, 5)
+    };
+
+    // use master DLA if available to compute adjusted lam
+    let adjusted = { lamH: ctx.lamH, lamA: ctx.lamA };
+    try{
+      if(PSZ.Master && typeof PSZ.Master.DLA === "function"){
+        const _m = PSZ.Master.DLA(ctx);
+        if(_m && _m.lamH !== undefined) adjusted = { lamH: _m.lamH, lamA: _m.lamA };
+      }
+    }catch(e){ /* ignore and use raw lam */ }
+
+    // prepare matrix
+    const mat = Array.from({length: scoreCap+1}, ()=> Array(scoreCap+1).fill(0));
+    let ch=0, cd=0, ca=0, totalGoals=0;
+    for(let i=0;i<simCount;i++){
+      // micro biases
+      const pressBias = ((ctx.home_press || 5) - (ctx.away_press || 5)) * 0.02;
+      const momBias   = ((ctx.home_mom || 5) - (ctx.away_mom || 5)) * 0.02;
+
+      // apply small random jitter for realism
+      const jitterH = 1 + PSZ.rng(-0.03, 0.03) + pressBias + momBias;
+      const jitterA = 1 + PSZ.rng(-0.03, 0.03) - pressBias - momBias;
+
+      const hLam = PSZ.clamp(adjusted.lamH * jitterH, 0.02, 10);
+      const aLam = PSZ.clamp(adjusted.lamA * jitterA, 0.02, 10);
+
+      const gh = PSZ.samplePoisson(hLam);
+      const ga = PSZ.samplePoisson(aLam);
+
+      const h = Math.min(gh, scoreCap), a = Math.min(ga, scoreCap);
+      mat[h][a] += 1;
+      totalGoals += (gh + ga);
+      if(gh > ga) ch++;
+      else if(gh === ga) cd++;
+      else ca++;
+    }
+
+    // normalize matrix to probabilities
+    const norm = mat.map(row => row.map(v => v / simCount));
+    // compute marginal probs
+    let pH = 0, pD = 0, pA = 0;
+    for(let h=0; h<=scoreCap; h++){
+      for(let a=0; a<=scoreCap; a++){
+        const p = norm[h][a] || 0;
+        if(h>a) pH += p;
+        else if(h===a) pD += p;
+        else pA += p;
+      }
+    }
+
+    // prepare top scorelines
+    const flat = [];
+    for(let h=0; h<=scoreCap; h++){
+      for(let a=0; a<=scoreCap; a++){
+        flat.push({score: `${h}-${a}`, p: norm[h][a]});
+      }
+    }
+    flat.sort((x,y) => y.p - x.p);
+    const top = flat.slice(0, 12);
+
+    const result = {
+      matrix: norm,
+      simCount,
+      avgGoals: totalGoals / simCount,
+      pH, pD, pA,
+      top
+    };
+
+    // return result (caller may append to UI)
+    return result;
+  };
+
+  console.log("PSZ AutoInputs & ScorelineSim loaded.");
+})(window.PSZ);
+</script>
+<script>
+// =====================================================
+// PART F — RUN ENGINE LEVEL 11 ULTRA (core pipeline)
+// =====================================================
+(function(PSZ){
+  if(!PSZ) PSZ = window.PSZ = window.PSZ || {};
+
+  // ----- UTILITY TO READ OR CREATE HIDDEN FIELD -----
+  function getVal(id, def){
+    const el = document.getElementById(id);
+    return PSZ.safeNum(el ? el.value : def, def);
+  }
+  function ensureField(id){
+    if(!document.getElementById(id)){
+      const inp = document.createElement("input");
+      inp.type = "hidden";
+      inp.id = id;
+      document.body.appendChild(inp);
+    }
+  }
+
+  // ----- MAIN RUNNER -----
+  PSZ.runUltra = function(){
+
+    const out = document.getElementById("output");
+    out.value = "";   // reset output
+
+    // -----------------------------
+    // 1) BUILD CONTEXT FROM DOM
+    // -----------------------------
+    const ctx = {
+      lamH: getVal("lamH",1.2),
+      lamA: getVal("lamA",1.0),
+
+      tempo: getVal("tempo",5),
+      chaos: getVal("chaos",5),
+      importance: getVal("importance",5),
+
+      shots_home: getVal("shots_home",8),
+      shots_away: getVal("shots_away",7),
+
+      formPts_home: getVal("formPts_home",6),
+      formPts_away: getVal("formPts_away",6),
+
+      conceded_last5_home: getVal("conceded_last5_home",2),
+      conceded_last5_away: getVal("conceded_last5_away",2)
+    };
+
+    // auto fields (ensure existence)
+    [
+      "home_mom","away_mom",
+      "home_st","away_st",
+      "home_press","away_press",
+      "ppda_home","ppda_away",
+      "home_defline","away_defline",
+      "home_flex","away_flex",
+      "home_aggr","away_aggr",
+      "transition",
+      "xt_home","xt_away"
+    ].forEach(ensureField);
+
+    ctx.home_mom  = getVal("home_mom",5);
+    ctx.away_mom  = getVal("away_mom",5);
+
+    ctx.home_st   = getVal("home_st",5);
+    ctx.away_st   = getVal("away_st",5);
+
+    ctx.home_press = getVal("home_press",5);
+    ctx.away_press = getVal("away_press",5);
+
+    ctx.ppda_home = getVal("ppda_home",12);
+    ctx.ppda_away = getVal("ppda_away",12);
+
+    ctx.home_defline = getVal("home_defline",5);
+    ctx.away_defline = getVal("away_defline",5);
+
+    ctx.home_flex = getVal("home_flex",0.5);
+    ctx.away_flex = getVal("away_flex",0.5);
+
+    ctx.home_aggr = getVal("home_aggr",0);
+    ctx.away_aggr = getVal("away_aggr",0);
+
+    ctx.transition = getVal("transition",5);
+
+    ctx.xt_home = getVal("xt_home",0.5);
+    ctx.xt_away = getVal("xt_away",0.4);
+
+    // formations (optional)
+    ctx.homeFormation = document.getElementById("homeFormation")?.value || "4-3-3";
+    ctx.awayFormation = document.getElementById("awayFormation")?.value || "4-4-2";
+
+    // possession + shot quality (optional)
+    ctx.pos_home  = getVal("pos_home",50);
+    ctx.pos_away  = getVal("pos_away",50);
+    ctx.shotq_home = getVal("shotq_home",0.12);
+    ctx.shotq_away = getVal("shotq_away",0.10);
+
+
+    // -----------------------------
+    // 2) MASTER TACTICAL MERGE
+    // -----------------------------
+    const master = PSZ.Master.mergeMaster(ctx);
+
+
+    // -----------------------------
+    // 3) DETERMINISTIC (POISSON) MODELS
+    // -----------------------------
+    const det = PSZ.detSim({lamH: ctx.lamH, lamA: ctx.lamA});
+    const chaosLam = PSZ.chaosModel({lamH: ctx.lamH, lamA: ctx.lamA}, ctx);
+    const detChaos = PSZ.detSim(chaosLam);
+
+
+    // -----------------------------
+    // 4) MONTE CARLO ENGINE
+    // -----------------------------
+    const home = { momentum: ctx.home_mom, stability: ctx.home_st };
+    const away = { momentum: ctx.away_mom, stability: ctx.away_st };
+    const tact = {
+      home: { pressIntensity: ctx.home_press, flex: ctx.home_flex },
+      away: { pressIntensity: ctx.away_press, flex: ctx.away_flex }
+    };
+
+    const mc = PSZ.monteCarlo(
+      master.adjustedLam,
+      ctx,
+      3500,
+      6,
+      home,
+      away,
+      tact
+    );
+
+
+    // -----------------------------
+    // 5) FUSE (Math + Chaos + MC)
+    // -----------------------------
+    const fused = PSZ.fuseOutputs(det, detChaos, mc);
+
+    const pH = fused.final.pH;
+    const pD = fused.final.pD;
+    const pA = fused.final.pA;
+
+
+    // -----------------------------
+    // 6) ML PREDICTION (multiclass + OU + BTTS)
+    // -----------------------------
+    const feat = PSZ.buildFeatureMap(ctx, master);
+    const ml = PSZ.ML.predictAll(feat);
+
+
+    // -----------------------------
+    // 7) BLEND (50% Engine, 50% ML)
+    // -----------------------------
+    const fpH = PSZ.clamp(0.5*pH + 0.5*ml.ml1x2.pH, 0, 1);
+    const fpD = PSZ.clamp(0.5*pD + 0.5*ml.ml1x2.pD, 0, 1);
+    const fpA = PSZ.clamp(0.5*pA + 0.5*ml.ml1x2.pA, 0, 1);
+
+
+    // -----------------------------
+    // 8) UNCERTAINTY + BTTS + OU
+    // -----------------------------
+    const unc = PSZ.computeUncertainty(fpH, fpD, fpA);
+
+    const btts = ml.ml_btts;   // logistic ML
+    const ou25_ml = ml.ml_ou25;
+
+
+    // -----------------------------
+    // 9) TOP SCORELINES
+    // -----------------------------
+    const top = mc.matrix
+      ? (function(){
+          const arr = [];
+          for(let h=0; h<=6; h++){
+            for(let a=0; a<=6; a++){
+              arr.push({score:`${h}-${a}`, p: mc.matrix[h][a]/mc.simCount});
+            }
+          }
+          arr.sort((x,y)=> y.p - x.p);
+          return arr.slice(0,12);
+        })()
+      : [];
+
+
+    // -----------------------------
+    // 10) SAVE RESULT (used by Level 14)
+    // -----------------------------
+    window.PSZ_LAST = {
+      ctx,
+      master,
+      det,
+      detChaos,
+      ml,
+      mc,
+      fused,
+      final: { pH:fpH, pD:fpD, pA:fpA },
+      final_btts: btts,
+      final_ou_over: ou25_ml,
+      confidence: (1 - Math.abs(fpH - 0.5)),
+      top
+    };
+
+
+    // -----------------------------
+    // 11) PRINT OUTPUT
+    // -----------------------------
+    out.value = "";
+    out.value += "=== LEVEL 11 ULTRA ENGINE ===\n\n";
+    out.value += `[Final Probabilities]\n`;
+    out.value += `Home Win : ${(fpH*100).toFixed(1)}%\n`;
+    out.value += `Draw     : ${(fpD*100).toFixed(1)}%\n`;
+    out.value += `Away Win : ${(fpA*100).toFixed(1)}%\n\n`;
+
+    out.value += `[BTTS / OU]\n`;
+    out.value += `BTTS Yes : ${(btts*100).toFixed(1)}%\n`;
+    out.value += `Over 2.5 : ${(ou25_ml*100).toFixed(1)}%\n\n`;
+
+    out.value += `[Uncertainty]\n`;
+    out.value += `Uncertainty : ${unc.score.toFixed(1)}%\n\n`;
+
+    out.value += `[Top Scorelines]\n`;
+    top.forEach(x=>{
+      out.value += ` ${x.score}   ${(x.p*100).toFixed(2)}%\n`;
+    });
+
+    out.value += "\n[Master Adjusted Lambda]\n";
+    out.value += ` λH: ${master.adjustedLam.lamH.toFixed(3)}\n`;
+    out.value += ` λA: ${master.adjustedLam.lamA.toFixed(3)}\n\n`;
+
+    out.value += "[ML Diagnostic]\n";
+    out.value += ` ml_pH = ${ml.ml1x2.pH.toFixed(3)}\n`;
+    out.value += ` ml_pD = ${ml.ml1x2.pD.toFixed(3)}\n`;
+    out.value += ` ml_pA = ${ml.ml1x2.pA.toFixed(3)}\n`;
+    out.value += ` ml_btts = ${ml.ml_btts.toFixed(3)}\n`;
+    out.value += ` ml_ou25 = ${ml.ml_ou25.toFixed(3)}\n\n`;
+
+    out.value += "=== END LEVEL 11 OUTPUT ===\n";
+
+    return window.PSZ_LAST;
+  };
+
+  console.log("PSZ runUltra loaded.");
+})(window.PSZ);
+</script>
+<script>
+// ==========================================
+// PART G — LEVEL 14 SUPER BETTING ENGINE
+// - Projected HDP / OU
+// - Value 2.0 (risk-adjusted)
+// - Recommended Bets
+// - Risk Index, Supremacy Index, Finishing Adj
+// ==========================================
+(function(PSZ){
+  if(!PSZ) PSZ = window.PSZ = window.PSZ || {};
+
+  // helpers
+  function roundQuarter(x){ return Math.round(x*4)/4; }
+  function clamp(v,a,b){ return PSZ.clamp(PSZ.safeNum(v,0), a, b); }
+  function fmtPct(v){ return (PSZ.safeNum(v,0)*100).toFixed(1) + "%"; }
+  function fmt(v, d=2){ return Number(v).toFixed(d); }
+
+  // projected HDP (handicap suggestion)
+  function projectedHDP(lamH, lamA){
+    const diff = lamH - lamA; // positive -> home stronger
+    const ad = Math.abs(diff);
+    let line = 0;
+    if(ad < 0.2) line = 0;
+    else if(ad < 0.6) line = 0.25;
+    else if(ad < 1.1) line = 0.5;
+    else if(ad < 1.7) line = 0.75;
+    else line = 1.0;
+    // side label and sign: return object with recommended handicap from market perspective
+    const side = diff > 0 ? "Home" : (diff < 0 ? "Away" : "Even");
+    // represent as "Home -0.25" means take Home give -0.25
+    const sign = diff > 0 ? -line : (diff < 0 ? line : 0);
+    return { side, sign, rawDiff: diff, rawLine: line };
+  }
+
+  // projected OU (total goals)
+  function projectedOU(lamH, lamA){
+    const total = lamH + lamA;
+    const q = roundQuarter(total);
+    // closeness: how close raw total to suggested quarter
+    const closeness = 1 - Math.min(1, Math.abs(total - q) / Math.max(0.25, Math.abs(total)));
+    return { rawTotal: total, suggested: q, closeness: clamp(closeness, 0, 1) };
+  }
+
+  // risk index (0..100) using MC dispersion + uncertainty + confidence
+  function computeRisk(last){
+    try{
+      const conf = PSZ.safeNum(last.confidence, 0.6);
+      // compute dispersion from MC matrix: entropy of flattened distribution
+      const mat = last.mc && last.mc.matrix ? last.mc.matrix : (last.det && last.det.mat ? last.det.mat : null);
+      let entropy = 0;
+      if(mat){
+        const flat = [];
+        for(let i=0;i<mat.length;i++) for(let j=0;j<mat[i].length;j++) flat.push(mat[i][j] || 0);
+        const tot = flat.reduce((s,v)=>s+v,0) || 1;
+        for(const p of flat){ const pr = p/tot; if(pr>0) entropy -= pr * Math.log2(pr); }
+      } else {
+        entropy = 1.2; // fallback
+      }
+      // map entropy (bits) to 0..100 roughly (0..~6 bits)
+      const entScore = PSZ.clamp(entropy / 3.0, 0, 1); // normalize
+      // risk grows with entropy and drops with confidence
+      const risk = Math.round(PSZ.clamp((entScore * 0.7 + (1 - conf) * 0.3) * 100, 0, 100));
+      return risk;
+    }catch(e){
+      return 50;
+    }
+  }
+
+  // supremacy index (0..100) using lamDiff, xtDiff, pressDiff, formDiff
+  function computeSupremacy(ctx, master, feat){
+    const lamDiff = PSZ.safeNum(master.adjustedLam.lamH,0) - PSZ.safeNum(master.adjustedLam.lamA,0);
+    const xtDiff = PSZ.safeNum(feat.xtDiff,0);
+    const pressDiff = PSZ.safeNum(ctx.home_press,5) - PSZ.safeNum(ctx.away_press,5);
+    const formDiff = PSZ.safeNum(ctx.formPts_home,0) - PSZ.safeNum(ctx.formPts_away,0);
+    // normalize components
+    const a = PSZ.clamp((lamDiff + 1.5) / 3.0, -1, 1);
+    const b = PSZ.clamp((xtDiff + 2) / 4.0, -1, 1);
+    const c = PSZ.clamp(pressDiff / 10.0, -1, 1);
+    const d = PSZ.clamp(formDiff / 10.0, -1, 1);
+    const score = (a*0.45 + b*0.25 + c*0.2 + d*0.10);
+    return Math.round(PSZ.clamp((score + 1)/2 * 100, 0, 100));
+  }
+
+  // finishing adjustment heuristic
+  function finishingAdj(ctx){
+    const shH = PSZ.safeNum(ctx.shots_home,8), shA = PSZ.safeNum(ctx.shots_away,7);
+    const concH = PSZ.safeNum(ctx.conceded_last5_home,2), concA = PSZ.safeNum(ctx.conceded_last5_away,2);
+    const fH = PSZ.clamp((shH/12) - (concH/10), -1, 2);
+    const fA = PSZ.clamp((shA/12) - (concA/10), -1, 2);
+    return { homeFin: fH, awayFin: fA };
+  }
+
+  // pick recommended bets
+  function recommend(finalProbs, ouOverProb, bttsProb, marketOdds, conf, riskIdx, supIdx){
+    const picks = [];
+    // value candidates from PSZ.Value2 if present
+    try{
+      const valObj = PSZ.Value2 ? PSZ.Value2.compute({pH: finalProbs.fpH, pD: finalProbs.fpD, pA: finalProbs.fpA}, marketOdds) : null;
+      if(valObj && valObj.value_list && valObj.value_list.length){
+        // use risk-adjusted values
+        const adjList = PSZ.Value2.riskAdjust(valObj.value_list, riskIdx);
+        for(const v of adjList){
+          if(v.adjusted_value > 0.03 && v.adjusted_kelly > 0.005){
+            const strength = v.adjusted_value > 0.10 ? "Strong" : (v.adjusted_value > 0.05 ? "Moderate" : "Light");
+            picks.push({type:"value", side:v.side, market:v.market, fair:v.fair, value:v.adjusted_value, kelly:v.adjusted_kelly, strength});
+          }
+        }
+      }
+    }catch(e){ /* ignore */ }
+
+    // OU/BTTS heuristics
+    if(ouOverProb > 0.66) picks.push({type:"OU", side:"Over 2.5", prob:ouOverProb, strength: ouOverProb>0.75 ? "Strong" : "Moderate"});
+    else if(ouOverProb < 0.34) picks.push({type:"OU", side:"Under 2.5", prob:ouOverProb, strength: ouOverProb<0.25 ? "Strong" : "Moderate"});
+
+    if(bttsProb > 0.66) picks.push({type:"BTTS", side:"Yes", prob:bttsProb, strength: bttsProb>0.75 ? "Strong" : "Moderate"});
+    else if(bttsProb < 0.30) picks.push({type:"BTTS", side:"No", prob:bttsProb, strength:"Moderate"});
+
+    // confidence & risk adjust: if low confidence or high risk downgrade all strong picks
+    if(conf < 0.5 || riskIdx > 65){
+      for(const p of picks) if(p.strength === "Strong") p.strength = "Moderate";
+    }
+
+    // dedupe and prioritize (value first)
+    picks.sort((A,B)=>{
+      const score = x => (x.strength==="Strong"?3:(x.strength==="Moderate"?2:1)) * (x.type==="value"?1.2:1);
+      return score(B)-score(A);
+    });
+
+    return picks.slice(0,6);
+  }
+
+  // main runner: appends level14 block to #output and stores window.PSZ_LEVEL14
+  PSZ.runLevel14 = function(){
+    const outEl = document.getElementById("output");
+    if(!outEl){
+      console.error("No output element");
+      return;
+    }
+    const last = window.PSZ_LAST;
+    if(!last){
+      outEl.value += "\n\n[LEVEL14] No PSZ_LAST found. Run engine first.";
+      return;
+    }
+
+    try{
+      const ctx = last.ctx || {};
+      const master = last.master || {};
+      // final probs
+      const final = last.final || { pH:0.33, pD:0.34, pA:0.33 };
+      const fpH = PSZ.safeNum(final.pH, 0.33);
+      const fpD = PSZ.safeNum(final.pD, 0.34);
+      const fpA = PSZ.safeNum(final.pA, 0.33);
+      // projected lines
+      const projHDP = projectedHDP(master.adjustedLam.lamH, master.adjustedLam.lamA);
+      const projOU = projectedOU(master.adjustedLam.lamH, master.adjustedLam.lamA);
+      // BTTS & OU est
+      const btts = PSZ.safeNum(last.final_btts, 0.5);
+      // ouOver: try ML ou then fallback to poisson tail
+      let ouOver = PSZ.safeNum(last.final_ou_over, null);
+      if(!ouOver){
+        const lamEff = PSZ.safeNum(master.adjustedLam.lamH,1) + PSZ.safeNum(master.adjustedLam.lamA,1);
+        // compute prob of total > 2 using Poisson on sum approximated
+        let under = 0;
+        for(let k=0;k<=2;k++) under += PSZ.poissonPMF(lamEff, k);
+        ouOver = PSZ.clamp(1 - under, 0, 0.999);
+      }
+      // risk & supremacy & finishing
+      const riskIdx = computeRisk(last);
+      const feat = PSZ.buildFeatureMap ? PSZ.buildFeatureMap(ctx, master) : {};
+      const supIdx = computeSupremacy(ctx, master, feat);
+      const finishing = finishingAdj(ctx);
+
+      // market odds
+      const market = { H: PSZ.safeNum(document.getElementById("market_H")?.value,0), D: PSZ.safeNum(document.getElementById("market_D")?.value,0), A: PSZ.safeNum(document.getElementById("market_A")?.value,0) };
+
+      // confidence
+      const conf = PSZ.safeNum(last.confidence, 0.6);
+
+      // recommended bets
+      const recs = recommend({fpH, fpD, fpA}, ouOver, btts, market, conf, riskIdx, supIdx);
+
+      // value2 details
+      const valueRaw = PSZ.Value2 ? PSZ.Value2.compute({pH:fpH,pD:fpD,pA:fpA}, market) : null;
+      const valueAdj = valueRaw ? PSZ.Value2.riskAdjust(valueRaw.value_list, riskIdx) : [];
+
+      // BUILD TEXT BLOCK
+      let txt = "\n\n=== LEVEL 14 — SUPER BETTING ENGINE ===\n\n";
+      txt += `[Projected Lines]\n`;
+      const sideLabel = projHDP.side;
+      const signLabel = projHDP.sign === 0 ? "0" : (projHDP.sign < 0 ? `Home ${Math.abs(projHDP.sign)}` : `Away ${projHDP.sign}`);
+      txt += ` Hdp Suggestion : ${sideLabel} ${signLabel}  (rawDiff ${projHDP.rawDiff.toFixed(3)})\n`;
+      txt += ` OU Suggestion  : ${projOU.suggested}   (total ${projOU.rawTotal.toFixed(2)} | closeness ${(projOU.closeness*100).toFixed(1)}%)\n\n`;
+
+      txt += `[Probabilities Summary]\n`;
+      txt += ` Home: ${(fpH*100).toFixed(1)}%  | Draw: ${(fpD*100).toFixed(1)}%  | Away: ${(fpA*100).toFixed(1)}%\n`;
+      txt += ` BTTS: ${(btts*100).toFixed(1)}%  | OU Over est: ${(ouOver*100).toFixed(1)}%\n\n`;
+
+      txt += `[Meta Indices]\n`;
+      txt += ` Confidence : ${(conf*100).toFixed(1)}%   | Risk Index : ${riskIdx}/100   | Supremacy Index: ${supIdx}/100\n\n`;
+
+      txt += `[Finishing Adjustment]\n`;
+      txt += ` Home Fin Adj: ${finishing.homeFin.toFixed(3)}   Away Fin Adj: ${finishing.awayFin.toFixed(3)}\n\n`;
+
+      txt += `[Recommended Bets]\n`;
+      if(!recs || recs.length===0) txt += " No clear recommendations (no positive value / low confidence).\n";
+      else recs.forEach((r,i)=>{
+        if(r.type==="value") txt += ` ${i+1}) VALUE: ${r.side} @${fmt(r.market,2)}  fair:${fmt(r.fair,2)}  adj_value:${(r.value*100).toFixed(2)}%  adj_kelly:${fmt(r.kelly,3)}  [${r.strength}]\n`;
+        else if(r.type==="OU") txt += ` ${i+1}) ${r.side}  (prob ${(r.prob*100).toFixed(1)}%)  [${r.strength}]\n`;
+        else if(r.type==="BTTS") txt += ` ${i+1}) BTTS ${r.side}  (prob ${(r.prob*100).toFixed(1)}%)  [${r.strength}]\n`;
+        else txt += ` ${i+1}) ${JSON.stringify(r)}\n`;
+      });
+
+      if(valueAdj && valueAdj.length){
+        txt += `\n[Value 2.0 — top adjusted]\n`;
+        valueAdj.slice(0,6).forEach((v,i)=>{
+          txt += ` ${i+1}) ${v.side} | market:${fmt(v.market,2)} fair:${fmt(v.fair,2)} raw:${(v.value_pct*100).toFixed(2)}% adj:${(v.adjusted_value*100).toFixed(2)}% adj_kelly:${fmt(v.adjusted_kelly,3)}\n`;
+        });
+        txt += `\n`;
+      }
+
+      txt += "=== END LEVEL 14 ===\n";
+
+      outEl.value += txt;
+
+      // store structured object
+      window.PSZ_LEVEL14 = { projHDP, projOU, btts, ouOver, riskIdx, supIdx, finishing, recs, valueRaw, valueAdj, conf };
+
+      console.log("PSZ LEVEL14:", window.PSZ_LEVEL14);
+
+    }catch(err){
+      outEl.value += "\n\n[LEVEL14 ERROR] " + (err.message || String(err));
+      console.error("LEVEL14 error", err);
+    }
+  };
+
+  console.log("PSZ Level14 module loaded.");
+})(window.PSZ);
+</script>
+<script>
+// ==========================================
+// PART H — FINAL UI ATTACHMENT
+// Connects UI buttons to engine functions
+// ==========================================
+(function(PSZ){
+    if(!PSZ) PSZ = window.PSZ = window.PSZ || {};
+
+    console.log("PART H loaded — attaching UI handlers.");
+
+    // safe-get helper
+    const el = id => document.getElementById(id);
+
+    // -----------------------------
+    // AUTO INPUT ULTRA BUTTON
+    // -----------------------------
+    if(el("btn_auto_ultra")){
+        el("btn_auto_ultra").onclick = function(){
+            try{
+                PSZ.autoAllInputs();
+                append("[OK] AUTO INPUT ULTRA berhasil dijalankan.");
+            }catch(e){
+                append("[ERROR] autoAllInputs gagal: " + e.message);
+            }
+        };
+    }
+
+    // -----------------------------
+    // RUN ULTRA ENGINE
+    // -----------------------------
+    if(el("btn_run_ultra")){
+        el("btn_run_ultra").onclick = function(){
+            try{
+                const r = PSZ.runUltra();
+                append("[OK] Level 11 Ultra selesai.");
+            }catch(e){
+                append("[ERROR] runUltra gagal: " + e.message);
+            }
+        };
+    }
+
+    // -----------------------------
+    // SCORELINE SIM
+    // -----------------------------
+    if(el("btn_run_scoreline")){
+        el("btn_run_scoreline").onclick = function(){
+            try{
+                const res = PSZ.runScorelineSimFull(null, {simCount:8000, scoreCap:6});
+                if(!res){ append("[ERROR] ScorelineSim gagal."); return; }
+
+                append("\n=== SCORELINE SIM (Standalone) ===");
+                append(`SimCount   : ${res.simCount}`);
+                append(`Avg Goals  : ${res.avgGoals.toFixed(3)}`);
+                append(`H/D/A      : ${(res.pH*100).toFixed(1)}% / ${(res.pD*100).toFixed(1)}% / ${(res.pA*100).toFixed(1)}%`);
+
+                append("\nTop Scorelines:");
+                res.top.forEach(t => append(`  ${t.score} : ${(t.p*100).toFixed(2)}%`));
+
+                window.PSZ_SCORE = res;
+            }catch(e){
+                append("[ERROR] runScorelineSimFull: " + e.message);
+            }
+        };
+    }
+
+    // -----------------------------
+    // VALUE CALC (Optional)
+    // -----------------------------
+    if(el("btn_value_calc")){
+        el("btn_value_calc").onclick = function(){
+            try{
+                if(!window.PSZ_LAST){
+                    append("[ERROR] Jalankan RUN ULTRA dulu.");
+                    return;
+                }
+                const last = window.PSZ_LAST;
+                const probs = last.final || {};
+                const market = {
+                    H: PSZ.safeNum(el("market_H")?.value,0),
+                    D: PSZ.safeNum(el("market_D")?.value,0),
+                    A: PSZ.safeNum(el("market_A")?.value,0)
+                };
+
+                if(!PSZ.Value2){
+                    append("[ERROR] Value2 module not found.");
+                    return;
+                }
+
+                const val = PSZ.Value2.compute(probs, market);
+                append("\n=== VALUE CALC RESULT ===");
+                if(val && val.value_list){
+                    val.value_list.forEach(v=>{
+                        append(` ${v.side}: market ${v.market.toFixed(2)} | fair ${v.fair.toFixed(2)} | value ${(v.value_pct*100).toFixed(2)}% | kelly ${v.kelly.toFixed(3)}`);
+                    });
+                }
+            }catch(e){
+                append("[ERROR] VALUE CALC gagal: " + e.message);
+            }
+        };
+    }
+
+    // -----------------------------
+    // RUN LEVEL 14 SUPER ENGINE
+    // -----------------------------
+    if(el("btn_run_level14_manual")){
+        el("btn_run_level14_manual").onclick = function(){
+            try{
+                if(!window.PSZ_LAST){
+                    append("[ERROR] Jalankan RUN ULTRA dulu (PSZ_LAST kosong).");
+                    return;
+                }
+                PSZ.runLevel14();
+                append("[OK] Level 14 dijalankan.");
+            }catch(e){
+                append("[ERROR] runLevel14 gagal: " + e.message);
+            }
+        };
+    }
+
+    // -----------------------------
+    // Helper append to output box
+    // -----------------------------
+    function append(msg){
+        const out = el("output");
+        if(!out){ console.log(msg); return; }
+        out.value = (out.value || "") + "\n" + msg;
+        out.scrollTop = out.scrollHeight;
+    }
+
+})(window.PSZ);
+</script>
+</body>
+</html>
