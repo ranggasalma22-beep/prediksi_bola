@@ -1100,20 +1100,46 @@ window.PSZ = window.PSZ || {};
 })(window.PSZ);
 </script>
 <!-- END PART 5 -->
-
-<!-- =====================================================
-     PART 6 — MOMENTUM ENGINE + WIN-PATH MODEL (E6)
-     Provides: Momentum Strength, Control Index, Swing Index,
-     Match Path Probabilities (control, swing, chaotic, stalled)
-===================================================== -->
+<!-- PART 6 — Momentum Engine / SECTION A -->
 <script>
 (function(PSZ){
   PSZ.Momentum = PSZ.Momentum || {};
 
-  /* -------------------------------------------------------
-     1. MOMENTUM INDEX (form pts + stability + press + recent goals)
-  ------------------------------------------------------- */
+  /* ================================
+     1. Momentum Index (Form + Stability + Momentum + Pressing)
+     ================================ */
   PSZ.Momentum.computeMomentumIndex = function(ctx){
+
+    const fH = PSZ.safeNum(ctx.formPts_home, 6);
+    const fA = PSZ.safeNum(ctx.formPts_away, 6);
+
+    const stH = PSZ.safeNum(ctx.home_st, 5);
+    const stA = PSZ.safeNum(ctx.away_st, 5);
+
+    const momH = PSZ.safeNum(ctx.home_mom, 5);
+    const momA = PSZ.safeNum(ctx.away_mom, 5);
+
+    const pressH = PSZ.safeNum(ctx.home_press, 5);
+    const pressA = PSZ.safeNum(ctx.away_press, 5);
+
+    const scoredH = PSZ.safeNum(ctx.scored_last5_home, 6);
+    const scoredA = PSZ.safeNum(ctx.scored_last5_away, 6);
+    <!-- PART 6 — Momentum Engine / SECTION B -->
+<script>
+(function(PSZ){
+
+  /* ===== Lanjutan Momentum Index ===== */
+
+  PSZ.Momentum.computeMomentumIndex = PSZ.Momentum.computeMomentumIndex || function(ctx){
+    return { mH:0.5, mA:0.5, diff:0 };  // fallback safety
+  };
+
+  // Kita patch fungsi agar meneruskan perhitungan dari Section A
+  const prevFunc = PSZ.Momentum.computeMomentumIndex;
+
+  PSZ.Momentum.computeMomentumIndex = function(ctx){
+
+    // ambil nilai dari Section A
     const fH = PSZ.safeNum(ctx.formPts_home, 6);
     const fA = PSZ.safeNum(ctx.formPts_away, 6);
 
@@ -1129,313 +1155,532 @@ window.PSZ = window.PSZ || {};
     const scoredH = PSZ.safeNum(ctx.scored_last5_home, 6);
     const scoredA = PSZ.safeNum(ctx.scored_last5_away, 6);
 
-    const idxH = (fH*0.25 + stH*0.25 + momH*0.25 + pressH*0.10 + scoredH*0.15) / 10;
-    const idxA = (fA*0.25 + stA*0.25 + momA*0.25 + pressA*0.10 + scoredA*0.15) / 10;
+    /* =========================
+       HITUNG MOMENTUM INDEX
+    ========================== */
 
-    const mH = PSZ.clamp(idxH, 0, 1);
-    const mA = PSZ.clamp(idxA, 0, 1);
-    return { mH, mA, diff: mH - mA };
+    const idxH =
+      fH*0.25 +
+      stH*0.25 +
+      momH*0.25 +
+      pressH*0.10 +
+      scoredH*0.15;
+
+    const idxA =
+      fA*0.25 +
+      stA*0.25 +
+      momA*0.25 +
+      pressA*0.10 +
+      scoredA*0.15;
+
+    const mH = PSZ.clamp(idxH / 10, 0, 1);
+    const mA = PSZ.clamp(idxA / 10, 0, 1);
+
+    return {
+      mH,
+      mA,
+      diff: mH - mA
+    };
   };
 
-  /* -------------------------------------------------------
-     2. CONTROL INDEX (possession + formation + xT proxy)
-  ------------------------------------------------------- */
+})(window.PSZ);
+</script>
+  <!-- PART 6 — Momentum Engine / SECTION C -->
+<script>
+(function(PSZ){
+
+  /* ================================
+     2. CONTROL INDEX
+     ================================ */
   PSZ.Momentum.computeControl = function(ctx){
+
     const posH = PSZ.safeNum(ctx.pos_home, 50);
     const posA = PSZ.safeNum(ctx.pos_away, 50);
+
     const fH = (ctx.homeFormation || "").toLowerCase();
     const fA = (ctx.awayFormation || "").toLowerCase();
 
-    let formBiasH = 0, formBiasA = 0;
-    if(fH.includes("4-3-3") || fH.includes("4-2-3-1")) formBiasH += 0.05;
-    if(fA.includes("4-3-3") || fA.includes("4-2-3-1")) formBiasA += 0.05;
-    if(fH.includes("5-") || fH.includes("3-5-2")) formBiasH -= 0.05;
-    if(fA.includes("5-") || fA.includes("3-5-2")) formBiasA -= 0.05;
+    let biasH = 0, biasA = 0;
+
+    if(fH.includes("4-3-3") || fH.includes("4-2-3-1")) biasH += 0.05;
+    if(fA.includes("4-3-3") || fA.includes("4-2-3-1")) biasA += 0.05;
+
+    if(fH.startsWith("5-") || fH.startsWith("3-5")) biasH -= 0.05;
+    if(fA.startsWith("5-") || fA.startsWith("3-5")) biasA -= 0.05;
 
     const xtH = PSZ.safeNum(ctx.xT_home || 0.30, 0.30);
     const xtA = PSZ.safeNum(ctx.xT_away || 0.30, 0.30);
 
-    const rawH = (posH - posA)/100 * 0.45 + (xtH - xtA)*0.35 + formBiasH;
-    let ctrl = PSZ.clamp((rawH + 1)/2, 0, 1);
-    return { controlH: ctrl, controlA: 1-ctrl, diff: ctrl - (1-ctrl) };
-  };
+    const raw =
+        (posH - posA) / 100 * 0.45 +
+        (xtH - xtA) * 0.35 +
+        (biasH - biasA);
 
-  /* -------------------------------------------------------
-     3. MOMENTUM SWING POTENTIAL (chance of big shift)
-  ------------------------------------------------------- */
-  PSZ.Momentum.computeSwingPotential = function(ctx, M){
-    const chaos = PSZ.safeNum(ctx.chaos,5);
-    const vol = PSZ.safeNum(ctx.volatility||0.5,0.5);
+    const ctrlH = PSZ.clamp((raw + 1) / 2, 0, 1);
+    const ctrlA = 1 - ctrlH;
 
-    const baseSwing = Math.abs(M.diff)*0.35 + (chaos-5)*0.07 + vol*0.22;
-    return PSZ.clamp(baseSwing, 0, 1);
-  };
-
-  /* -------------------------------------------------------
-     4. MATCH PATH PROBABILITY (control, swing, chaotic, stalled)
-  ------------------------------------------------------- */
-  PSZ.Momentum.computeWinPath = function(ctx, M, C){
-    const chaos = PSZ.safeNum(ctx.chaos,5);
-    const imp = PSZ.safeNum(ctx.importance,5);
-
-    const swingPotential = PSZ.Momentum.computeSwingPotential(ctx, M);
-    const controlAbs = Math.abs(C.diff);
-
-    let pControl = PSZ.clamp(0.45*controlAbs + 0.20*(imp-5)/5, 0, 1);
-    let pSwing   = PSZ.clamp(swingPotential*0.65, 0, 1);
-    let pChaos   = PSZ.clamp((chaos-5)*0.12 + swingPotential*0.20, 0, 1);
-    let pStalled = PSZ.clamp(1 - (pControl+pSwing+pChaos), 0, 1);
-
-    const s = pControl+pSwing+pChaos+pStalled;
     return {
-      control: pControl/s,
-      swing: pSwing/s,
-      chaotic: pChaos/s,
-      stalled: pStalled/s
+      controlH: ctrlH,
+      controlA: ctrlA,
+      diff: ctrlH - ctrlA
     };
   };
 
-  /* -------------------------------------------------------
-     5. PRESSURE MAP (early, mid, late)
-  ------------------------------------------------------- */
-  PSZ.Momentum.computePressureMap = function(ctx, M, C){
-    const chaos = PSZ.safeNum(ctx.chaos,5);
-    const imp = PSZ.safeNum(ctx.importance,5);
-    const base = 0.28 + (chaos-5)*0.04 + (imp-5)*0.05;
+  /* ================================
+     3. SWING POTENTIAL (DERBY / CHAOS BOOST)
+     ================================ */
+  PSZ.Momentum.computeSwingPotential = function(ctx, M){
+    const chaos = PSZ.safeNum(ctx.chaos, 5);
+    const vol   = PSZ.safeNum(ctx.volatility || 0.5, 0.5);
 
-    const early = PSZ.clamp(base * (0.8 + M.diff*0.4), 0, 1);
-    const mid   = PSZ.clamp(base * (1.0 + C.diff*0.6), 0, 1);
-    const late  = PSZ.clamp(base * (1.4 + Math.abs(M.diff)*0.6), 0, 1);
+    const base =
+        Math.abs(M.diff) * 0.35 +
+        (chaos - 5) * 0.07 +
+        vol * 0.22;
+
+    return PSZ.clamp(base, 0, 1);
+  };
+
+  /* ================================
+     4. MATCH PATH (CONTROL / SWING / CHAOTIC / STALLED)
+     ================================ */
+  PSZ.Momentum.computeWinPath = function(ctx, M, C){
+
+    const chaos = PSZ.safeNum(ctx.chaos, 5);
+    const imp   = PSZ.safeNum(ctx.importance, 5);
+
+    const swing = PSZ.Momentum.computeSwingPotential(ctx, M);
+    const cdiff = Math.abs(C.diff);
+
+    let pControl = PSZ.clamp(0.45 * cdiff + 0.20 * (imp - 5) / 5, 0, 1);
+    let pSwing   = PSZ.clamp(swing * 0.65, 0, 1);
+    let pChaos   = PSZ.clamp((chaos - 5) * 0.12 + swing * 0.20, 0, 1);
+
+    let pStalled = PSZ.clamp(1 - (pControl + pSwing + pChaos), 0, 1);
+
+    const sum = pControl + pSwing + pChaos + pStalled;
+
+    return {
+      control : pControl / sum,
+      swing   : pSwing   / sum,
+      chaotic : pChaos   / sum,
+      stalled : pStalled / sum
+    };
+  };
+
+})(window.PSZ);
+</script>
+  <!-- PART 6 — Momentum Engine / SECTION D -->
+<script>
+(function(PSZ){
+
+  /* ================================
+     5. PRESSURE MAP (Early / Mid / Late)
+     ================================ */
+  PSZ.Momentum.computePressureMap = function(ctx, M, C){
+
+    const chaos = PSZ.safeNum(ctx.chaos, 5);
+    const imp   = PSZ.safeNum(ctx.importance, 5);
+
+    // dasar tekanan
+    const base = 0.28 +
+                 (chaos - 5) * 0.04 +
+                 (imp - 5) * 0.05;
+
+    // early: momentum-based
+    const early = PSZ.clamp(
+      base * (0.8 + M.diff * 0.4),
+      0, 1
+    );
+
+    // mid: control-based
+    const mid = PSZ.clamp(
+      base * (1.0 + C.diff * 0.6),
+      0, 1
+    );
+
+    // late: comeback pressure + momentum gap
+    const late = PSZ.clamp(
+      base * (1.4 + Math.abs(M.diff) * 0.6),
+      0, 1
+    );
 
     return { early, mid, late };
   };
 
-  /* -------------------------------------------------------
-     6. MOMENTUM PROJECTION (used by final engine)
-  ------------------------------------------------------- */
+
+  /* ================================
+     6. MOMENTUM PROJECTION (Final output PART 6)
+     ================================ */
   PSZ.Momentum.project = function(ctx){
+
+    // Step 1 — compute basic momentum
     const M = PSZ.Momentum.computeMomentumIndex(ctx);
+
+    // Step 2 — compute control model
     const C = PSZ.Momentum.computeControl(ctx);
+
+    // Step 3 — compute pressure map
     const P = PSZ.Momentum.computePressureMap(ctx, M, C);
+
+    // Step 4 — match-path probability
     const W = PSZ.Momentum.computeWinPath(ctx, M, C);
 
     return {
-      M, C, swingPotential: PSZ.Momentum.computeSwingPotential(ctx, M),
+      M,          // momentum index
+      C,          // control index
       pressure: P,
+      swingPotential: PSZ.Momentum.computeSwingPotential(ctx, M),
       path: W
     };
   };
 
-  console.log("PART 6 — MOMENTUM ENGINE LOADED");
+  console.log("PART 6 — Momentum Engine Loaded ✔");
+
 })(window.PSZ);
 </script>
-<!-- END PART 6 -->
-  <!-- =====================================================
-     PART 7 — MARKET, ML ENSEMBLE & RECOMMENDER (VALUE ENGINE)
-     - Adaptive ensemble
-     - Calibration (softmax-temp + small Platt tweak)
-     - Market deviation / value scanner
-     - Recommendations + Kelly stake
-===================================================== -->
+  <!-- PART 7 — OUTPUT BUILDER / SECTION A -->
 <script>
 (function(PSZ){
-  PSZ.ML = PSZ.ML || {};
-  PSZ.Recommender = PSZ.Recommender || {};
 
-  /* ----------------------
-     Small helpers
-  ---------------------- */
-  PSZ.ML.softmaxTemp = function(prob, temp){
-    temp = PSZ.safeNum(temp, 1.0);
-    const lH = Math.log(PSZ.clamp(prob.pH,1e-12,1));
-    const lD = Math.log(PSZ.clamp(prob.pD,1e-12,1));
-    const lA = Math.log(PSZ.clamp(prob.pA,1e-12,1));
-    const sH = Math.exp(lH / temp), sD = Math.exp(lD / temp), sA = Math.exp(lA / temp);
-    const sm = sH + sD + sA;
-    return { pH: sH/sm, pD: sD/sm, pA: sA/sm };
+  /* ===================================================
+     PART 7 — OUTPUT ENGINE (SECTION A)
+     Formatting utilities for clean output
+  ==================================================== */
+
+  PSZ.Output = PSZ.Output || {};
+
+  /* -----------------------------------------
+     1) Format persen aman
+  ----------------------------------------- */
+  PSZ.Output.pct = function(v){
+    if(!isFinite(v)) return "0.0%";
+    return (v * 100).toFixed(1) + "%";
   };
 
-  PSZ.ML.plattTweak = function(prob, a=0.9){
-    const maxP = Math.max(prob.pH, prob.pD, prob.pA);
-    let out = Object.assign({}, prob);
-    if(maxP > 0.52){
-      if(prob.pH === maxP) out.pH = PSZ.clamp(prob.pH * (1 + 0.06*a), 1e-6, 0.98);
-      else if(prob.pA === maxP) out.pA = PSZ.clamp(prob.pA * (1 + 0.06*a), 1e-6, 0.98);
-      else out.pD = PSZ.clamp(prob.pD * (1 + 0.03*a), 1e-6, 0.98);
-      const s = out.pH + out.pD + out.pA;
-      out.pH/=s; out.pD/=s; out.pA/=s;
-    }
-    return out;
+  /* -----------------------------------------
+     2) Format angka rata2 / goals
+  ----------------------------------------- */
+  PSZ.Output.num = function(v, d=3){
+    if(!isFinite(v)) return "0";
+    return v.toFixed(d);
   };
 
-  /* ----------------------
-     Adaptive ensemble weights
-  ---------------------- */
-  PSZ.ML.adaptiveEnsembleWeights = function(ctx, momentum){
-    const chaos = PSZ.safeNum(ctx.chaos,5);
-    const importance = PSZ.safeNum(ctx.importance,5);
-    const uncertainty = PSZ.safeNum(momentum && momentum.indicators && momentum.indicators.uncertainty, 0.4);
-
-    let wDet = PSZ.clamp(1.0 - (chaos-5)*0.08, 0.2, 1.4);
-    let wTac = PSZ.clamp(0.9 + (importance-5)*0.12, 0.3, 1.8);
-    let wMC  = PSZ.clamp(0.9 + (chaos-5)*0.14 + uncertainty*0.6, 0.3, 2.2);
-
-    if(momentum && momentum.path && momentum.path.control > 0.5){ wDet *= 1.1; wTac *= 1.05; }
-    if(momentum && momentum.path && momentum.path.swing > 0.4){ wMC *= 1.25; wDet *= 0.9; }
-    if(momentum && momentum.path && momentum.path.chaotic > 0.45){ wMC *= 1.6; wDet *= 0.8; wTac *= 0.9; }
-
-    return { wDet: +wDet.toFixed(3), wTac: +wTac.toFixed(3), wMC: +wMC.toFixed(3) };
+  /* -----------------------------------------
+     3) Format baris teks
+  ----------------------------------------- */
+  PSZ.Output.line = function(label, value){
+    return `${label}: ${value}`;
   };
 
-  /* ----------------------
-     Apply ensemble: fuse engine parts with adaptive weights and calibrate
-  ---------------------- */
-  PSZ.ML.applyEnsemble = function(ctx, engineResult, momentum){
-    try{
-      const det = engineResult.det || engineResult.detModel || { pH:0.33,pD:0.33,pA:0.34 };
-      const tac = engineResult.tacDet || det;
-      const mc  = engineResult.mc || { pH:0.33,pD:0.33,pA:0.34 };
-
-      const detP = PSZ.normalize3(det.pH||det.pH===0?det.pH:0.33, det.pD||det.pD===0?det.pD:0.33, det.pA||det.pA===0?det.pA:0.34);
-      const tacP = PSZ.normalize3(tac.pH||0.33, tac.pD||0.33, tac.pA||0.34);
-      const mcP  = PSZ.normalize3(mc.pH||0.33, mc.pD||0.33, mc.pA||0.34);
-
-      const w = PSZ.ML.adaptiveEnsembleWeights(ctx, momentum);
-      const sumW = w.wDet + w.wTac + w.wMC;
-      const fused = {
-        pH: (detP.pH*w.wDet + tacP.pH*w.wTac + mcP.pH*w.wMC) / sumW,
-        pD: (detP.pD*w.wDet + tacP.pD*w.wTac + mcP.pD*w.wMC) / sumW,
-        pA: (detP.pA*w.wDet + tacP.pA*w.wTac + mcP.pA*w.wMC) / sumW
-      };
-
-      const unc = PSZ.safeNum(engineResult.unc, PSZ.Engine ? PSZ.Engine.computeUncertainty(fused) : 0.4);
-      const temp = PSZ.clamp(1 + unc*1.1 + PSZ.safeNum(ctx.volatility,0.5)*0.25, 0.6, 2.2);
-      const softened = PSZ.ML.softmaxTemp(fused, temp);
-      const pl = PSZ.ML.plattTweak(softened, (momentum && momentum.indicators && momentum.indicators.msi) ? Math.abs(momentum.indicators.msi) : 0.8);
-
-      return {
-        prob: PSZ.normalize3(pl.pH, pl.pD, pl.pA),
-        meta: { weights: w, temp: temp, unc }
-      };
-
-    }catch(e){
-      console.error("ML.applyEnsemble error", e);
-      return { prob: {pH:0.33,pD:0.33,pA:0.34}, meta:{} };
-    }
+  /* -----------------------------------------
+     4) Judul besar
+  ----------------------------------------- */
+  PSZ.Output.header = function(title){
+    return `\n=== ${title.toUpperCase()} ===\n`;
   };
 
-  /* ----------------------
-     Market scanner: compare model fair odds vs market odds, compute EV and Kelly
-  ---------------------- */
-  PSZ.Recommender.scanMarket = function(prob, marketOdds){
-    marketOdds = marketOdds || {};
-    const out = { ev: {}, kelly: {}, value: {} };
-
-    if(marketOdds.H && marketOdds.D && marketOdds.A){
-      const fairH = PSZ.fairOdds(prob.pH), fairD = PSZ.fairOdds(prob.pD), fairA = PSZ.fairOdds(prob.pA);
-      const evH = prob.pH * marketOdds.H - 1;
-      const evD = prob.pD * marketOdds.D - 1;
-      const evA = prob.pA * marketOdds.A - 1;
-      out.ev = { H: evH, D: evD, A: evA };
-      out.kelly = { H: PSZ.kelly(prob.pH, marketOdds.H), D: PSZ.kelly(prob.pD, marketOdds.D), A: PSZ.kelly(prob.pA, marketOdds.A) };
-      out.value = { H: evH > 0, D: evD > 0, A: evA > 0 };
-      out.fair = { H: fairH, D: fairD, A: fairA };
-    }
-    return out;
+  /* -----------------------------------------
+     5) Subjudul
+  ----------------------------------------- */
+  PSZ.Output.sub = function(title){
+    return `\n[${title}]\n`;
   };
 
-  /* ----------------------
-     Generate recommendations
-  ---------------------- */
-  PSZ.Recommender.generateRecommendations = function(finalResult, ctx, marketOdds){
-    ctx = ctx || {};
-    marketOdds = marketOdds || { H: PSZ.safeNum(ctx.market_H, null), D: PSZ.safeNum(ctx.market_D, null), A: PSZ.safeNum(ctx.market_A, null), BTTS: PSZ.safeNum(ctx.market_BTTS, null) };
+  console.log("PART 7 — Output Builder SECTION A Loaded ✔");
 
-    const prob = (finalResult && finalResult.prob) ? finalResult.prob : { pH:0.33, pD:0.33, pA:0.34 };
-    const recs = [];
+})(window.PSZ);
+</script>
+ <!-- PART 7 — Output Builder / SECTION B -->
+<script>
+(function(PSZ){
 
-    // 1X2 value
-    if(marketOdds.H && marketOdds.D && marketOdds.A){
-      const scan = PSZ.Recommender.scanMarket(prob, marketOdds);
-      if(scan.ev.H > 0.02 && scan.kelly.H > 0.02) recs.push({ type:"1X2", pick:"Home", prob:prob.pH, odds:marketOdds.H, ev:scan.ev.H, kelly:scan.kelly.H });
-      if(scan.ev.D > 0.02 && scan.kelly.D > 0.02) recs.push({ type:"1X2", pick:"Draw", prob:prob.pD, odds:marketOdds.D, ev:scan.ev.D, kelly:scan.kelly.D });
-      if(scan.ev.A > 0.02 && scan.kelly.A > 0.02) recs.push({ type:"1X2", pick:"Away", prob:prob.pA, odds:marketOdds.A, ev:scan.ev.A, kelly:scan.kelly.A });
+  /* ===================================================
+     PART 7 — Output (SECTION B)
+     Builds probability block, risk block, metrics block
+  ==================================================== */
+
+  if(!PSZ.Output) PSZ.Output = {};
+
+  /* -----------------------------------------
+     1) Build block Probabilities (H/D/A)
+  ----------------------------------------- */
+  PSZ.Output.buildProbabilities = function(prob){
+    if(!prob) return "";
+
+    let t = "";
+    t += PSZ.Output.sub("PROBABILITIES");
+    t += PSZ.Output.line("Home Win", PSZ.Output.pct(prob.pH)) + "\n";
+    t += PSZ.Output.line("Draw",      PSZ.Output.pct(prob.pD)) + "\n";
+    t += PSZ.Output.line("Away Win", PSZ.Output.pct(prob.pA)) + "\n";
+
+    return t;
+  };
+
+  /* -----------------------------------------
+     2) Build block Risk / Fragility / Uncertainty
+  ----------------------------------------- */
+  PSZ.Output.buildRiskBlock = function(engine){
+    if(!engine) return "";
+
+    const risk = engine.risk || 0;
+    const frag = engine.frag || 0;
+    const unc  = engine.unc  || 0.0;
+
+    let t = "";
+    t += PSZ.Output.sub("RISK / FRAGILITY / UNCERTAINTY");
+    t += PSZ.Output.line("Risk",        PSZ.Output.pct(risk)) + "\n";
+    t += PSZ.Output.line("Fragility",   PSZ.Output.pct(frag)) + "\n";
+    t += PSZ.Output.line("Uncertainty", PSZ.Output.pct(unc))  + "\n";
+
+    return t;
+  };
+
+  /* -----------------------------------------
+     3) Build block Secondary Metrics:
+        - Avg Goals
+        - BTTS
+  ----------------------------------------- */
+  PSZ.Output.buildSecondaryMetrics = function(engine){
+    if(!engine) return "";
+
+    const avg = engine.avgGoals || 0;
+    const btts = engine.btts || 0;
+
+    let t = "";
+    t += PSZ.Output.sub("METRICS");
+    t += PSZ.Output.line("Average Goals", PSZ.Output.num(avg, 3)) + "\n";
+    t += PSZ.Output.line("BTTS",          PSZ.Output.pct(btts)) + "\n";
+
+    return t;
+  };
+
+  console.log("PART 7 — Output Builder SECTION B Loaded ✔");
+
+})(window.PSZ);
+</script>
+  
+<!-- PART 7 — Output Builder / SECTION C -->
+<script>
+(function(PSZ){
+
+  if(!PSZ.Output) PSZ.Output = {};
+
+  /* ===================================================
+     4) OVER / UNDER BLOCK
+  ==================================================== */
+  PSZ.Output.buildOU = function(engine){
+    if(!engine || !engine.ou) return "";
+
+    let t = "";
+    t += PSZ.Output.sub("OVER / UNDER");
+
+    const ou = engine.ou;
+
+    const keys = Object.keys(ou).sort((a,b)=>parseFloat(a)-parseFloat(b));
+
+    for(const k of keys){
+      t += `O/U ${k} → Over ${PSZ.Output.pct(ou[k].over)} | Under ${PSZ.Output.pct(ou[k].under)}\n`;
     }
 
-    // OU 2.5 via model mc or avgGoals
-    if(finalResult.ou){
-      const modelOver = finalResult.ou["2.5"] ? finalResult.ou["2.5"].over : (finalResult.avgGoals > 2.5 ? 0.62 : 0.38);
-      if(modelOver > 0.66) recs.push({ type:"OU", pick:"Over 2.5", modelProb:modelOver, note:"strong over signal" });
-      if(modelOver < 0.32) recs.push({ type:"OU", pick:"Under 2.5", modelProb:modelOver, note:"strong under signal" });
+    return t;
+  };
+
+  /* ===================================================
+     5) SCORE MATRIX (Highly Compressed for safe output)
+  ==================================================== */
+  PSZ.Output.buildScoreMatrix = function(engine){
+    if(!engine || !engine.matrix) return "";
+
+    const m = engine.matrix;
+    const cap = engine.simCount ? engine.scoreCap : null;
+
+    let t = "";
+    t += PSZ.Output.sub("SCORE MATRIX (TOP CELLS)");
+
+    if(!cap){
+      t += "Matrix unavailable (no MC).\n";
+      return t;
     }
 
-    // BTTS
-    if(finalResult.btts !== undefined){
-      if(finalResult.btts > 0.70) recs.push({ type:"BTTS", pick:"Yes", modelProb:finalResult.btts });
-      else if(finalResult.btts < 0.30) recs.push({ type:"BTTS", pick:"No", modelProb:finalResult.btts });
+    // tampilkan max 4x4 agar aman & tidak overload output
+    const MAX = Math.min(4, cap);
+
+    for(let h=0; h<=MAX; h++){
+      let row = "";
+      for(let a=0; a<=MAX; a++){
+        const v = (m[h] && m[h][a]) ? m[h][a] : 0;
+        row += (v*100).toFixed(1) + "%  ";
+      }
+      t += `H${h}: ${row}\n`;
     }
 
-    // Correct Score shortlist (top N from matrix)
-    if(finalResult.matrix){
-      const flat = [];
-      for(let h=0; h< finalResult.matrix.length; h++){
-        for(let a=0; a< finalResult.matrix[h].length; a++){
-          flat.push({ score: `${h}-${a}`, p: finalResult.matrix[h][a] });
+    return t;
+  };
+
+  /* ===================================================
+     6) MOMENTUM PATH BLOCK
+  ==================================================== */
+  PSZ.Output.buildMomentumPath = function(momentum){
+    if(!momentum || !momentum.path) return "";
+
+    const p = momentum.path;
+    const swing = momentum.swingPotential || 0;
+
+    let t = "";
+    t += PSZ.Output.sub("MOMENTUM PATH");
+
+    t += `Control: ${PSZ.Output.pct(p.control)} | Swing: ${PSZ.Output.pct(p.swing)} | Chaotic: ${PSZ.Output.pct(p.chaotic)} | Stalled: ${PSZ.Output.pct(p.stalled)}\n`;
+    t += `Swing Potential: ${PSZ.Output.pct(swing)}\n`;
+
+    return t;
+  };
+
+  /* ===================================================
+     7) PRESSURE MAP BLOCK
+  ==================================================== */
+  PSZ.Output.buildPressure = function(momentum){
+    if(!momentum || !momentum.pressure) return "";
+
+    const P = momentum.pressure;
+
+    let t = "";
+    t += PSZ.Output.sub("PRESSURE MAP (Early / Mid / Late)");
+
+    t += PSZ.Output.line("Early", PSZ.Output.pct(P.early)) + "\n";
+    t += PSZ.Output.line("Mid",   PSZ.Output.pct(P.mid))   + "\n";
+    t += PSZ.Output.line("Late",  PSZ.Output.pct(P.late))  + "\n";
+
+    return t;
+  };
+
+  console.log("PART 7 — Output Builder SECTION C Loaded ✔");
+
+})(window.PSZ);
+</script>
+  
+<!-- PART 7 — Output Builder / SECTION D -->
+<script>
+(function(PSZ){
+
+  if(!PSZ.Output) PSZ.Output = {};
+
+  /* ===================================================
+     8) FINAL OUTPUT BUILDER
+  ==================================================== */
+  PSZ.Output.buildFinal = function(final){
+    if(!final) return "ERROR: No final object.";
+
+    const e = final.engine || {};
+    const ml = final.ml || {};
+    const prob = (ml && ml.prob) ? ml.prob : (e.prob || {pH:0.33,pD:0.33,pA:0.34});
+    const mom = final.momentum || {};
+
+    let t = "";
+
+    /* ------------ HEADER ------------ */
+    t += PSZ.Output.header("PARLAY ANALYSIS RESULT");
+    t += `Match: ${final.meta.home} vs ${final.meta.away}\n`;
+    t += `Match ID: ${final.meta.match_id}\n`;
+    t += `Timestamp: ${final.meta.timestamp}\n`;
+
+    /* ------------ PROBABILITIES ------------ */
+    t += PSZ.Output.buildProbabilities(prob);
+
+    /* ------------ RISK BLOCK ------------ */
+    t += PSZ.Output.buildRiskBlock(e);
+
+    /* ------------ METRICS ------------ */
+    t += PSZ.Output.buildSecondaryMetrics(e);
+
+    /* ------------ OVER/UNDER ------------ */
+    t += PSZ.Output.buildOU(e);
+
+    /* ------------ MOMENTUM PATH ------------ */
+    t += PSZ.Output.buildMomentumPath(mom);
+
+    /* ------------ PRESSURE MAP ------------ */
+    t += PSZ.Output.buildPressure(mom);
+
+    /* ------------ SCORE MATRIX ------------ */
+    t += PSZ.Output.buildScoreMatrix(e);
+
+    /* ------------ RECOMMENDATIONS ------------ */
+    t += PSZ.Output.sub("RECOMMENDATIONS");
+
+    if(final.recs && final.recs.length){
+      for(const r of final.recs){
+        if(r.type === "1X2"){
+          t += `1X2 → ${r.pick} | Prob=${PSZ.Output.pct(r.prob)} | EV=${PSZ.Output.num(r.ev,3)} | Kelly=${PSZ.Output.pct(r.kelly)} | Odds=${r.odds}\n`;
+        }
+        else if(r.type === "OU"){
+          t += `OU → ${r.pick} | Prob=${PSZ.Output.pct(r.modelProb)} | Line=${r.line} | Note=${r.note||""}\n`;
+        }
+        else if(r.type === "BTTS"){
+          t += `BTTS → ${r.pick} | Prob=${PSZ.Output.pct(r.modelProb)}\n`;
+        }
+        else if(r.type === "CS"){
+          t += `Correct Score → ${r.score} | ${PSZ.Output.pct(r.prob)}\n`;
         }
       }
-      flat.sort((x,y)=>y.p - x.p);
-      const cs = flat.slice(0,10).filter(x=>x.p > 0.004).map(x=>({ type:"CS", score:x.score, prob:x.p }));
-      recs.push(...cs);
+    } else {
+      t += "No value bet found.\n";
     }
 
-    // Sort recommendations
-    recs.sort((A,B)=>{
-      const scoreA = (A.ev||0) + (A.modelProb?A.modelProb:0) + (A.prob?A.prob:0);
-      const scoreB = (B.ev||0) + (B.modelProb?B.modelProb:0) + (B.prob?B.prob:0);
-      return scoreB - scoreA;
-    });
+    t += "\n=== END OF REPORT ===\n";
 
-    return recs;
+    return t;
   };
 
-  console.log("PART 7 — MARKET & ML ENSEMBLE + RECOMMENDER LOADED");
+  console.log("PART 7 — Output Builder SECTION D Loaded ✔");
+
 })(window.PSZ);
 </script>
-<!-- END PART 7 -->
-<!-- =====================================================
-     PART 8 — RUNNER, UI HOOKS, PROGRESS, EXPORT (FINAL)
-     Paste this AFTER PART 7
-===================================================== -->
+ <!-- PART 8 — RUNNER ENGINE / SECTION A -->
 <script>
 (function(PSZ){
-  if(!window || !PSZ) { console.error("PSZ namespace missing"); return; }
 
-  // simple logger: append to textarea 'output'
-  function appendLog(msg, replace=false){
-    const out = document.getElementById("output");
-    if(!out) return;
-    const time = (new Date()).toISOString().replace('T',' ').split('.')[0];
-    const line = `[${time}] ${msg}`;
-    if(replace) out.value = line;
-    else out.value += "\n" + line;
-    out.scrollTop = out.scrollHeight;
-    console.log(line);
-  }
+  /* =========================================================
+       PART 8 — SECTION A
+       Runner Core Setup + Logger + Progress UI
+  ========================================================== */
 
-  // create small progress bar UI if not exists
-  function ensureProgressUI(){
+  if(!PSZ.Runner) PSZ.Runner = {};
+
+  /* -----------------------------------------
+       1. Logger → tampil ke textarea #output
+  ----------------------------------------- */
+  PSZ.Runner.appendLog = function(msg, replace=false){
+    try{
+      const out = document.getElementById("output");
+      if(!out) return;
+
+      const time = new Date().toISOString().replace("T", " ").split(".")[0];
+      const line = `[${time}] ${msg}`;
+
+      if(replace) out.value = line;
+      else out.value += "\n" + line;
+
+      out.scrollTop = out.scrollHeight;
+      console.log(line);
+    }catch(e){
+      console.error("LOG ERROR:", e);
+    }
+  };
+
+  /* -----------------------------------------
+       2. Ensure Progress Bar UI Exists
+  ----------------------------------------- */
+  PSZ.Runner.ensureProgress = function(){
     let bar = document.getElementById("psz_progress");
     if(bar) return bar;
-    const lp = document.getElementById("leftPanel") || document.body;
+
     const wrap = document.createElement("div");
     wrap.id = "psz_progress_wrap";
     wrap.style.marginTop = "8px";
     wrap.style.padding = "6px";
-    wrap.style.background = "linear-gradient(90deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02))";
-    wrap.style.borderRadius = "8px";
-    wrap.style.display = "flex";
-    wrap.style.flexDirection = "column";
-    wrap.style.gap = "6px";
+    wrap.style.borderRadius = "6px";
+    wrap.style.background = "rgba(255,255,255,0.05)";
 
     const label = document.createElement("div");
     label.id = "psz_progress_label";
@@ -1444,241 +1689,307 @@ window.PSZ = window.PSZ || {};
     label.style.color = "var(--muted)";
     wrap.appendChild(label);
 
-    const barContainer = document.createElement("div");
-    barContainer.style.width = "100%";
-    barContainer.style.height = "10px";
-    barContainer.style.background = "rgba(255,255,255,0.03)";
-    barContainer.style.borderRadius = "6px";
-    barContainer.style.overflow = "hidden";
+    const barBox = document.createElement("div");
+    barBox.style.height = "8px";
+    barBox.style.width = "100%";
+    barBox.style.background = "rgba(255,255,255,0.1)";
+    barBox.style.borderRadius = "4px";
+    wrap.appendChild(barBox);
 
     bar = document.createElement("div");
     bar.id = "psz_progress";
-    bar.style.width = "0%";
     bar.style.height = "100%";
-    bar.style.background = "linear-gradient(90deg, var(--accent), #00a88a)";
-    bar.style.transition = "width 180ms linear";
+    bar.style.width = "0%";
+    bar.style.background = "var(--accent)";
+    bar.style.transition = "width 0.15s linear";
+    barBox.appendChild(bar);
 
-    barContainer.appendChild(bar);
-    wrap.appendChild(barContainer);
+    // tempel ke panel kiri
+    const left = document.getElementById("leftPanel") || document.body;
+    left.appendChild(wrap);
 
-    const simEl = document.getElementById("simIntensity");
-    if(simEl && simEl.parentNode) simEl.parentNode.appendChild(wrap);
-    else lp.appendChild(wrap);
     return bar;
-  }
-
-  // hook used by MC chunked to update progress
-  PSZ.onMCProgress = PSZ.onMCProgress || function(fraction){
-    try{
-      const bar = ensureProgressUI();
-      const label = document.getElementById("psz_progress_label");
-      const pct = Math.round(fraction * 100);
-      if(bar) bar.style.width = pct + "%";
-      if(label) label.textContent = `Progress: ${pct}%`;
-      if(pct >= 100){
-        if(label) label.textContent = "Progress: Complete";
-        setTimeout(()=>{ if(bar) bar.style.width = "0%"; if(label) label.textContent = "Progress: Idle"; }, 900);
-      }
-    }catch(e){ console.error(e); }
   };
 
-  // Validate simIntensity and cap
-  function normalizeSimIntensity(n){
-    n = PSZ.safeNum(n, 20000);
-    n = Math.max(500, Math.min(n, 120000)); // cap upper bound
-    return Math.round(n);
-  }
-
-  // Convert engine result to readable output string
-  function formatFinalOutput(final){
+  /* -----------------------------------------
+       3. Progress Update Hook (dipanggil MC)
+  ----------------------------------------- */
+  PSZ.onMCProgress = function(fraction){
     try{
-      const e = final.engine || final;
-      const ml = final.ml || {};
-      const prob = (final.ml && final.ml.prob) ? final.ml.prob : (e.prob || {pH:0.33,pD:0.33,pA:0.34});
-      const lines = [];
-      lines.push("=== PARLAY — FINAL OUTPUT ===");
-      lines.push(`Match: ${final.meta.home} vs ${final.meta.away} | id:${final.meta.match_id}`);
-      lines.push("");
-      lines.push("[PROBABILITIES]");
-      lines.push(`Home : ${(prob.pH*100).toFixed(1)}%`);
-      lines.push(`Draw : ${(prob.pD*100).toFixed(1)}%`);
-      lines.push(`Away : ${(prob.pA*100).toFixed(1)}%`);
-      lines.push("");
-      lines.push("[ENGINE METRICS]");
-      lines.push(`AvgGoals: ${(e.avgGoals||0).toFixed(3)}, BTTS: ${(e.btts*100||0).toFixed(1)}%`);
-      lines.push(`Risk: ${(e.risk*100||0).toFixed(1)}% Frag: ${(e.frag*100||0).toFixed(1)}% Unc: ${(e.unc*100||0).toFixed(1)}%`);
-      lines.push("");
-      if(final.recs && final.recs.length){
-        lines.push("[RECOMMENDATIONS]");
-        final.recs.forEach(r=>{
-          if(r.type === "1X2") lines.push(`- 1X2: ${r.pick} | prob ${(r.prob*100).toFixed(1)}% | odds ${r.odds} | EV ${(r.ev*100).toFixed(1)}% | Kelly ${(r.kelly*100||0).toFixed(1)}%`);
-          else if(r.type === "OU") lines.push(`- OU: ${r.pick} | model ${(r.modelProb*100).toFixed(1)}% | ${r.note||''}`);
-          else if(r.type === "BTTS") lines.push(`- BTTS: ${r.pick} | prob ${(r.modelProb*100).toFixed(1)}%`);
-          else if(r.type === "CS") lines.push(`- CS: ${r.score} | prob ${(r.prob*100).toFixed(2)}%`);
-        });
-      } else {
-        lines.push("[RECOMMENDATIONS] No value found.");
-      }
-      return lines.join("\n");
-    }catch(e){
-      console.error(e);
-      return "Error formatting final output";
-    }
-  }
+      const bar = PSZ.Runner.ensureProgress();
+      const label = document.getElementById("psz_progress_label");
+      const pct = Math.round(fraction * 100);
 
-  /* ====== MAIN RUNNER: runFullAsync ======
-     Steps:
-     1) smartFillFromDOM -> ctx
-     2) master init
-     3) applyTactics
-     4) engine.runE5 (async chunked)
-     5) momentum.project
-     6) ml.applyEnsemble
-     7) recommender.generateRecommendations
-     8) final object stored PSZ.LAST_RUN
-  ========================================= */
-  PSZ.Runner = PSZ.Runner || {};
+      bar.style.width = pct + "%";
+      label.textContent = `Progress: ${pct}%`;
+
+      if(pct >= 100){
+        setTimeout(()=>{
+          bar.style.width = "0%";
+          label.textContent = "Progress: Idle";
+        }, 700);
+      }
+
+    }catch(e){
+      console.error("Progress Error:", e);
+    }
+  };
+
+  /* -----------------------------------------
+       4. Normalisasi simIntensity
+  ----------------------------------------- */
+  PSZ.Runner.normalizeSimIntensity = function(n){
+    let x = PSZ.safeNum(n, 20000);
+
+    if(x < 500) x = 500;
+    if(x > 120000) x = 120000;
+
+    return Math.round(x);
+  };
+
+  console.log("PART 8 — Runner SECTION A Loaded ✔");
+
+})(window.PSZ);
+</script> 
+<!-- PART 8 — RUNNER ENGINE / SECTION B (PIPELINE UTAMA) -->
+<script>
+(function(PSZ){
+
+  /* =========================================================
+        PART 8 — SECTION B
+        RUNNER PIPELINE: AUTO → TACTICS → ENGINE → ML → OUTPUT
+  ========================================================== */
 
   PSZ.Runner.runFullAsync = async function(ctxOverride){
+
+    const log = PSZ.Runner.appendLog;
     try{
-      appendLog("RUNNER: Starting full pipeline...");
-      // 1. auto input
-      const ctx = PSZ.AutoInput.smartFillFromDOM(ctxOverride || {});
-      if(!ctx) throw new Error("AutoInput failed.");
+      log("RUNNER: Starting full analysis...");
 
-      // normalize simIntensity & safety
-      ctx.simIntensity = normalizeSimIntensity(PSZ.safeNum(ctx.simIntensity, 20000));
-      appendLog(`RUNNER: simIntensity=${ctx.simIntensity}`);
-
-      // 2. master init
-      const master = PSZ.Master.init(ctx);
-      appendLog(`RUNNER: Master init done. lamH_adj=${master.lamH_adj.toFixed(3)} lamA_adj=${master.lamA_adj.toFixed(3)}`);
-
-      // 3. tactics
-      const tacticsRes = PSZ.Tactics.applyTactics(ctx, master);
-      appendLog(`RUNNER: Tactics applied: ${tacticsRes.notes}`);
-
-      // 4. engine run (async)
-      appendLog("RUNNER: Running Engine (E5) — Monte Carlo chunked (non-blocking) ...");
-      const engineResult = await PSZ.Engine.runE5(ctx, tacticsRes);
-      appendLog(`RUNNER: Engine done. sim=${engineResult.mc.simCount} avgGoals=${(engineResult.avgGoals||0).toFixed(3)}`);
-
-      // 5. momentum
-      if(tacticsRes.tactics && tacticsRes.tactics.xT){
-        ctx.xT_home = PSZ.safeNum(tacticsRes.tactics.xT.home.xT, ctx.xT_home || 0.30);
-        ctx.xT_away = PSZ.safeNum(tacticsRes.tactics.xT.away.xT, ctx.xT_away || 0.30);
+      /* -----------------------------------------
+            1. AUTO INPUT
+      ----------------------------------------- */
+      const ctx0 = ctxOverride || {};
+      let ctx = PSZ.AutoInput.smartFillFromDOM(ctx0);
+      if(!ctx){
+        log("ERROR: AutoInput gagal.");
+        return null;
       }
+
+      ctx.simIntensity = PSZ.Runner.normalizeSimIntensity(ctx.simIntensity);
+      log("AutoInput OK. simIntensity=" + ctx.simIntensity);
+
+
+      /* -----------------------------------------
+            2. MASTER INIT (lambda adjusted)
+      ----------------------------------------- */
+      const master = PSZ.Master.init(ctx);
+      log(`Master OK. lamH_adj=${master.lamH_adj.toFixed(3)} lamA_adj=${master.lamA_adj.toFixed(3)}`);
+
+
+      /* -----------------------------------------
+            3. APPLY TACTICS
+      ----------------------------------------- */
+      const tactics = PSZ.Tactics.applyTactics(ctx, master);
+      log(`Tactics OK. Note=${tactics.notes || "None"}`);
+
+
+      /* -----------------------------------------
+            4. ENGINE RUN (MC async)
+      ----------------------------------------- */
+      log("ENGINE: Running Monte Carlo async...");
+      const engine = await PSZ.Engine.runE5(ctx, tactics);
+      log(`ENGINE done. sim=${engine.mc.simCount} avgGoals=${engine.avgGoals.toFixed(3)}`);
+
+
+      /* -----------------------------------------
+            5. MOMENTUM ENGINE
+      ----------------------------------------- */
       const momentum = PSZ.Momentum.project(ctx);
-      appendLog(`RUNNER: Momentum computed. path=${Object.keys(momentum.path).sort((a,b)=>momentum.path[b]-momentum.path[a])[0]} swing=${(momentum.swingPotential||0).toFixed(3)}`);
+      log(`Momentum OK. Path major="${Object.keys(momentum.path)
+              .sort((a,b)=>momentum.path[b]-momentum.path[a])[0]}"`);
 
-      // 6. ML ensemble & calibration
-      const mlOut = PSZ.ML.applyEnsemble(ctx, engineResult, momentum);
-      appendLog(`RUNNER: ML ensemble done. maxProb=${((mlOut.prob && Math.max(mlOut.prob.pH, mlOut.prob.pD, mlOut.prob.pA)||0)*100).toFixed(1)}%`);
 
-      // 7. recommendations
-      const finalEngineView = Object.assign({}, engineResult, { prob: mlOut.prob, ou: engineResult.ou, btts: engineResult.btts, matrix: engineResult.matrix, avgGoals: engineResult.avgGoals });
-      const recs = PSZ.Recommender.generateRecommendations(finalEngineView, ctx, { H: ctx.market_H, D: ctx.market_D, A: ctx.market_A, BTTS: ctx.market_BTTS });
-      appendLog(`RUNNER: Recommendations: ${recs.length} items`);
+      /* -----------------------------------------
+            6. ML ENSEMBLE
+      ----------------------------------------- */
+      const ml = PSZ.ML.applyEnsemble(ctx, engine, momentum);
+      log(`ML Ensemble OK. MaxProb=${Math.max(ml.prob.pH, ml.prob.pD, ml.prob.pA).toFixed(3)}`);
 
-      // 8. final object
-      const final = {
-        meta: { match_id: ctx.match_id || ("M_AUTO_"+Date.now()), home: ctx.home_team || "Home", away: ctx.away_team || "Away", timestamp: (new Date()).toISOString() },
-        ctx, master, tactics: tacticsRes, engine: engineResult, momentum, ml: mlOut, recs
+
+      /* -----------------------------------------
+            7. RECOMMENDATIONS
+      ----------------------------------------- */
+      const odds = {
+        H: ctx.market_H,
+        D: ctx.market_D,
+        A: ctx.market_A,
+        BTTS: ctx.market_BTTS
       };
 
-      // store and display
+      const recs = PSZ.Recommender.generateRecommendations(
+        { prob: ml.prob, ou: engine.ou, btts: engine.btts, avgGoals: engine.avgGoals },
+        ctx, odds
+      );
+
+      log(`Recommendations OK: ${recs.length} items`);
+
+
+      /* -----------------------------------------
+            8. FINAL OBJECT
+      ----------------------------------------- */
+      const final = {
+        meta: {
+          match_id: ctx.match_id || ("M" + Date.now()),
+          home: ctx.home_team || "Home",
+          away: ctx.away_team || "Away",
+          timestamp: new Date().toISOString()
+        },
+        ctx, master, tactics,
+        engine, momentum, ml, recs
+      };
+
       PSZ.LAST_RUN = final;
-      const outText = formatFinalOutput(final);
-      appendLog("RUNNER: Finalizing output...", true);
-      appendLog(outText, true);
+
+
+      /* -----------------------------------------
+            9. BUILD FINAL OUTPUT
+      ----------------------------------------- */
+      const text = PSZ.Output.buildFinal(final);
+      log("===== FINAL OUTPUT GENERATED =====", true);
+      log(text, true);
 
       return final;
 
     }catch(err){
-      appendLog("RUNNER ERROR: " + (err && err.message ? err.message : String(err)));
+      log("RUNNER ERROR: " + err.message);
       console.error(err);
-      throw err;
+      return null;
     }
   };
 
-  /* ====== Button wiring & export ====== */
-  function wireButtons(){
-    if(!document.getElementById("btn_export_json")){
-      const b = document.createElement("button");
-      b.id = "btn_export_json";
-      b.textContent = "EXPORT LAST RUN JSON";
-      b.className = "alt";
-      b.style.marginTop = "8px";
-      b.addEventListener("click", function(){
-        const last = PSZ.LAST_RUN || null;
-        if(!last){ appendLog("EXPORT: No last run."); return; }
-        const text = JSON.stringify(last, null, 2);
-        if(navigator.clipboard){
-          navigator.clipboard.writeText(text).then(()=> appendLog("EXPORT: JSON copied to clipboard."), ()=> { prompt("COPY JSON:", text); appendLog("EXPORT: Clipboard failed, used prompt."); });
-        } else {
-          prompt("COPY JSON:", text);
-          appendLog("EXPORT: Clipboard not available, used prompt.");
-        }
-      });
-      const lp = document.getElementById("leftPanel");
-      if(lp) lp.appendChild(b);
-    }
-
-    const bAuto = document.getElementById("btn_auto_input");
-    const bRun = document.getElementById("btn_run_core");
-    const bMin = document.getElementById("btn_run_minute");
-
-    if(bAuto) bAuto.addEventListener("click", function(){
-      try{
-        appendLog("UI: AUTO INPUT pressed.");
-        const ctx = PSZ.AutoInput.smartFillFromDOM();
-        if(ctx) appendLog("UI: AUTO INPUT complete.");
-        else appendLog("UI: AUTO INPUT failed.");
-      }catch(e){ appendLog("UI AUTO ERROR: "+e.message); }
-    });
-
-    if(bRun) bRun.addEventListener("click", async function(){
-      try{
-        bRun.disabled = true;
-        appendLog("UI: RUN pressed.");
-        await PSZ.Runner.runFullAsync();
-      }catch(e){
-        appendLog("UI RUN ERROR: " + (e && e.message ? e.message : e));
-      }finally{
-        bRun.disabled = false;
-      }
-    });
-
-    if(bMin) bMin.addEventListener("click", function(){
-      appendLog("UI: MINUTE SIM pressed.");
-      try{
-        const ctx = PSZ.AutoInput.smartFillFromDOM();
-        const master = PSZ.Master.init(ctx);
-        const tactics = PSZ.Tactics.applyTactics(ctx, master);
-        PSZ.Engine.mcE5Chunked(ctx, tactics.adjustedLam, 1200).then(res=>{
-          appendLog(`MINUTE SIM: done sim=${res.simCount} avgGoals=${res.avgGoals.toFixed(3)} BTTS=${(PSZ.Engine.computeBTTS(res.matrix,res.simCount)*100).toFixed(1)}%`);
-        }).catch(e=>{
-          appendLog("MINUTE SIM ERROR: "+e.message);
-        });
-      }catch(e){
-        appendLog("MINUTE SIM SETUP ERROR: "+e.message);
-      }
-    });
-  }
-
-  if(document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", wireButtons);
-  } else {
-    wireButtons();
-  }
-
-  appendLog("PART 8 — RUNNER & UI HOOKS LOADED. Ready.");
-  console.log("PART 8 — RUNNER LOADED");
+  console.log("PART 8 — Runner SECTION B Loaded ✔");
 
 })(window.PSZ);
 </script>
-<!-- END PART 8 -->
+<!-- PART 8 — RUNNER ENGINE / SECTION C (UI BINDINGS) -->
+<script>
+(function(PSZ){
 
- 
+  /* =========================================================
+       PART 8 — SECTION C
+       UI Button → Runner Pipeline Connections
+  ========================================================== */
+
+  const log = PSZ.Runner.appendLog;
+
+  function wireButtons(){
+
+    /* -------------------------
+          AUTO INPUT BUTTON
+    ------------------------- */
+    const bAuto = document.getElementById("btn_auto_input");
+    if(bAuto){
+      bAuto.onclick = function(){
+        try{
+          log("UI: AUTO INPUT clicked.");
+          const ctx = PSZ.AutoInput.smartFillFromDOM({});
+          if(ctx) log("AUTO INPUT OK.");
+          else log("AUTO INPUT FAILED.");
+        }catch(e){
+          log("AUTO INPUT ERROR: " + e.message);
+        }
+      };
+    }
+
+
+    /* -------------------------
+           RUN CORE BUTTON
+    ------------------------- */
+    const bRun = document.getElementById("btn_run_core");
+    if(bRun){
+      bRun.onclick = async function(){
+        bRun.disabled = true;
+        try{
+          log("UI: RUN CORE clicked.");
+          await PSZ.Runner.runFullAsync();   // <== ini pipeline utama
+        }catch(e){
+          log("RUN ERROR: " + e.message);
+        }
+        bRun.disabled = false;
+      };
+    }
+
+
+    /* -------------------------
+           EXPORT JSON BUTTON
+    ------------------------- */
+    const bExport = document.getElementById("btn_export_json");
+    if(bExport){
+      bExport.onclick = function(){
+        try{
+          const last = PSZ.LAST_RUN;
+          if(!last){
+            log("EXPORT: No last run.");
+            return;
+          }
+          const text = JSON.stringify(last, null, 2);
+
+          if(navigator.clipboard){
+            navigator.clipboard.writeText(text)
+              .then(()=> log("EXPORT: Copied to clipboard"))
+              .catch(()=>{
+                log("EXPORT CLIPBOARD FAILED. Showing prompt...");
+                prompt("COPY JSON:", text);
+              });
+          }else{
+            prompt("COPY JSON:", text);
+          }
+
+        }catch(e){
+          log("EXPORT ERROR: " + e.message);
+        }
+      };
+    }
+
+
+    /* -------------------------
+         OPTIONAL: MINUTE SIM
+    ------------------------- */
+    const bMin = document.getElementById("btn_run_minute");
+    if(bMin){
+      bMin.onclick = async function(){
+        try{
+          log("UI: MINUTE SIM clicked.");
+          const ctx = PSZ.AutoInput.smartFillFromDOM({});
+          const master = PSZ.Master.init(ctx);
+          const tactics = PSZ.Tactics.applyTactics(ctx, master);
+
+          const res = await PSZ.Engine.mcE5Chunked(ctx, tactics.adjustedLam, 1500);
+          log(`MinuteSim done: avgGoals=${res.avgGoals.toFixed(3)}`);
+
+        }catch(e){
+          log("MINUTE SIM ERROR: " + e.message);
+        }
+      };
+    }
+
+    log("UI Buttons Wired ✔");
+  }
+
+  /* --------------------------------------
+       INIT when DOM is ready
+  -------------------------------------- */
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", wireButtons);
+  }else{
+    wireButtons();
+  }
+
+  console.log("PART 8 — UI SECTION C Loaded ✔");
+
+})(window.PSZ);
+</script>
+  
 </body>
 </html>
