@@ -1842,6 +1842,555 @@ PSZ.computeBTTS = function(godHL){
   console.log("Level15 UI hooks attached (fixed).");
 })(window.PSZ);
   </script>  
+<script>
+// ================================
+// PART K — LEVEL 16: CALIBRATED ENSEMBLE & MARKET SUITE (FULL)
+// - calibration (bootstrap & isotonic-lite)
+// - ensemble blending with weights auto-tuned
+// - market tracker (odds -> implied prob history)
+// - backtester for historical events (localStorage based)
+// - portfolio optimizer (Kelly portfolio / stake allocation)
+// - safe guards (non-blocking defaults, configurable)
+// Expose: window.PSZ.Level16
+// ================================
+(function(PSZ){
+  if(!PSZ) PSZ = window.PSZ = window.PSZ || {};
 
+  PSZ.Level16 = PSZ.Level16 || {};
+
+  // -------------------------
+  // SAFE UTILS (local)
+  // -------------------------
+  const clamp = (v, a, b) => PSZ.clamp(PSZ.safeNum(v,0), a, b);
+  function safeLog(x){ return Math.log(Math.max(1e-9, x)); }
+  function randId(prefix="id"){ return prefix + "_" + Math.random().toString(36).slice(2,9); }
+
+  // -------------------------
+  // MARKET TRACKER
+  // - stores incoming market odds snapshots into localStorage with timestamp
+  // - useful for analyzing market movement & late value
+  // -------------------------
+  PSZ.Level16.Market = (function(){
+    const KEY = "psz_market_snap_v1";
+    function load(){ try{ const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : {snapshots:[]}; }catch(e){ return {snapshots:[]}; } }
+    function save(obj){ try{ localStorage.setItem(KEY, JSON.stringify(obj)); return true; }catch(e){ return false; } }
+    function pushSnapshot(matchId, oddsObj){
+      const store = load();
+      store.snapshots = store.snapshots || [];
+      store.snapshots.push({ id: matchId || randId("m"), t: Date.now(), odds: oddsObj });
+      // keep limited history
+      if(store.snapshots.length > 1000) store.snapshots.shift();
+      save(store);
+    }
+    function query(matchId){
+      const s = load();
+      return (s.snapshots || []).filter(x => !matchId || x.id === matchId);
+    }
+    return { load, save, pushSnapshot, query, KEY };
+  })();
+
+  // -------------------------
+  // BOOTSTRAP CALIBRATION (for probabilities)
+  // - input: array of {predProb, outcome} where outcome 1 = event happened (home win etc.)
+  // - returns calibrated function params (simple isotonic-lite via monotonic piecewise)
+  // -------------------------
+  PSZ.Level16.bootstrapCalibrate = function(samples, bins=20){
+    bins = Math.max(6, Math.min(60, Math.floor(bins)));
+    // bucket into bins by predProb
+    const buckets = Array.from({length:bins}, ()=>({sumP:0, count:0, sumY:0}));
+    for(const s of samples){
+      const p = clamp(s.predProb, 0, 1);
+      const idx = Math.min(bins-1, Math.floor(p * bins));
+      buckets[idx].sumP += p;
+      buckets[idx].count += 1;
+      buckets[idx].sumY += (s.outcome?1:0);
+    }
+    // compute observed frequency per bucket
+    const points = [];
+    for(let i=0;i<bins;i++){
+      if(buckets[i].count === 0) continue;
+      const avgP = buckets[i].sumP / buckets[i].count;
+      const obs = buckets[i].sumY / buckets[i].count;
+      points.push({p: avgP, y: obs, n: buckets[i].count});
+    }
+    // monotonic smoothing: enforce non-decreasing y w.r.t p (isotonic-like)
+    points.sort((a,b) => a.p - b.p);
+    // Pool Adjacent Violators algorithm (PAV) simple
+    const ys = points.map(pt => pt.y);
+    const ws = points.map(pt => pt.n);
+    // PAV
+    function pav(y, w){
+      const n = y.length;
+      const levels = y.map((v,i)=>({sumY: v*w[i], sumW: w[i]}));
+      const idx = Array.from({length:n}, (_,i) => i);
+      let i=0;
+      while(i < levels.length - 1){
+        if(levels[i].sumY/levels[i].sumW <= levels[i+1].sumY/levels[i+1].sumW) { i++; continue; }
+        // pool
+        levels[i].sumY += levels[i+1].sumY;
+        levels[i].sumW += levels[i+1].sumW;
+        levels.splice(i+1,1);
+        if(i>0) i--;
+      }
+      // expand back to points
+      const fitted = [];
+      let cursor = 0;
+      for(const L of levels){
+        const val = L.sumY / L.sumW;
+        const cnt = Math.round(L.sumW); // approximate
+        for(let k=0;k<cnt && cursor < n; k++){
+          fitted[cursor++] = val;
+        }
+      }
+      // if lengths mismatch, fill remainder with last val
+      while(fitted.length < n) fitted.push(fitted[fitted.length-1] || 0);
+      return fitted.slice(0,n);
+    }
+    const fitted = (points.length>0) ? pav(ys, ws) : [];
+    // Build piecewise mapping: map p -> calibrated y via nearest bucket interpolation
+    const calibration = {
+      bins: points.map((pt,i) => ({p:pt.p, y:fitted[i], n:pt.n})),
+      predict: function(p0){
+        if(!this.bins || this.bins.length===0) return p0;
+        // find closest p or linear interpolate between neighbors
+        let arr = this.bins;
+        if(p0 <= arr[0].p) return arr[0].y;
+        for(let i=0;i<arr.length-1;i++){
+          if(p0 >= arr[i].p && p0 <= arr[i+1].p){
+            const t = (p0 - arr[i].p) / (arr[i+1].p - arr[i].p || 1e-9);
+            return arr[i].y * (1-t) + arr[i+1].y * t;
+          }
+        }
+        return arr[arr.length-1].y;
+      }
+    };
+    return calibration;
+  };
+
+  // -------------------------
+  // ENSEMBLE BLENDER (auto-weight via simple convex optimization)
+  // - modelList: array of predictor objects {name, predict: (ctx) => {pH,pD,pA} }
+  // - validationSamples: array of {preds: {modelName:{pH,pD,pA}}, outcome: "H"|"D"|"A"}
+  // - returns weights {modelName:weight}
+  // - weight optimization by minimizing log-loss via coordinate descent
+  // -------------------------
+  PSZ.Level16.optimizeEnsembleWeights = function(modelNames, validationSamples, maxIter=200, lr=0.08){
+    // initialize weights equally
+    const W = {};
+    const m = modelNames.length;
+    modelNames.forEach(n => W[n] = 1/m);
+    // helper: compute ensemble prob vector for a sample
+    function ensembleProb(sample){
+      // sample.preds[modelName] => probs
+      const agg = {pH:0, pD:0, pA:0};
+      for(const name of modelNames){
+        const w = PSZ.safeNum(W[name], 0);
+        const pr = sample.preds[name] || {pH:1/3,pD:1/3,pA:1/3};
+        agg.pH += w * pr.pH; agg.pD += w * pr.pD; agg.pA += w * pr.pA;
+      }
+      // renormalize
+      const s = agg.pH + agg.pD + agg.pA || 1;
+      return { pH: agg.pH/s, pD: agg.pD/s, pA: agg.pA/s };
+    }
+    // logloss
+    function logloss(pred, actual){
+      const eps = 1e-15;
+      if(actual === "H") return -safeLog(Math.max(eps, pred.pH));
+      if(actual === "D") return -safeLog(Math.max(eps, pred.pD));
+      return -safeLog(Math.max(eps, pred.pA));
+    }
+    // coordinate descent with small adjustments
+    for(let it=0; it<maxIter; it++){
+      let improved = false;
+      for(const name of modelNames){
+        const current = W[name];
+        // try small increments and decrements
+        const tries = [current * (1 - lr), current * (1 + lr)];
+        let bestW = current, bestLoss = null;
+        for(const tw of tries){
+          if(tw < 0) continue;
+          // temporary weights
+          const tmp = {...W, [name]: tw};
+          // renormalize
+          const sum = Object.values(tmp).reduce((a,b)=>a+b,0) || 1;
+          Object.keys(tmp).forEach(k => tmp[k] = tmp[k] / sum);
+          // compute loss
+          let loss = 0;
+          for(const s of validationSamples){
+            // compute ensemble with tmp
+            const agg = {pH:0,pD:0,pA:0};
+            for(const nm of modelNames){
+              const wv = tmp[nm];
+              const pr = s.preds[nm] || {pH:1/3,pD:1/3,pA:1/3};
+              agg.pH += wv * pr.pH; agg.pD += wv * pr.pD; agg.pA += wv * pr.pA;
+            }
+            const ssum = agg.pH+agg.pD+agg.pA || 1;
+            const pred = {pH: agg.pH/ssum, pD: agg.pD/ssum, pA: agg.pA/ssum};
+            loss += logloss(pred, s.outcome);
+          }
+          if(bestLoss === null || loss < bestLoss){ bestLoss = loss; bestW = tw; }
+        }
+        // if improved, set and renormalize
+        if(bestW !== current){
+          W[name] = bestW;
+          const sum = Object.values(W).reduce((a,b)=>a+b,0) || 1;
+          Object.keys(W).forEach(k => W[k] = W[k]/sum);
+          improved = true;
+        }
+      }
+      if(!improved) break;
+    }
+    return W;
+  };
+
+  // -------------------------
+  // BACKTESTER (localStorage-driven)
+  // - store historical matches with fields: id, lamH, lamA, outcome, marketOdds {H,D,A}
+  // - run strategy: feed through runUltra + runLevel14 + calibrations and compute P&L
+  // -------------------------
+  PSZ.Level16.Backtester = (function(){
+    const KEY = "psz_backtest_v1";
+    function load(){ try{ const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : {matches:[]}; }catch(e){ return {matches:[]}; } }
+    function save(obj){ try{ localStorage.setItem(KEY, JSON.stringify(obj)); return true; }catch(e){ return false; } }
+    function pushMatch(m){
+      const db = load();
+      db.matches = db.matches || [];
+      db.matches.push(m);
+      if(db.matches.length > 2000) db.matches.shift();
+      save(db);
+    }
+    function runSimpleStrategy(opts){
+      // opts: stakes (flat or kelly), pick function(match, engineOutput) returns {betSide, stake, odds}
+      const db = load();
+      const res = { totalBets:0, wins:0, losses:0, pnl:0, details:[] };
+      for(const m of db.matches){
+        // set DOM or ctx - pass to engine via temporary PSZ_LAST input override
+        // we will build a temp ctx
+        const ctx = { lamH: m.lamH, lamA: m.lamA, shots_home: m.shots_home||8, shots_away: m.shots_away||7, home_mom: m.home_mom||5, away_mom: m.away_mom||5, home_press: m.home_press||5, away_press: m.away_press||5, formPts_home: m.formPts_home||6, formPts_away: m.formPts_away||6, conceded_last5_home: m.conceded_last5_home||2, conceded_last5_away: m.conceded_last5_away||2 };
+        // run engine pipeline quick (use PSZ functions directly)
+        const master = PSZ.Master && PSZ.Master.mergeMaster ? PSZ.Master.mergeMaster(ctx) : { adjustedLam:{lamH:ctx.lamH, lamA:ctx.lamA} };
+        const mc = PSZ.runScorelineSimFull(ctx, {simCount: 800, scoreCap:6});
+        const det = PSZ.detSim({lamH: ctx.lamH, lamA: ctx.lamA});
+        const detChaos = PSZ.detSim(PSZ.chaosModel({lamH:ctx.lamH, lamA:ctx.lamA}, ctx));
+        const fused = PSZ.fuseOutputs(det, detChaos, mc);
+        const final = fused.final;
+        // pick via callback
+        const pick = opts.pick ? opts.pick(m, {final, master, mc}) : null;
+        if(!pick || !pick.betSide || !pick.stake || !pick.odds) continue;
+        res.totalBets++;
+        const outcome = m.outcome; // "H"/"D"/"A"
+        const win = ( (pick.betSide === "H" && outcome==="H") || (pick.betSide==="D" && outcome==="D") || (pick.betSide==="A" && outcome==="A") );
+        const pnl = win ? (pick.stake * (pick.odds - 1)) : -pick.stake;
+        res.pnl += pnl;
+        if(win) res.wins++; else res.losses++;
+        res.details.push({matchId: m.id, bet: pick, win, pnl});
+      }
+      return res;
+    }
+    return { load, save, pushMatch, runSimpleStrategy, KEY };
+  })();
+
+  // -------------------------
+  // PORTFOLIO OPTIMIZER (Kelly portfolio across multiple independent bets)
+  // - inputs: array of edges [{prob, odds}] and bankroll
+  // - naive approach: rank by edge and allocate fractional Kelly with diversity cap
+  // -------------------------
+  PSZ.Level16.portfolioKelly = function(edges, bankroll, riskProfile="balanced"){
+    bankroll = PSZ.safeNum(bankroll, 1000);
+    if(!Array.isArray(edges) || edges.length===0) return { allocations:[], bankroll, pnlExp:0 };
+    const allocations = [];
+    const factor = (riskProfile==="aggressive")?1.0: (riskProfile==="balanced")?0.5:0.25;
+    // compute raw kelly per bet
+    const kellys = edges.map(e => {
+      const b = PSZ.safeNum(e.odds,1) - 1;
+      const p = PSZ.safeNum(e.prob,0);
+      if(b<=0) return 0;
+      const edge = p*b - (1-p);
+      const k = Math.max(0, edge / b);
+      return k * factor;
+    });
+    // cap at 0.2
+    const capped = kellys.map(k => PSZ.clamp(k, 0, 0.2));
+    // normalize relative to bankroll scale (we keep as fractions)
+    // allocate
+    for(let i=0;i<edges.length;i++){
+      const frac = capped[i];
+      allocations.push({ index:i, odds:edges[i].odds, prob:edges[i].prob, fraction:frac, stake: bankroll * frac });
+    }
+    // expected pnl
+    let pnlExp = 0;
+    for(let i=0;i<edges.length;i++){
+      const a = allocations[i];
+      pnlExp += a.stake * (a.prob * (a.odds - 1) - (1 - a.prob));
+    }
+    return { allocations, bankroll, pnlExp };
+  };
+
+  // -------------------------
+  // VISIBILITY: expose small helpers and defaults
+  // -------------------------
+  PSZ.Level16.defaults = {
+    defaultSims: 800,
+    calibrationBins: 18,
+    ensembleIter: 120
+  };
+
+  // simple runner: calibrate ensemble from provided validationSamples, store in PSZ.Level16.ensemble
+  PSZ.Level16.calibrateEnsemble = function(modelNames, validationSamples){
+    // validationSamples: array { preds: { modelName: {pH,pD,pA} }, outcome: "H"/"D"/"A" }
+    const weights = PSZ.Level16.optimizeEnsembleWeights(modelNames, validationSamples, PSZ.Level16.defaults.ensembleIter, 0.06);
+    PSZ.Level16.ensemble = { models: modelNames.slice(), weights, calibratedAt: Date.now() };
+    return PSZ.Level16.ensemble;
+  };
+
+  // calibrate probabilities (per market type) from labeled samples
+  PSZ.Level16.calibrateProbabilities = function(samples, bins){
+    const cal = PSZ.Level16.bootstrapCalibrate(samples, bins || PSZ.Level16.defaults.calibrationBins);
+    PSZ.Level16.calibration = { cal, calibratedAt: Date.now(), nSamples: (samples||[]).length };
+    return PSZ.Level16.calibration;
+  };
+
+  // apply calibration to a triple of probs {pH,pD,pA}: returns calibrated triple
+  PSZ.Level16.applyCalibration = function(probs){
+    if(!PSZ.Level16.calibration || !PSZ.Level16.calibration.cal || !probs) return probs;
+    // calibrate each prob individually (not ideal but pragmatic) — using the same cal for each market
+    const cal = PSZ.Level16.calibration.cal;
+    return {
+      pH: clamp(cal.predict(clamp(probs.pH, 0, 1)), 0, 1),
+      pD: clamp(cal.predict(clamp(probs.pD, 0, 1)), 0, 1),
+      pA: clamp(cal.predict(clamp(probs.pA, 0, 1)), 0, 1)
+    };
+  };
+
+  // combined ensemble predict: accept candidate model predictions, return weighted combined + calibrated
+  PSZ.Level16.ensemblePredict = function(modelPreds){
+    // modelPreds: { name: {pH,pD,pA}, ... }  OR array of {name, probs}
+    const ens = PSZ.Level16.ensemble && PSZ.Level16.ensemble.weights ? PSZ.Level16.ensemble : null;
+    const names = ens ? ens.models : Object.keys(modelPreds);
+    let agg = { pH:0, pD:0, pA:0 };
+    if(ens){
+      for(const n of names){
+        const w = PSZ.safeNum(ens.weights[n], 0);
+        const pr = modelPreds[n] || {pH:1/3,pD:1/3,pA:1/3};
+        agg.pH += w * pr.pH; agg.pD += w * pr.pD; agg.pA += w * pr.pA;
+      }
+    } else {
+      // simple average
+      const nn = names.length || 1;
+      for(const n of names){
+        const pr = modelPreds[n] || {pH:1/3,pD:1/3,pA:1/3};
+        agg.pH += pr.pH / nn; agg.pD += pr.pD / nn; agg.pA += pr.pA / nn;
+      }
+    }
+    const s = agg.pH + agg.pD + agg.pA || 1;
+    const norm = { pH: agg.pH/s, pD: agg.pD/s, pA: agg.pA/s };
+    const calibrated = PSZ.Level16.applyCalibration(norm);
+    // renormalize after calibration to ensure sum=1
+    const sum = calibrated.pH + calibrated.pD + calibrated.pA || 1;
+    return { pH: calibrated.pH/sum, pD: calibrated.pD/sum, pA: calibrated.pA/sum };
+  };
+
+  // run level16 summary: combine Level11/14/15 outputs, ensemble predict (if ensemble set), compute market-adjusted recommendations
+  PSZ.Level16.runLevel16 = function(options){
+    options = options || {};
+    const outEl = document.getElementById("output");
+    if(!outEl){ console.warn("No output element found"); }
+    try{
+      const last = window.PSZ_LAST;
+      if(!last) {
+        if(outEl) outEl.value += "\n[LEVEL16] PSZ_LAST not found. Run engine first.";
+        return null;
+      }
+      const ctx = last.ctx || {};
+      // get candidate model preds
+      const preds = {};
+      preds["math"] = { pH: last.det ? (last.det.pH||0.33) : 0.33, pD: last.det ? (last.det.pD||0.34) : 0.34, pA: last.det ? (last.det.pA||0.33) : 0.33 };
+      preds["chaos"] = { pH: last.detChaos ? last.detChaos.pH : preds.math.pH, pD: last.detChaos ? last.detChaos.pD : preds.math.pD, pA: last.detChaos ? last.detChaos.pA : preds.math.pA };
+      preds["mc"] = { pH: last.mc ? last.mc.pH : (last.fused?last.fused.final.pH:0.33), pD: last.mc ? last.mc.pD : (last.fused?last.fused.final.pD:0.34), pA: last.mc ? last.mc.pA : (last.fused?last.fused.final.pA:0.33) };
+      preds["ml"] = last.ml && last.ml.ml1x2 ? { pH:last.ml.ml1x2.pH, pD:last.ml.ml1x2.pD, pA:last.ml.ml1x2.pA } : preds.mc;
+
+      // ensemble predict
+      const ensemble = PSZ.Level16.ensemble ? PSZ.Level16.ensemble : null;
+      const combined = PSZ.Level16.ensemblePredict(preds);
+
+      // compute market implied probs if market provided in DOM
+      const market = { H: PSZ.safeNum(document.getElementById("market_H")?.value,0), D: PSZ.safeNum(document.getElementById("market_D")?.value,0), A: PSZ.safeNum(document.getElementById("market_A")?.value,0) };
+      let marketProb = null;
+      if(market.H>1.01 && market.D>1.01 && market.A>1.01){
+        const imp = { H: 1/market.H, D: 1/market.D, A:1/market.A };
+        const sum = imp.H + imp.D + imp.A || 1;
+        marketProb = { pH: imp.H/sum, pD: imp.D/sum, pA: imp.A/sum };
+        // push market snapshot
+        PSZ.Level16.Market.pushSnapshot(options.matchId || (ctx.home_team||"m")+":"+(ctx.away_team||"a"), market);
+      }
+
+      // compute value opportunities vs market
+      const fair = { H: combined.pH? 1/combined.pH : 1.01, D: combined.pD? 1/combined.pD : 1.01, A: combined.pA? 1/combined.pA : 1.01 };
+      const valueList = [];
+      if(marketProb){
+        [["H","Home"],["D","Draw"],["A","Away"]].forEach(([k,l])=>{
+          const m = market[k];
+          if(m > 1.01){
+            const v = (fair[k] - m) / m;
+            valueList.push({side:l, key:k, market:m, fair:fair[k], value_pct: v, prob: combined["p"+k] || 0});
+          }
+        });
+        valueList.sort((a,b)=> b.value_pct - a.value_pct);
+      }
+
+      // portfolio allocation suggestion (top edges)
+      const edges = valueList.slice(0,6).map(v => ({prob: v.prob, odds: v.market}));
+      const portfolio = PSZ.Level16.portfolioKelly(edges, PSZ.safeNum(options.bankroll,1000), options.riskProfile || "balanced");
+
+      // calibration / last calibrations
+      const calibrationMeta = PSZ.Level16.calibration || null;
+
+      // build output block
+      let txt = "\n\n=== LEVEL 16 — CALIBRATED ENSEMBLE & MARKET SUITE ===\n\n";
+      txt += `[Ensemble Combined Probabilities]\n`;
+      txt += ` Home: ${(combined.pH*100).toFixed(2)}% | Draw: ${(combined.pD*100).toFixed(2)}% | Away: ${(combined.pA*100).toFixed(2)}%\n`;
+      if(marketProb) txt += `[Market Implied] Home:${(marketProb.pH*100).toFixed(2)}% Draw:${(marketProb.pD*100).toFixed(2)}% Away:${(marketProb.pA*100).toFixed(2)}%\n`;
+      txt += `\n[Value Opportunities vs Market]\n`;
+      if(valueList.length===0) txt += " No market odds provided or no positive value found.\n";
+      else valueList.forEach((v,i)=> txt += ` ${i+1}) ${v.side} | market:${v.market.toFixed(2)} | fair:${v.fair.toFixed(2)} | value:${(v.value_pct*100).toFixed(2)}% | prob:${(v.prob*100).toFixed(2)}%\n`);
+
+      txt += `\n[Portfolio Suggestion]\n`;
+      if(portfolio.allocations.length===0) txt += " No allocations (no edges).\n";
+      else {
+        portfolio.allocations.forEach((a,i)=> {
+          txt += ` ${i+1}) idx:${a.index} side odds:${a.odds} prob:${(a.prob*100).toFixed(2)}% fraction:${(a.fraction*100).toFixed(2)}% stake:${a.stake.toFixed(2)}\n`;
+        });
+        txt += ` Expected PnL (est): ${portfolio.pnlExp.toFixed(2)}\n`;
+      }
+
+      txt += `\n[Ensemble Meta]\n`;
+      if(ensemble) {
+        txt += ` models: ${ensemble.models.join(", ")}\n`;
+        txt += ` weights: ${JSON.stringify(ensemble.weights)}\n`;
+      } else txt += " Ensemble not calibrated (using simple average).\n";
+
+      if(calibrationMeta) txt += `\n[Probability Calibration] bins:${PSZ.safeNum(calibrationMeta.nSamples,0)} calibratedAt:${ new Date(calibrationMeta.calibratedAt).toLocaleString() }\n`;
+
+      txt += "\n=== END LEVEL 16 ===\n";
+
+      if(outEl) outEl.value += txt;
+      window.PSZ_LEVEL16 = { combined, marketProb, valueList, portfolio, ensemble: PSZ.Level16.ensemble, calibration: calibrationMeta };
+
+      return window.PSZ_LEVEL16;
+    }catch(err){
+      if(document.getElementById("output")) document.getElementById("output").value += "\n\n[LEVEL16 ERROR] " + (err && err.message ? err.message : String(err));
+      console.error("Level16 error", err);
+      return null;
+    }
+  };
+
+  console.log("PSZ Level16 module loaded.");
+})(window.PSZ);
+</script>
+    <script>
+// ================================
+// PART L — LEVEL 16 UI Hooks (Buttons)
+// - RUN LEVEL16
+// - CALIBRATE (manual sample import)
+// - BACKTESTER (quick run)
+// - PUSH MARKET SNAPSHOT
+// ================================
+(function(PSZ){
+  if(!PSZ) PSZ = window.PSZ = window.PSZ || {};
+  function addButtonToPanel(text, id){
+    const panel = document.querySelector(".panel");
+    if(!panel) return null;
+    if(document.getElementById(id)) return document.getElementById(id);
+    const btn = document.createElement("button");
+    btn.id = id;
+    btn.className = "smallbtn";
+    btn.style.marginTop = "6px";
+    btn.textContent = text;
+    panel.appendChild(btn);
+    return btn;
+  }
+
+  // RUN LEVEL16
+  const bRun = addButtonToPanel("RUN LEVEL 16", "btn_run_level16");
+  if(bRun) bRun.onclick = function(){
+    try{
+      PSZ.Level16.runLevel16({bankroll: PSZ.safeNum(1000,1000), riskProfile:"balanced", matchId: (document.getElementById("home_team")?.value || "") + ":" + (document.getElementById("away_team")?.value || "")});
+      const out = document.getElementById("output");
+      if(out) out.value += "\n[OK] Level16 executed.";
+    }catch(e){ const out = document.getElementById("output"); if(out) out.value += "\n[ERR] RUN LEVEL16: " + (e && e.message?e.message:String(e)); }
+  };
+
+  // CALIBRATE (manual JSON paste)
+  const bCal = addButtonToPanel("CALIBRATE (import samples)", "btn_calibrate_level16");
+  if(bCal) bCal.onclick = function(){
+    try{
+      const raw = prompt("Paste JSON array of samples: [{predProb:0.6,outcome:1}, ...] or cancel");
+      if(!raw) return;
+      let samples = JSON.parse(raw);
+      if(!Array.isArray(samples)){ alert("Invalid format"); return; }
+      const cal = PSZ.Level16.calibrateProbabilities(samples, PSZ.Level16.defaults.calibrationBins);
+      document.getElementById("output").value += `\n[OK] Calibration done. samples:${samples.length}`;
+    }catch(e){ document.getElementById("output").value += "\n[ERR] Calibration failed: " + (e && e.message?e.message:String(e)); }
+  };
+
+  // BACKTEST push (manual add current match to DB)
+  const bPush = addButtonToPanel("PUSH CUR MATCH TO BACKTEST DB", "btn_push_backtest");
+  if(bPush) bPush.onclick = function(){
+    try{
+      // try to build match object from DOM
+      const id = prompt("Match ID (optional):", "");
+      const m = {
+        id: id || ("m_"+Date.now()),
+        lamH: PSZ.safeNum(document.getElementById("lamH")?.value,1.2),
+        lamA: PSZ.safeNum(document.getElementById("lamA")?.value,1.0),
+        outcome: prompt("Outcome (H/D/A) for backtest add:", "H"),
+        marketOdds: { H: PSZ.safeNum(document.getElementById("market_H")?.value,0), D: PSZ.safeNum(document.getElementById("market_D")?.value,0), A: PSZ.safeNum(document.getElementById("market_A")?.value,0) },
+        shots_home: PSZ.safeNum(document.getElementById("shots_home")?.value,8),
+        shots_away: PSZ.safeNum(document.getElementById("shots_away")?.value,7),
+        formPts_home: PSZ.safeNum(document.getElementById("formPts_home")?.value,6),
+        formPts_away: PSZ.safeNum(document.getElementById("formPts_away")?.value,6),
+        conceded_last5_home: PSZ.safeNum(document.getElementById("conceded_last5_home")?.value,2),
+        conceded_last5_away: PSZ.safeNum(document.getElementById("conceded_last5_away")?.value,2)
+      };
+      PSZ.Level16.Backtester.pushMatch(m);
+      document.getElementById("output").value += `\n[OK] Match pushed to backtest DB (id:${m.id})`;
+    }catch(e){ document.getElementById("output").value += "\n[ERR] push fail: " + (e && e.message?e.message:String(e)); }
+  };
+
+  // RUN BACKTEST (quick)
+  const bBT = addButtonToPanel("RUN BACKTEST (SIMPLE)", "btn_run_backtest");
+  if(bBT) bBT.onclick = function(){
+    try{
+      const res = PSZ.Level16.Backtester.runSimpleStrategy({ pick: function(m, engine){ // simple home value picker
+        const fused = engine.final;
+        // stake flat 10
+        const market = m.marketOdds || {};
+        const oddsH = PSZ.safeNum(market.H, 0);
+        if(oddsH <= 1.01) return null;
+        const fairH = fused.pH ? 1/fused.pH : 1.01;
+        const value = (fairH - oddsH) / oddsH;
+        if(value > 0.03){
+          return { betSide: "H", stake: 10, odds: oddsH };
+        }
+        return null;
+      }});
+      document.getElementById("output").value += `\n[BACKTEST RESULT] bets:${res.totalBets} wins:${res.wins} losses:${res.losses} pnl:${res.pnl.toFixed(2)}`;
+    }catch(e){ document.getElementById("output").value += "\n[ERR] backtest fail: " + (e && e.message?e.message:String(e)); }
+  };
+
+  // PUSH MARKET SNAPSHOT (store current market odds)
+  const bPushM = addButtonToPanel("PUSH MARKET SNAPSHOT", "btn_push_market");
+  if(bPushM) bPushM.onclick = function(){
+    try{
+      const id = (document.getElementById("home_team")?.value || "") + ":" + (document.getElementById("away_team")?.value || "");
+      const market = { H: PSZ.safeNum(document.getElementById("market_H")?.value,0), D: PSZ.safeNum(document.getElementById("market_D")?.value,0), A: PSZ.safeNum(document.getElementById("market_A")?.value,0) };
+      PSZ.Level16.Market.pushSnapshot(id, market);
+      document.getElementById("output").value += "\n[OK] Market snapshot pushed.";
+    }catch(e){ document.getElementById("output").value += "\n[ERR] push market: " + (e && e.message?e.message:String(e)); }
+  };
+
+  console.log("Level16 UI hooks attached.");
+})(window.PSZ);
+    </script>
 </body>
 </html>
