@@ -1100,6 +1100,7 @@ window.PSZ = window.PSZ || {};
 })(window.PSZ);
 </script>
 <!-- END PART 5 -->
+
 <!-- =====================================================
      PART 6 — MOMENTUM ENGINE + WIN-PATH MODEL (E6)
      Provides: Momentum Strength, Control Index, Swing Index,
@@ -1229,7 +1230,7 @@ window.PSZ = window.PSZ || {};
 })(window.PSZ);
 </script>
 <!-- END PART 6 -->
-<!-- =====================================================
+  <!-- =====================================================
      PART 7 — MARKET, ML ENSEMBLE & RECOMMENDER (VALUE ENGINE)
      - Adaptive ensemble
      - Calibration (softmax-temp + small Platt tweak)
@@ -1246,8 +1247,6 @@ window.PSZ = window.PSZ || {};
   ---------------------- */
   PSZ.ML.softmaxTemp = function(prob, temp){
     temp = PSZ.safeNum(temp, 1.0);
-    // convert p->logit-like via ln(p), then softmax with temp across 3 outcomes
-    // safer: use logs and exponentiate scaled
     const lH = Math.log(PSZ.clamp(prob.pH,1e-12,1));
     const lD = Math.log(PSZ.clamp(prob.pD,1e-12,1));
     const lA = Math.log(PSZ.clamp(prob.pA,1e-12,1));
@@ -1257,14 +1256,12 @@ window.PSZ = window.PSZ || {};
   };
 
   PSZ.ML.plattTweak = function(prob, a=0.9){
-    // small sharpening: boost favourite slightly
     const maxP = Math.max(prob.pH, prob.pD, prob.pA);
     let out = Object.assign({}, prob);
     if(maxP > 0.52){
       if(prob.pH === maxP) out.pH = PSZ.clamp(prob.pH * (1 + 0.06*a), 1e-6, 0.98);
       else if(prob.pA === maxP) out.pA = PSZ.clamp(prob.pA * (1 + 0.06*a), 1e-6, 0.98);
       else out.pD = PSZ.clamp(prob.pD * (1 + 0.03*a), 1e-6, 0.98);
-      // renormalize
       const s = out.pH + out.pD + out.pA;
       out.pH/=s; out.pD/=s; out.pA/=s;
     }
@@ -1273,7 +1270,6 @@ window.PSZ = window.PSZ || {};
 
   /* ----------------------
      Adaptive ensemble weights
-     - decide weights for det/tac/mc based on chaos, importance, momentum pattern
   ---------------------- */
   PSZ.ML.adaptiveEnsembleWeights = function(ctx, momentum){
     const chaos = PSZ.safeNum(ctx.chaos,5);
@@ -1293,7 +1289,6 @@ window.PSZ = window.PSZ || {};
 
   /* ----------------------
      Apply ensemble: fuse engine parts with adaptive weights and calibrate
-     - engineResult must contain det, tacDet, mc (or at least prob)
   ---------------------- */
   PSZ.ML.applyEnsemble = function(ctx, engineResult, momentum){
     try{
@@ -1301,7 +1296,6 @@ window.PSZ = window.PSZ || {};
       const tac = engineResult.tacDet || det;
       const mc  = engineResult.mc || { pH:0.33,pD:0.33,pA:0.34 };
 
-      // normalize in case
       const detP = PSZ.normalize3(det.pH||det.pH===0?det.pH:0.33, det.pD||det.pD===0?det.pD:0.33, det.pA||det.pA===0?det.pA:0.34);
       const tacP = PSZ.normalize3(tac.pH||0.33, tac.pD||0.33, tac.pA||0.34);
       const mcP  = PSZ.normalize3(mc.pH||0.33, mc.pD||0.33, mc.pA||0.34);
@@ -1314,12 +1308,9 @@ window.PSZ = window.PSZ || {};
         pA: (detP.pA*w.wDet + tacP.pA*w.wTac + mcP.pA*w.wMC) / sumW
       };
 
-      // softmax temperature (softer when uncertainty high)
       const unc = PSZ.safeNum(engineResult.unc, PSZ.Engine ? PSZ.Engine.computeUncertainty(fused) : 0.4);
       const temp = PSZ.clamp(1 + unc*1.1 + PSZ.safeNum(ctx.volatility,0.5)*0.25, 0.6, 2.2);
       const softened = PSZ.ML.softmaxTemp(fused, temp);
-
-      // small platt tweak depending on pattern
       const pl = PSZ.ML.plattTweak(softened, (momentum && momentum.indicators && momentum.indicators.msi) ? Math.abs(momentum.indicators.msi) : 0.8);
 
       return {
@@ -1335,7 +1326,6 @@ window.PSZ = window.PSZ || {};
 
   /* ----------------------
      Market scanner: compare model fair odds vs market odds, compute EV and Kelly
-     marketOdds: {H,D,A, BTTS, OUx (optional)}
   ---------------------- */
   PSZ.Recommender.scanMarket = function(prob, marketOdds){
     marketOdds = marketOdds || {};
@@ -1356,10 +1346,6 @@ window.PSZ = window.PSZ || {};
 
   /* ----------------------
      Generate recommendations
-     - finalResult: { prob, matrix, avgGoals, ou, btts, ... }
-     - ctx: context (market odds inside ctx or explicitly passed)
-     - marketOdds: optional override
-     returns array of recommendation objects
   ---------------------- */
   PSZ.Recommender.generateRecommendations = function(finalResult, ctx, marketOdds){
     ctx = ctx || {};
@@ -1379,7 +1365,6 @@ window.PSZ = window.PSZ || {};
     // OU 2.5 via model mc or avgGoals
     if(finalResult.ou){
       const modelOver = finalResult.ou["2.5"] ? finalResult.ou["2.5"].over : (finalResult.avgGoals > 2.5 ? 0.62 : 0.38);
-      // market probability unknown -> accept if model shows strong over/under
       if(modelOver > 0.66) recs.push({ type:"OU", pick:"Over 2.5", modelProb:modelOver, note:"strong over signal" });
       if(modelOver < 0.32) recs.push({ type:"OU", pick:"Under 2.5", modelProb:modelOver, note:"strong under signal" });
     }
@@ -1403,7 +1388,7 @@ window.PSZ = window.PSZ || {};
       recs.push(...cs);
     }
 
-    // Sort recommendations: positive EV first, then OU/BTTS strong signals, then CS
+    // Sort recommendations
     recs.sort((A,B)=>{
       const scoreA = (A.ev||0) + (A.modelProb?A.modelProb:0) + (A.prob?A.prob:0);
       const scoreB = (B.ev||0) + (B.modelProb?B.modelProb:0) + (B.prob?B.prob:0);
@@ -1476,7 +1461,6 @@ window.PSZ = window.PSZ || {};
     barContainer.appendChild(bar);
     wrap.appendChild(barContainer);
 
-    // append after simIntensity field if possible
     const simEl = document.getElementById("simIntensity");
     if(simEl && simEl.parentNode) simEl.parentNode.appendChild(wrap);
     else lp.appendChild(wrap);
@@ -1580,7 +1564,6 @@ window.PSZ = window.PSZ || {};
       appendLog(`RUNNER: Engine done. sim=${engineResult.mc.simCount} avgGoals=${(engineResult.avgGoals||0).toFixed(3)}`);
 
       // 5. momentum
-      // ensure ctx gets some xT for control compute if not present
       if(tacticsRes.tactics && tacticsRes.tactics.xT){
         ctx.xT_home = PSZ.safeNum(tacticsRes.tactics.xT.home.xT, ctx.xT_home || 0.30);
         ctx.xT_away = PSZ.safeNum(tacticsRes.tactics.xT.away.xT, ctx.xT_away || 0.30);
@@ -1590,7 +1573,7 @@ window.PSZ = window.PSZ || {};
 
       // 6. ML ensemble & calibration
       const mlOut = PSZ.ML.applyEnsemble(ctx, engineResult, momentum);
-      appendLog(`RUNNER: ML ensemble done. fav=${mlOut.meta && mlOut.meta.fav ? mlOut.meta.fav : 'N/A'} maxProb=${((mlOut.prob && Math.max(mlOut.prob.pH, mlOut.prob.pD, mlOut.prob.pA)||0)*100).toFixed(1)}%`);
+      appendLog(`RUNNER: ML ensemble done. maxProb=${((mlOut.prob && Math.max(mlOut.prob.pH, mlOut.prob.pD, mlOut.prob.pA)||0)*100).toFixed(1)}%`);
 
       // 7. recommendations
       const finalEngineView = Object.assign({}, engineResult, { prob: mlOut.prob, ou: engineResult.ou, btts: engineResult.btts, matrix: engineResult.matrix, avgGoals: engineResult.avgGoals });
@@ -1620,7 +1603,6 @@ window.PSZ = window.PSZ || {};
 
   /* ====== Button wiring & export ====== */
   function wireButtons(){
-    // create export button if missing
     if(!document.getElementById("btn_export_json")){
       const b = document.createElement("button");
       b.id = "btn_export_json";
@@ -1631,7 +1613,6 @@ window.PSZ = window.PSZ || {};
         const last = PSZ.LAST_RUN || null;
         if(!last){ appendLog("EXPORT: No last run."); return; }
         const text = JSON.stringify(last, null, 2);
-        // try clipboard
         if(navigator.clipboard){
           navigator.clipboard.writeText(text).then(()=> appendLog("EXPORT: JSON copied to clipboard."), ()=> { prompt("COPY JSON:", text); appendLog("EXPORT: Clipboard failed, used prompt."); });
         } else {
@@ -1643,7 +1624,6 @@ window.PSZ = window.PSZ || {};
       if(lp) lp.appendChild(b);
     }
 
-    // wire existing buttons
     const bAuto = document.getElementById("btn_auto_input");
     const bRun = document.getElementById("btn_run_core");
     const bMin = document.getElementById("btn_run_minute");
@@ -1675,10 +1655,6 @@ window.PSZ = window.PSZ || {};
         const ctx = PSZ.AutoInput.smartFillFromDOM();
         const master = PSZ.Master.init(ctx);
         const tactics = PSZ.Tactics.applyTactics(ctx, master);
-        PSZ.Momentum.simulationFast = PSZ.Momentum.simulationFast || function(){
-          // fallback short-run: run a small chunked MC via Engine.mcE5Chunked with small sim
-          return PSZ.Engine.mcE5Chunked(ctx, tactics.adjustedLam, 1200);
-        };
         PSZ.Engine.mcE5Chunked(ctx, tactics.adjustedLam, 1200).then(res=>{
           appendLog(`MINUTE SIM: done sim=${res.simCount} avgGoals=${res.avgGoals.toFixed(3)} BTTS=${(PSZ.Engine.computeBTTS(res.matrix,res.simCount)*100).toFixed(1)}%`);
         }).catch(e=>{
@@ -1690,7 +1666,6 @@ window.PSZ = window.PSZ || {};
     });
   }
 
-  // wire on DOM ready
   if(document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", wireButtons);
   } else {
@@ -1703,5 +1678,7 @@ window.PSZ = window.PSZ || {};
 })(window.PSZ);
 </script>
 <!-- END PART 8 -->
+
+ 
 </body>
 </html>
