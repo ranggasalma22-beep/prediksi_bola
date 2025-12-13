@@ -155,7 +155,7 @@ window.PSZ = window.PSZ || {};
 
   /* ============================
      1. MATCH TYPE LIST (57)
-     ============================ */
+ya     ============================ */
   PSZ.MATCH_TYPES = [
     // I. Domestic League
     { id:"league_standard", label:"League — Standard" },
@@ -180,140 +180,7 @@ window.PSZ = window.PSZ || {};
     { id:"ucl_semi", label:"UCL — Semi Final" },
     { id:"ucl_final", label:"UCL — Final" },
 
-    { id:"uel_group", label:"UEL — Group Stage" },
-    { id:"uel_knockout", label:"UEL — Knockout" },
-    { id:"uel_final", label:"UEL — Final" },
-
-    { id:"uecl_group", label:"UECL — Group Stage" },
-    { id:"uecl_knockout", label:"UECL — Knockout" },
-
-    { id:"libertadores_group", label:"Libertadores — Group" },
-    { id:"libertadores_knockout", label:"Libertadores — Knockout" },
-    { id:"libertadores_final", label:"Libertadores — Final" },
-
-    { id:"afc_group", label:"AFC Champions League — Group" },
-    { id:"afc_knockout", label:"AFC Champions League — Knockout" },
-
-    // IV. Derby & Rivalry
-    { id:"derby_city", label:"Derby — City" },
-    { id:"derby_historic", label:"Derby — Historic" },
-    { id:"derby_regional", label:"Derby — Regional" },
-    { id:"derby_religious", label:"Derby — Religious" },
-    { id:"derby_political", label:"Derby — Political" },
-
-    // V. Match Style
-    { id:"tactical_slow_game", label:"Style — Tactical Slow Game" },
-    { id:"high_press_duel", label:"Style — High Press Duel" },
-    { id:"run_and_gun", label:"Style — Run & Gun" },
-    { id:"chaos_game", label:"Style — Chaos Match" },
-    { id:"heavy_low_block", label:"Style — Heavy Low Block" },
-    { id:"counter_vs_possession", label:"Style — Counter vs Possession" },
-    { id:"long_ball_battle", label:"Style — Long Ball Battle" },
-
-    // VI. Situational
-    { id:"must_win_match", label:"Situational — Must Win" },
-    { id:"dead_rubber", label:"Situational — Dead Rubber" },
-    { id:"rotation_heavy", label:"Situational — Heavy Rotation" },
-    { id:"injury_crisis_match", label:"Situational — Injury Crisis" },
-    { id:"early_red_card_game", label:"Situational — Early Red Card" },
-    { id:"weather_extreme_rain", label:"Weather — Heavy Rain" },
-    { id:"weather_extreme_heat", label:"Weather — Extreme Heat" },
-    { id:"bad_pitch_condition", label:"Pitch — Bad Condition" },
-    { id:"crowd_high_pressure", label:"Crowd — High Pressure" },
-    { id:"crowd_low_energy", label:"Crowd — Low Energy" },
-
-    // VII. Special / Global
-    { id:"friendly_match", label:"Friendly Match" },
-    { id:"pre_season_friendly", label:"Pre-Season Friendly" },
-    { id:"training_match", label:"Training Match" },
-    { id:"all_star_match", label:"All Star Match" },
-    { id:"international_qualifier", label:"International Qualifier" },
-    { id:"world_cup_knockout", label:"World Cup — Knockout" },
-    { id:"world_cup_final", label:"World Cup — Final" },
-    { id:"club_world_cup_game", label:"Club World Cup" }
-  ];
-
-  /* ============================
-     2. POPULATE DROPDOWN
-     ============================ */
-  PSZ.populateMatchType = function(){
-    const sel = document.getElementById("match_type");
-    if(!sel) return;
-
-    sel.innerHTML = "";
-    const autoOpt = document.createElement("option");
-    autoOpt.value = "AUTO";
-    autoOpt.textContent = "AUTO (Engine Decide)";
-    sel.appendChild(autoOpt);
-
-    PSZ.MATCH_TYPES.forEach(mt=>{
-      const opt = document.createElement("option");
-      opt.value = mt.id;
-      opt.textContent = mt.label;
-      sel.appendChild(opt);
-    });
-  };
-
-  /* ============================
-     3. AUTO MATCH TYPE CLASSIFIER (TEMPLATE)
-     (akan dipakai engine di PART 7)
-     ============================ */
-  PSZ.autoDetectMatchType = function(ctx){
-    const imp = ctx.importance || 5;
-    const shots = (ctx.shots_home||0) + (ctx.shots_away||0);
-
-    if(imp >= 9) return "cup_final";
-    if(imp >= 8) return "league_title_decider";
-    if(imp <= 3) return "friendly_match";
-    if(shots >= 28) return "run_and_gun";
-    if(shots <= 14) return "tactical_slow_game";
-
-    return "league_standard";
-  };
-
-  /* ============================
-     4. INIT
-     ============================ */
-  document.addEventListener("DOMContentLoaded", function(){
-    PSZ.populateMatchType();
-  });
-
-  console.log("PART 2 loaded: Match Type registry + auto classifier");
-
-})(window.PSZ);
-</script>
-<script>
-/* ======================================================
-   PART 3 — AUTO INPUT ENGINE
-   Level 1500 — FULL AUTO MODE
-   ====================================================== */
-
-window.PSZ = window.PSZ || {};
-(function(PSZ){
-
-  /* ============================
-     Utility
-     ============================ */
-  PSZ.clamp = PSZ.clamp || function(v,min,max){
-    if(!isFinite(v)) v = min;
-    if(min!==undefined) v = Math.max(min,v);
-    if(max!==undefined) v = Math.min(max,v);
-    return v;
-  };
-
-  PSZ.num = PSZ.num || function(v,def){
-    const n = Number(v);
-    return isFinite(n) ? n : def;
-  };
-
-  /* ============================
-     MAIN AUTO INPUT BUILDER
-     ============================ */
-  PSZ.buildAutoContext = function(){
-
-    // ---- RAW INPUT (yang punya sumber) ----
-    const xgH   = PSZ.num(document.getElementById("xg_home")?.value, 1.2);
-    const xgA   = PSZ.num(document.getElementById("xg_away")?.value, 1.0);
+  = PSZ.num(document.getElementById("xg_away")?.value, 1.0);
     const shH   = PSZ.num(document.getElementById("shots_home")?.value, 12);
     const shA   = PSZ.num(document.getElementById("shots_away")?.value, 10);
     const sotH  = PSZ.num(document.getElementById("sot_home")?.value, 4);
@@ -424,18 +291,15 @@ window.PSZ = window.PSZ || {};
 
 })(window.PSZ);
 </script>
-    <script>
+<script>
 /* ======================================================
-   PART 3.5 — PRESET LIGA + PRESET TIM
-   Context Bias Layer (SAFE)
+   PART 3.5 — PRESET LIGA + PRESET TIM (REBUILD)
    ====================================================== */
 
 window.PSZ = window.PSZ || {};
 (function(PSZ){
 
-  /* ============================
-     League Presets
-     ============================ */
+  // ===== League Preset =====
   PSZ.LEAGUE_PRESETS = {
     EPL:    { tempo: 0.6, press: 0.7, vol: 0.12 },
     BUNDES: { tempo: 0.8, press: 0.5, vol: 0.15 },
@@ -447,62 +311,52 @@ window.PSZ = window.PSZ || {};
     CUP:    { tempo:-0.5, press:-0.3, vol:-0.12 }
   };
 
-  /* ============================
-     Team Presets
-     ============================ */
+  // ===== Team Tier Preset =====
   PSZ.TEAM_PRESETS = {
     BIG:   { tempo: 0.3, press: 0.5, risk:-0.10, vol:-0.05 },
     MID:   { tempo: 0.0, press: 0.0, risk: 0.00, vol: 0.00 },
     SMALL: { tempo:-0.3, press:-0.4, risk: 0.15, vol: 0.10 }
   };
 
-  /* ============================
-     Auto Team Tier
-     ============================ */
+  // ===== Auto Team Tier (SINGLE SOURCE) =====
   PSZ.autoTeamTier = function(xg, shots){
     if(xg >= 1.8 && shots >= 14) return "BIG";
     if(xg <= 0.9 && shots <= 9)  return "SMALL";
     return "MID";
   };
 
-  /* ============================
-     Apply Presets (CALLED LATER)
-     ============================ */
+  // ===== Apply Context Preset =====
   PSZ.applyContextPresets = function(ctx, leagueKey, homeTier, awayTier){
     if(!ctx || !ctx.auto) return;
+    const clamp = PSZ.clamp;
 
-    // --- League ---
+    // League
     const L = PSZ.LEAGUE_PRESETS[leagueKey];
     if(L){
-      ctx.auto.tempo      = PSZ.clamp(ctx.auto.tempo + L.tempo, 1, 9);
-      ctx.auto.pressH     = PSZ.clamp(ctx.auto.pressH + L.press, 1, 9);
-      ctx.auto.pressA     = PSZ.clamp(ctx.auto.pressA + L.press, 1, 9);
-      ctx.auto.volatility = PSZ.clamp(ctx.auto.volatility + L.vol, 0.3, 1);
+      ctx.auto.tempo      = clamp(ctx.auto.tempo + L.tempo, 1, 9);
+      ctx.auto.pressH     = clamp(ctx.auto.pressH + L.press, 1, 9);
+      ctx.auto.pressA     = clamp(ctx.auto.pressA + L.press, 1, 9);
+      ctx.auto.volatility = clamp(ctx.auto.volatility + L.vol, 0.3, 1);
     }
 
-    // --- Home Team ---
+    // Home
     const TH = PSZ.TEAM_PRESETS[homeTier] || PSZ.TEAM_PRESETS.MID;
-    ctx.auto.tempo      = PSZ.clamp(ctx.auto.tempo + TH.tempo, 1, 9);
-    ctx.auto.pressH     = PSZ.clamp(ctx.auto.pressH + TH.press, 1, 9);
-    ctx.auto.risk       = PSZ.clamp(ctx.auto.risk + TH.risk, 0, 1);
-    ctx.auto.volatility = PSZ.clamp(ctx.auto.volatility + TH.vol, 0.3, 1);
+    ctx.auto.tempo      = clamp(ctx.auto.tempo + TH.tempo, 1, 9);
+    ctx.auto.pressH     = clamp(ctx.auto.pressH + TH.press, 1, 9);
+    ctx.auto.risk       = clamp(ctx.auto.risk + TH.risk, 0, 1);
+    ctx.auto.volatility = clamp(ctx.auto.volatility + TH.vol, 0.3, 1);
 
-    // --- Away Team ---
+    // Away
     const TA = PSZ.TEAM_PRESETS[awayTier] || PSZ.TEAM_PRESETS.MID;
-    ctx.auto.tempo      = PSZ.clamp(ctx.auto.tempo + TA.tempo, 1, 9);
-    ctx.auto.pressA     = PSZ.clamp(ctx.auto.pressA + TA.press, 1, 9);
-    ctx.auto.risk       = PSZ.clamp(ctx.auto.risk + TA.risk, 0, 1);
-    ctx.auto.volatility = PSZ.clamp(ctx.auto.volatility + TA.vol, 0.3, 1);
+    ctx.auto.tempo      = clamp(ctx.auto.tempo + TA.tempo, 1, 9);
+    ctx.auto.pressA     = clamp(ctx.auto.pressA + TA.press, 1, 9);
+    ctx.auto.risk       = clamp(ctx.auto.risk + TA.risk, 0, 1);
+    ctx.auto.volatility = clamp(ctx.auto.volatility + TA.vol, 0.3, 1);
   };
 
 })(window.PSZ);
-        // ===== PATCH 2: AUTO TEAM TIER (DEFINISI AMAN) =====
-PSZ.autoTeamTier = function(xg, shots){
-  if(xg >= 1.8 && shots >= 14) return "BIG";
-  if(xg <= 0.9 && shots <= 9)  return "SMALL";
-  return "MID";
-};
-    </script>
+</script>
+
 <script>
 /* ======================================================
    PART 4 — CORE ENGINE
@@ -784,27 +638,48 @@ window.PSZ = window.PSZ || {};
      RUN BUTTON HANDLER
      ============================ */
   PSZ.runAnalysis = function(){
-    const out = document.getElementById("output");
-    if(!out) return;
+  try{
+    const ctx = PSZ.buildAutoContext();
 
-    out.textContent = "Running analysis...\n";
+    // ===== Context Preset (FINAL) =====
+    const leagueSel = document.getElementById("league_preset")?.value || "AUTO";
+    let leagueKey = leagueSel;
 
-    try{
-      // 1) Build context
-      const ctx = PSZ.buildAutoContext();
-
-      // 2) Run Monte Carlo
-      const res = PSZ.runMonteCarlo(ctx, { N: 8000, cap: 6 });
-
-      // 3) Build output
-      const text = PSZ.buildOutputText(ctx, res);
-      out.textContent = text;
-
-    }catch(e){
-      out.textContent = "ERROR:\n" + (e.message || e);
-      console.error(e);
+    if(leagueSel === "AUTO"){
+      leagueKey = ctx.auto.matchType.includes("ucl") ? "UCL"
+               : ctx.auto.matchType.includes("cup") ? "CUP"
+               : "EPL";
     }
-  };
+
+    const homeTierSel = document.getElementById("home_tier")?.value || "AUTO";
+    const awayTierSel = document.getElementById("away_tier")?.value || "AUTO";
+
+    const homeTier = (homeTierSel === "AUTO")
+      ? PSZ.autoTeamTier(ctx.base.xgH, ctx.base.shH)
+      : homeTierSel;
+
+    const awayTier = (awayTierSel === "AUTO")
+      ? PSZ.autoTeamTier(ctx.base.xgA, ctx.base.shA)
+      : awayTierSel;
+
+    PSZ.applyContextPresets(ctx, leagueKey, homeTier, awayTier);
+
+    ctx.auto.leaguePreset = leagueKey;
+    ctx.auto.homeTier = homeTier;
+    ctx.auto.awayTier = awayTier;
+
+    // ===== Run Engine =====
+    const res = PSZ.runMonteCarlo(ctx);
+
+    document.getElementById("output").value =
+      PSZ.buildOutputText(ctx, res);
+
+  }catch(e){
+    document.getElementById("output").value =
+      "ERROR:\n" + e.message;
+    console.error(e);
+  }
+};
 
   /* ============================
      Bind Button
@@ -1018,41 +893,32 @@ window.PSZ = window.PSZ || {};
      Patch Output Builder
      ============================ */
   const _origBuildOutputText = PSZ.buildOutputText;
-  PSZ.buildOutputText = function(ctx, res){
+PSZ.buildOutputText = function(ctx, res){
+  let t = "";
 
-    const baseText = _origBuildOutputText(ctx, res);
+  t += "=== ANALYSIS RESULT ===\n\n";
 
-    const ou = PSZ.computeOU(res);
-    const conf = PSZ.computeConfidence(ctx, res);
-    const rec = PSZ.buildRecommendation(ctx, res, ou, conf);
+  t += "[PROBABILITIES]\n";
+  t += "Home Win : " + (res.probs.pH*100).toFixed(1) + "%\n";
+  t += "Draw     : " + (res.probs.pD*100).toFixed(1) + "%\n";
+  t += "Away Win : " + (res.probs.pA*100).toFixed(1) + "%\n\n";
 
-    let t = baseText;
+  t += "[GOALS]\n";
+  t += "BTTS     : " + (res.BTTS*100).toFixed(1) + "%\n";
+  t += "Avg Goal : " + res.avgGoals.toFixed(2) + "\n\n";
 
-    // Over / Under
-    t += "\n[OVER / UNDER]\n";
-    Object.keys(ou).forEach(k=>{
-      t += "O/U " + k +
-           " → Over " + (ou[k].over*100).toFixed(1) + "%" +
-           " | Under " + (ou[k].under*100).toFixed(1) + "%\n";
-    });
+  t += "[CONTEXT PRESET]\n";
+  t += "League    : " + ctx.auto.leaguePreset + "\n";
+  t += "Home Tier : " + ctx.auto.homeTier + "\n";
+  t += "Away Tier : " + ctx.auto.awayTier + "\n\n";
 
-    // Recommendation
-    t += "\n[RECOMMENDATION]\n";
-    t += "Result : " + rec.result + "\n";
-    t += "Goals  : " + rec.goals + "\n";
-    t += "BTTS   : " + rec.btts + "\n";
-    t += "Note   : " + rec.warning + "\n";
+  t += "[TOP SCORE]\n";
+  res.topCS.forEach(s=>{
+    t += s.score + " (" + (s.p*100).toFixed(1) + "%)\n";
+  });
 
-    // Confidence
-    t += "\n[CONFIDENCE SCORE]\n";
-    t += conf.toFixed(0) + " / 100\n";
-
-    return t;
-  };
-
-  console.log("PART 8 loaded: OU + Confidence + Recommendation");
-
-})(window.PSZ);
+  return t;
+};
 </script>
 </body>
 </html>
