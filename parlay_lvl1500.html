@@ -818,6 +818,47 @@ window.PSZ = window.PSZ || {};
 
 })(window.PSZ);
 </script>
+    <script>
+/* ======================================================
+   PATCH — Archetype Impact on fxG & Fatigue
+   Safe Enhancement
+   ====================================================== */
+
+window.PSZ = window.PSZ || {};
+(function(PSZ){
+
+  const _origComputeFxG = PSZ.computeFxG;
+  PSZ.computeFxG = function(ctx){
+    const fxg = _origComputeFxG(ctx);
+    const arche = ctx.auto.archetype;
+
+    if(arche === "Chaos / Run & Gun"){
+      fxg.fxgH *= 1.15;
+      fxg.fxgA *= 1.15;
+    }
+
+    if(arche === "Slow Tactical / Low Event"){
+      fxg.fxgH *= 0.85;
+      fxg.fxgA *= 0.85;
+    }
+
+    return fxg;
+  };
+
+  const _origSimStamina = PSZ.simulateStamina;
+  PSZ.simulateStamina = function(stamina0, press, tempo){
+    let s = _origSimStamina(stamina0, press, tempo);
+
+    if(tempo >= 7.5) s -= 0.03; // chaos fatigue
+    if(tempo <= 4.0) s += 0.02; // low tempo conserve
+
+    return PSZ.clamp(s, 0.3, 1);
+  };
+
+  console.log("PATCH applied: Archetype affects fxG & fatigue");
+
+})(window.PSZ);
+    </script>
 <script>
 /* ======================================================
    PART 8 — OU, CONFIDENCE & RECOMMENDATION
