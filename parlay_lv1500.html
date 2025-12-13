@@ -103,6 +103,39 @@
     <select id="match_type">
         <!-- Will be filled in PART 2 -->
     </select>
+<!-- =========================
+     ADVANCED CONTEXT PRESET
+     ========================= -->
+<div class="sectionTitle">Advanced Context Preset</div>
+
+<label>League Preset</label>
+<select id="league_preset">
+  <option value="AUTO">AUTO (Engine)</option>
+  <option value="EPL">Premier League</option>
+  <option value="BUNDES">Bundesliga</option>
+  <option value="SERIEA">Serie A</option>
+  <option value="LALIGA">LaLiga</option>
+  <option value="LIGUE1">Ligue 1</option>
+  <option value="EREDIV">Eredivisie</option>
+  <option value="UCL">UCL / Continental</option>
+  <option value="CUP">Cup / Knockout</option>
+</select>
+
+<label>Home Team Tier</label>
+<select id="home_tier">
+  <option value="AUTO">AUTO (Engine)</option>
+  <option value="BIG">BIG Team</option>
+  <option value="MID">MID Table</option>
+  <option value="SMALL">SMALL / Underdog</option>
+</select>
+
+<label>Away Team Tier</label>
+<select id="away_tier">
+  <option value="AUTO">AUTO (Engine)</option>
+  <option value="BIG">BIG Team</option>
+  <option value="MID">MID Table</option>
+  <option value="SMALL">SMALL / Underdog</option>
+</select>
 
     <button id="runEngine">RUN ANALYSIS</button>
 </div>
@@ -391,6 +424,85 @@ window.PSZ = window.PSZ || {};
 
 })(window.PSZ);
 </script>
+    <script>
+/* ======================================================
+   PART 3.5 — PRESET LIGA + PRESET TIM
+   Context Bias Layer (SAFE)
+   ====================================================== */
+
+window.PSZ = window.PSZ || {};
+(function(PSZ){
+
+  /* ============================
+     League Presets
+     ============================ */
+  PSZ.LEAGUE_PRESETS = {
+    EPL:    { tempo: 0.6, press: 0.7, vol: 0.12 },
+    BUNDES: { tempo: 0.8, press: 0.5, vol: 0.15 },
+    SERIEA: { tempo:-0.4, press:-0.2, vol:-0.10 },
+    LALIGA: { tempo:-0.3, press:-0.1, vol:-0.08 },
+    LIGUE1: { tempo: 0.1, press: 0.2, vol: 0.05 },
+    EREDIV: { tempo: 0.9, press: 0.6, vol: 0.18 },
+    UCL:    { tempo: 0.3, press: 0.4, vol: 0.10 },
+    CUP:    { tempo:-0.5, press:-0.3, vol:-0.12 }
+  };
+
+  /* ============================
+     Team Presets
+     ============================ */
+  PSZ.TEAM_PRESETS = {
+    BIG:   { tempo: 0.3, press: 0.5, risk:-0.10, vol:-0.05 },
+    MID:   { tempo: 0.0, press: 0.0, risk: 0.00, vol: 0.00 },
+    SMALL: { tempo:-0.3, press:-0.4, risk: 0.15, vol: 0.10 }
+  };
+
+  /* ============================
+     Auto Team Tier
+     ============================ */
+  PSZ.autoTeamTier = function(xg, shots){
+    if(xg >= 1.8 && shots >= 14) return "BIG";
+    if(xg <= 0.9 && shots <= 9)  return "SMALL";
+    return "MID";
+  };
+
+  /* ============================
+     Apply Presets (CALLED LATER)
+     ============================ */
+  PSZ.applyContextPresets = function(ctx, leagueKey, homeTier, awayTier){
+    if(!ctx || !ctx.auto) return;
+
+    // --- League ---
+    const L = PSZ.LEAGUE_PRESETS[leagueKey];
+    if(L){
+      ctx.auto.tempo      = PSZ.clamp(ctx.auto.tempo + L.tempo, 1, 9);
+      ctx.auto.pressH     = PSZ.clamp(ctx.auto.pressH + L.press, 1, 9);
+      ctx.auto.pressA     = PSZ.clamp(ctx.auto.pressA + L.press, 1, 9);
+      ctx.auto.volatility = PSZ.clamp(ctx.auto.volatility + L.vol, 0.3, 1);
+    }
+
+    // --- Home Team ---
+    const TH = PSZ.TEAM_PRESETS[homeTier] || PSZ.TEAM_PRESETS.MID;
+    ctx.auto.tempo      = PSZ.clamp(ctx.auto.tempo + TH.tempo, 1, 9);
+    ctx.auto.pressH     = PSZ.clamp(ctx.auto.pressH + TH.press, 1, 9);
+    ctx.auto.risk       = PSZ.clamp(ctx.auto.risk + TH.risk, 0, 1);
+    ctx.auto.volatility = PSZ.clamp(ctx.auto.volatility + TH.vol, 0.3, 1);
+
+    // --- Away Team ---
+    const TA = PSZ.TEAM_PRESETS[awayTier] || PSZ.TEAM_PRESETS.MID;
+    ctx.auto.tempo      = PSZ.clamp(ctx.auto.tempo + TA.tempo, 1, 9);
+    ctx.auto.pressA     = PSZ.clamp(ctx.auto.pressA + TA.press, 1, 9);
+    ctx.auto.risk       = PSZ.clamp(ctx.auto.risk + TA.risk, 0, 1);
+    ctx.auto.volatility = PSZ.clamp(ctx.auto.volatility + TA.vol, 0.3, 1);
+  };
+
+})(window.PSZ);
+        // ===== PATCH 2: AUTO TEAM TIER (DEFINISI AMAN) =====
+PSZ.autoTeamTier = function(xg, shots){
+  if(xg >= 1.8 && shots >= 14) return "BIG";
+  if(xg <= 0.9 && shots <= 9)  return "SMALL";
+  return "MID";
+};
+    </script>
 <script>
 /* ======================================================
    PART 4 — CORE ENGINE
