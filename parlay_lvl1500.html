@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PSZ Engine — Clean Rebuild</title>
+
+<style>
+body{
+  margin:0;
+  font-family:Arial,Helvetica,sans-serif;
+  background:#0d1117;
+  color:#e6edf3;
+  display:flex;
+  height:100vh;
+}
+#left{
+  width:30%;
+  background:#161b22;
+  padding:16px;
+  overflow-y:auto;
+  border-right:2px solid #30363d;
+}
+#right{
+  flex:1;
+  padding:16px;
+  overflow-y:auto;
+}
+.section{
+  margin-bottom:16px;
+}
+.section h3{
+  margin:12px 0 6px;
+  border-bottom:1px solid #30363d;
+  padding-bottom:4px;
+}
+label{
+  font-size:13px;
+}
+input,select,button{
+  width:100%;
+  margin:4px 0 10px;
+  padding:6px;
+  border-radius:6px;
+  border:none;
+  background:#21262d;
+  color:#e6edf3;
+}
+button{
+  background:#238636;
+  font-weight:bold;
+  cursor:pointer;
+}
+button:hover{
+  background:#2ea043;
+}
+#output{
+  white-space:pre-wrap;
+  background:#0d1117;
+  border:1px solid #30363d;
+  padding:12px;
+  border-radius:6px;
+  min-height:300px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="left">
+
+  <div class="section">
+    <h3>Match Data</h3>
+
+    <label>xG Home</label>
+    <input id="xgH" type="number" step="0.01">
+
+    <label>xG Away</label>
+    <input id="xgA" type="number" step="0.01">
+
+    <label>Shots Home</label>
+    <input id="shH" type="number">
+
+    <label>Shots Away</label>
+    <input id="shA" type="number">
+
+    <label>SOT Home</label>
+    <input id="sotH" type="number">
+
+    <label>SOT Away</label>
+    <input id="sotA" type="number">
+
+    <label>Possession Home (%)</label>
+    <input id="posH" type="number">
+
+    <label>Importance (1–10)</label>
+    <input id="imp" type="number" min="1" max="10">
+  </div>
+
+  <div class="section">
+    <h3>Match Type</h3>
+    <select id="matchType"></select>
+  </div>
+
+  <div class="section">
+    <h3>Context Preset</h3>
+
+    <label>League</label>
+    <select id="league">
+      <option value="AUTO">AUTO</option>
+      <option value="EPL">EPL</option>
+      <option value="BUNDES">Bundesliga</option>
+      <option value="SERIEA">Serie A</option>
+      <option value="LALIGA">LaLiga</option>
+      <option value="UCL">UCL</option>
+      <option value="CUP">Cup</option>
+    </select>
+
+    <label>Home Tier</label>
+    <select id="homeTier">
+      <option value="AUTO">AUTO</option>
+      <option value="BIG">BIG</option>
+      <option value="MID">MID</option>
+      <option value="SMALL">SMALL</option>
+    </select>
+
+    <label>Away Tier</label>
+    <select id="awayTier">
+      <option value="AUTO">AUTO</option>
+      <option value="BIG">BIG</option>
+      <option value="MID">MID</option>
+      <option value="SMALL">SMALL</option>
+    </select>
+  </div>
+
+  <button id="runBtn">RUN ANALYSIS</button>
+
+</div>
+
+<div id="right">
+  <h3>Output</h3>
+  <div id="output">Waiting for input…</div>
+</div>
+<script>
+/* ======================================================
+   PART 2 — MATCH TYPE REGISTRY & CONTEXT FLAG
+   CLEAN REBUILD (NO ENGINE)
+   ====================================================== */
+
+window.PSZ = window.PSZ || {};
+(function(PSZ){
+
+  /* ============================
+     MATCH TYPE LIST (EXTENSIBLE)
+     ============================ */
+  PSZ.MATCH_TYPES = [
+    // League
+    { id:"league_standard", label:"League — Standard" },
+    { id:"league_big_match", label:"League — Big Match" },
+    { id:"league_title", label:"League — Title Decider" },
+    { id:"league_relegation", label:"League — Relegation Fight" },
+    { id:"league_low", label:"League — Low Stakes" },
+
+    // Domestic Cup
+    { id:"cup_early", label:"Cup — Early Round" },
+    { id:"cup_quarter", label:"Cup — Quarter Final" },
+    { id:"cup_semi", label:"Cup — Semi Final" },
+    { id:"cup_final", label:"Cup — Final" },
+    { id:"cup_1st_leg", label:"Cup — First Leg" },
+    { id:"cup_2nd_leg", label:"Cup — Second Leg" },
+
+    // Continental
+    { id:"ucl_group", label:"UCL — Group Stage" },
+    { id:"ucl_knockout", label:"UCL — Knockout" },
+    { id:"ucl_quarter", label:"UCL — Quarter Final" },
+    { id:"ucl_semi", label:"UCL — Semi Final" },
+    { id:"ucl_final", label:"UCL — Final" },
+
+    // Special
+    { id:"friendly", label:"Friendly Match" },
+    { id:"derby", label:"Derby / Rivalry" }
+  ];
+
+  /* ============================
+     Populate Match Type Dropdown
+     ============================ */
+  PSZ.initMatchTypeUI = function(){
+    const sel = document.getElementById("match_type");
+    if(!sel) return;
+
+    sel.innerHTML = "";
+    const optAuto = document.createElement("option");
+    optAuto.value = "AUTO";
+    optAuto.textContent = "AUTO (Engine Detect)";
+    sel.appendChild(optAuto);
+
+    PSZ.MATCH_TYPES.forEach(mt=>{
+      const o = document.createElement("option");
+      o.value = mt.id;
+      o.textContent = mt.label;
+      sel.appendChild(o);
+    });
+  };
+
+  /* ============================
+     Auto Match Type Detection
+     (simple & safe)
+     ============================ */
+  PSZ.autoDetectMatchType = function(ctx){
+    const imp = ctx.importance || 5;
+
+    if(imp >= 9) return "league_title";
+    if(imp >= 8) return "ucl_knockout";
+    if(imp <= 3) return "league_low";
+
+    return "league_standard";
+  };
+
+  /* ============================
+     Init on DOM ready
+     ============================ */
+  document.addEventListener("DOMContentLoaded", function(){
+    PSZ.initMatchTypeUI();
+  });
+
+  console.log("PART 2 loaded: Match Type Registry");
+
+})(window.PSZ);
+</script>
+</body>
+  </html>
