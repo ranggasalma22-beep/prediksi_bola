@@ -466,8 +466,13 @@ window.PSZ = window.PSZ || {};
     lamA *= (1 + (A.pressA - A.pressH) * 0.04);
 
     // park the bus dampening
-    if(A.parkHome) lamH *= 0.88;
-    if(A.parkAway) lamA *= 0.88;
+    // 🔽 Dynamic park-the-bus dampening
+let parkFactor = 0.88;
+if(ctx.base.imp >= 8) parkFactor = 0.82;
+if(ctx.base.imp >= 9) parkFactor = 0.78;
+
+if(A.parkHome) lamH *= parkFactor;
+if(A.parkAway) lamA *= parkFactor;
 
     lamH = PSZ.clamp(lamH, 0.2, 4.5);
     lamA = PSZ.clamp(lamA, 0.2, 4.5);
@@ -526,8 +531,13 @@ window.PSZ = window.PSZ || {};
 
     const fxg = PSZ.computeFxG(ctx);
 
-    let lamH = baseLam.lamH + fxg.fxgH + lateErrorBoostH;
-    let lamA = baseLam.lamA + fxg.fxgA + lateErrorBoostA;
+// 🔽 FXG dampening for high-importance matches
+let fxgFactor = 1;
+if(ctx.base.imp >= 8) fxgFactor = 0.6;
+if(ctx.base.imp >= 9) fxgFactor = 0.5;
+
+let lamH = baseLam.lamH + (fxg.fxgH * fxgFactor) + lateErrorBoostH;
+let lamA = baseLam.lamA + (fxg.fxgA * fxgFactor) + lateErrorBoostA;
 
     lamH = PSZ.clamp(lamH, 0.2, 5.2);
     lamA = PSZ.clamp(lamA, 0.2, 5.2);
@@ -925,10 +935,50 @@ window.PSZ = window.PSZ || {};
       rec.result = "LEAN DRAW";
 
     // Goals lean (2.5 main)
-    rec.goals = ou[2.5].over > 0.55 ? "OVER 2.5" : "UNDER 2.5";
+    if(ou[2.5].over > 0.60 && ctx.auto.volatility < 0.75){
+  rec.goals = "OVER 2.5";
+}else{
+  rec.goals = "UNDER 2.5";
+          }
+      // 🔒 Block forced over in finals / ultra-high importance
+if(ctx.base.imp >= 9 && ou[2.5].over < 0.62){
+  rec.goals = "NO BET (GOALS)";
+                          }
+      // 🔐 Under 2.5 confidence boost
+let underBoost = 0;
 
-    // BTTS lean
-    rec.btts = res.BTTS > 0.55 ? "BTTS YES" : "BTTS NO";
+// High importance → cautious game
+if(ctx.base.imp >= 8) underBoost += 6;
+
+// Park-the-bus present
+if(ctx.auto.parkHome || ctx.auto.parkAway) underBoost += 6;
+
+// Low volatility match
+if(ctx.auto.volatility < 0.55) underBoost += 5;
+
+// Apply boost only if UNDER is selected
+if(rec.goals === "UNDER 2.5"){
+  conf = Math.min(100, conf + underBoost);
+    }
+
+    // BTTS lean (base)
+rec.btts = res.BTTS > 0.55 ? "BTTS YES" : "BTTS NO";
+
+// 🔒 BTTS false-positive filters
+// 1) Park the bus present
+if(ctx.auto.parkHome || ctx.auto.parkAway){
+  if(res.BTTS < 0.60) rec.btts = "BTTS NO";
+}
+
+// 2) High importance (final / semi)
+if(ctx.base.imp >= 8 && res.BTTS < 0.62){
+  rec.btts = "BTTS NO";
+}
+
+// 3) Low chaos late-game (stamina still high)
+if(ctx.auto.volatility < 0.55 && res.BTTS < 0.60){
+  rec.btts = "BTTS NO";
+    }
 
     // Risk warning
     rec.warning = "NORMAL";
@@ -939,7 +989,73 @@ window.PSZ = window.PSZ || {};
 
     return rec;
   };
+PSZ.buildReason = function(ctx, res, rec){
 
+  let reasons = {
+    goals: [],
+    btts: [],
+    result: []
+  };
+
+  /* ===== GOALS REASON ===== */
+  if(rec.goals === "UNDER 2.5"){
+    if(ctx.base.imp >= 8)
+      reasons.goals.push("High match importance → cautious play");
+
+    if(ctx.auto.parkHome || ctx.auto.parkAway)
+      reasons.goals.push("Park-the-bus detected");
+
+    if(ctx.auto.volatility < 0.55)
+      reasons.goals.push("Low volatility (controlled tempo)");
+
+  }
+
+  if(rec.goals === "OVER 2.5"){
+    if(ctx.auto.volatility >= 0.65)
+      reasons.goals.push("High volatility / open game");
+
+    if(ctx.auto.tempo >= 6.5)
+      reasons.goals.push("High tempo match");
+
+    if(res.BTTS >= 0.60)
+      reasons.goals.push("Both teams likely to score");
+  }
+
+  /* ===== BTTS REASON ===== */
+  if(rec.btts === "BTTS YES"){
+    if(res.BTTS >= 0.60)
+      reasons.btts.push("Strong BTTS probability");
+
+    if(ctx.auto.volatility >= 0.6)
+      reasons.btts.push("Chaotic match profile");
+  }
+
+  if(rec.btts === "BTTS NO"){
+    if(ctx.auto.parkHome || ctx.auto.parkAway)
+      reasons.btts.push("One side likely defending deep");
+
+    if(ctx.auto.volatility < 0.55)
+      reasons.btts.push("Low late-game chaos");
+
+    if(ctx.base.imp >= 8)
+      reasons.btts.push("High-stakes match → risk-averse play");
+  }
+
+  /* ===== RESULT (1X2) REASON ===== */
+  if(rec.result === "LEAN HOME"){
+    reasons.result.push("Home expected goals advantage");
+  }
+
+  if(rec.result === "LEAN AWAY"){
+    reasons.result.push("Away expected goals advantage");
+  }
+
+  if(rec.result === "LEAN DRAW"){
+    reasons.result.push("Balanced expected goals & tempo");
+  }
+
+  return reasons;
+};
   /* ============================
      Patch Output Builder
      ============================ */
@@ -951,6 +1067,7 @@ window.PSZ = window.PSZ || {};
     const ou = PSZ.computeOU(res);
     const conf = PSZ.computeConfidence(ctx, res);
     const rec = PSZ.buildRecommendation(ctx, res, ou, conf);
+    const reasons = PSZ.buildReason(ctx, res, rec);
 
     let t = baseText;
 
@@ -967,6 +1084,27 @@ window.PSZ = window.PSZ || {};
     t += "Result : " + rec.result + "\n";
     t += "Goals  : " + rec.goals + "\n";
     t += "BTTS   : " + rec.btts + "\n";
+    // ===== REASONS =====
+if(reasons.goals.length){
+  t += "\nReason (Goals):\n";
+  reasons.goals.forEach(r => {
+    t += "- " + r + "\n";
+  });
+}
+
+if(reasons.btts.length){
+  t += "\nReason (BTTS):\n";
+  reasons.btts.forEach(r => {
+    t += "- " + r + "\n";
+  });
+}
+
+if(reasons.result.length){
+  t += "\nReason (Result):\n";
+  reasons.result.forEach(r => {
+    t += "- " + r + "\n";
+  });
+    }
     t += "Note   : " + rec.warning + "\n";
 
     // Confidence
