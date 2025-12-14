@@ -1,0 +1,1908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Match Simulation Engine — PRIME SINGULARITY ZERO ∑.REBUILD</title>
+
+<style>
+  body {
+    background:#050608;
+    color:#f5f5f5;
+    font-family:Arial, sans-serif;
+    padding:20px;
+  }
+  h1 {
+    font-size:26px;
+    margin-bottom:15px;
+    color:#7bf7ff;
+  }
+  h2 {
+    font-size:18px;
+    margin-bottom:8px;
+    color:#e2e2e2;
+  }
+  h3 {
+    font-size:14px;
+    margin:10px 0 5px;
+    color:#d0d0d0;
+  }
+  .section {
+    padding:12px 15px;
+    border:1px solid #444;
+    margin-bottom:15px;
+    border-radius:7px;
+    background:#131316;
+  }
+  label { 
+    display:block; 
+    margin-top:7px; 
+    font-size:13px;
+  }
+  input, select {
+    width:100%;
+    padding:6px;
+    margin-top:4px;
+    background:#202024;
+    border:1px solid #555;
+    color:#f2f2f2;
+    border-radius:5px;
+    font-size:13px;
+    box-sizing:border-box;
+  }
+  button {
+    padding:10px 15px;
+    background:#12b8e3;
+    color:#000;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+    margin-top:12px;
+    font-weight:bold;
+  }
+  button:hover {
+    background:#18c9f5;
+  }
+  textarea {
+    width:100%;
+    height:360px;
+    background:#050506;
+    color:#00ff66;
+    padding:10px;
+    border:1px solid #333;
+    margin-top:10px;
+    border-radius:5px;
+    font-family:monospace;
+    font-size:12px;
+    white-space:pre;
+    box-sizing:border-box;
+  }
+  small {
+    color:#aaa;
+    font-size:11px;
+  }
+  .triple-input {
+    display:flex;
+    gap:6px;
+    margin-top:4px;
+  }
+  .triple-input input {
+    width:33.33%;
+  }
+  hr.line {
+    margin:12px 0;
+    border:0;
+    border-top:1px solid #333;
+  }
+</style>
+</head>
+
+<body>
+
+<h1>Match Simulation Engine — PRIME SINGULARITY ZERO ∑.REBUILD</h1>
+
+<!-- =========================
+     INPUT STATISTIK UTAMA
+========================= -->
+<div class="section">
+  <h2>Input Statistik Utama</h2>
+
+  <label>Expected Goals Home (λH)</label>
+  <input id="lamH" type="number" min="0.1" max="5" step="0.05" placeholder="mis: 1.60">
+
+  <label>Expected Goals Away (λA)</label>
+  <input id="lamA" type="number" min="0.1" max="5" step="0.05" placeholder="mis: 1.20">
+
+  <label>Tempo (1–10) <small>(kecepatan ritme pertandingan)</small></label>
+  <input id="tempo" type="number" min="1" max="10" placeholder="5">
+
+  <label>Chaos (1–10) <small>(seberapa liar / tidak terstruktur)</small></label>
+  <input id="chaos" type="number" min="1" max="10" placeholder="5">
+
+  <label>Importance (1–10) <small>(seberapa penting match: final, derby, dll.)</small></label>
+  <input id="importance" type="number" min="1" max="10" placeholder="5">
+</div>
+
+<!-- =========================
+     DATA TIM
+========================= -->
+<div class="section">
+  <h2>Data Tim</h2>
+
+  <label>Home Stability (1–10) <small>(soliditas & konsistensi pertahanan)</small></label>
+  <input id="home_st" type="number" min="1" max="10" placeholder="5">
+
+  <label>Away Stability (1–10)</label>
+  <input id="away_st" type="number" min="1" max="10" placeholder="5">
+
+  <label>Home Momentum (1–10) <small>(form & mental sekarang)</small></label>
+  <input id="home_mom" type="number" min="1" max="10" placeholder="5">
+
+  <label>Away Momentum (1–10)</label>
+  <input id="away_mom" type="number" min="1" max="10" placeholder="5">
+</div>
+
+<!-- =========================
+     TAKTIK & FLEKSIBILITAS
+========================= -->
+<div class="section">
+  <h2>Taktik & Fleksibilitas</h2>
+
+  <label>Home Press Intensity (1–10)</label>
+  <input id="home_press" type="number" min="1" max="10" placeholder="5">
+
+  <label>Away Press Intensity (1–10)</label>
+  <input id="away_press" type="number" min="1" max="10" placeholder="5">
+
+  <label>Home Flex (0–1) <small>(0 = formasi kaku, 1 = sangat fleksibel)</small></label>
+  <input id="home_flex" type="number" min="0" max="1" step="0.05" placeholder="0.5">
+
+  <label>Away Flex (0–1)</label>
+  <input id="away_flex" type="number" min="0" max="1" step="0.05" placeholder="0.5">
+
+  <small>
+    Jika tim hanya memakai 1 formasi & jarang berubah, flex sekitar 0.10–0.30.  
+    Jika sering ganti formasi (2–3 variasi), flex 0.50–0.80.
+  </small>
+</div>
+
+<!-- =========================
+     ADVANCED STATS + AUTO-CALC INPUT WAJIB
+========================= -->
+<div class="section">
+  <h2>Advanced Stats (Auto-Calc Input Wajib)</h2>
+
+  <label>xG Home (rata-rata 5 laga terakhir)</label>
+  <input id="adv_xg_home" type="number" step="0.01" placeholder="mis: 1.70">
+
+  <label>xG Away (rata-rata 5 laga terakhir)</label>
+  <input id="adv_xg_away" type="number" step="0.01" placeholder="mis: 1.30">
+
+  <label>xGA Home (rata-rata xG kebobolan per laga)</label>
+  <input id="adv_xga_home" type="number" step="0.01" placeholder="mis: 1.10">
+
+  <label>xGA Away (rata-rata xG kebobolan per laga)</label>
+  <input id="adv_xga_away" type="number" step="0.01" placeholder="mis: 1.40">
+
+  <label>Form Home (W-D-L, 5 laga terakhir)</label>
+  <div class="triple-input">
+    <input id="adv_form_home_w" type="number" min="0" max="5" placeholder="W">
+    <input id="adv_form_home_d" type="number" min="0" max="5" placeholder="D">
+    <input id="adv_form_home_l" type="number" min="0" max="5" placeholder="L">
+  </div>
+
+  <label>Form Away (W-D-L, 5 laga terakhir)</label>
+  <div class="triple-input">
+    <input id="adv_form_away_w" type="number" min="0" max="5" placeholder="W">
+    <input id="adv_form_away_d" type="number" min="0" max="5" placeholder="D">
+    <input id="adv_form_away_l" type="number" min="0" max="5" placeholder="L">
+  </div>
+
+  <label>PPDA Home (rata-rata, makin rendah = press tinggi)</label>
+  <input id="adv_ppda_home" type="number" step="0.1" placeholder="mis: 8.0">
+
+  <label>PPDA Away</label>
+  <input id="adv_ppda_away" type="number" step="0.1" placeholder="mis: 10.5">
+<label>Gaya Pressing Home (jika tidak ada PPDA asli)</label>
+  <select id="press_style_home">
+    <option value="">-- Pilih gaya pressing --</option>
+    <option value="high">High Press (mengejar tinggi)</option>
+    <option value="mid_high">Mid–High Press</option>
+    <option value="mid">Mid Block (seimbang)</option>
+    <option value="mid_low">Mid–Low Block</option>
+    <option value="low">Low Block / sangat pasif</option>
+  </select>
+
+  <label>Gaya Pressing Away (jika tidak ada PPDA asli)</label>
+  <select id="press_style_away">
+    <option value="">-- Pilih gaya pressing --</option>
+    <option value="high">High Press (mengejar tinggi)</option>
+    <option value="mid_high">Mid–High Press</option>
+    <option value="mid">Mid Block (seimbang)</option>
+    <option value="mid_low">Mid–Low Block</option>
+    <option value="low">Low Block / sangat pasif</option>
+  </select>
+
+  <button id="btn_auto_ppda">AUTO-ESTIMATE PPDA</button>
+  <small>
+    Gunakan jika situs tidak menyediakan angka PPDA.  
+    Estimasi dibuat dari gaya pressing + xGA + error defensif.  
+    Hasilnya otomatis mengisi PPDA Home/Away di atas.
+  </small>
+  
+  <label>Error Defensif Home per laga (perkiraan)</label>
+  <input id="adv_err_home" type="number" step="0.1" placeholder="mis: 0.8">
+
+  <label>Error Defensif Away per laga</label>
+  <input id="adv_err_away" type="number" step="0.1" placeholder="mis: 1.2">
+
+  <label>Jumlah Formasi Aktif Home (1–3)</label>
+  <input id="adv_formasi_home" type="number" min="1" max="3" placeholder="mis: 2">
+
+  <label>Jumlah Formasi Aktif Away (1–3)</label>
+  <input id="adv_formasi_away" type="number" min="1" max="3" placeholder="mis: 1">
+
+  <button id="btn_auto_calc">AUTO-CALC INPUT WAJIB</button>
+  <small>
+    Mengisi otomatis: λH, λA, Momentum, Stability, Press, dan Flex  
+    berdasarkan data advanced di atas.
+  </small>
+<!-- ==============================
+     PART 1 — PATCH UI
+     ============================== -->
+
+<h2>Patch Enhancements (Match Type + Pressing Premium)</h2>
+
+<h3>Match Type (Premium)</h3>
+<select id="match_type">
+  <option value="">-- Pilih Jenis Laga --</option>
+  <option value="league_normal">Liga Reguler</option>
+  <option value="league_big">Big Match</option>
+  <option value="league_relegation">Relegation Battle</option>
+  <option value="league_title_race">Title Race</option>
+
+  <option value="cup_round">Cup Round</option>
+  <option value="cup_quarter">Cup Quarter Final</option>
+  <option value="cup_semi">Cup Semi Final</option>
+  <option value="cup_final">Cup Final</option>
+
+  <option value="ucl_group">UCL Group Stage</option>
+  <option value="ucl_knockout">UCL Knockout</option>
+  <option value="ucl_final">UCL Final</option>
+</select>
+
+<h3>Pressing Premium</h3>
+
+<label>Home Pressing</label>
+<select id="press_premium_home">
+  <option value="">-- Pilih Pressing --</option>
+  <option value="hp_pro">High Press Pro</option>
+  <option value="hp_trigger">High Press Trigger</option>
+  <option value="mid_press">Mid Compact Press</option>
+  <option value="mid_low_trap">Mid-Low Trap</option>
+  <option value="low_block">Low Block</option>
+</select>
+
+<label>Away Pressing</label>
+<select id="press_premium_away">
+  <option value="">-- Pilih Pressing --</option>
+  <option value="hp_pro">High Press Pro</option>
+  <option value="hp_trigger">High Press Trigger</option>
+  <option value="mid_press">Mid Compact Press</option>
+  <option value="mid_low_trap">Mid-Low Trap</option>
+  <option value="low_block">Low Block</option>
+</select>
+
+<button onclick="applyPatchesToOutput()">Apply Patch</button>
+
+<hr>
+<div id="output">Output asli engine + hasil patch akan muncul di sini.</div>
+  <hr class="line">
+
+  <h3>Auto-Fill Tempo / Chaos / Importance</h3>
+
+  <label>Jenis Laga (Match Type)</label>
+  <select id="auto_match_type">
+    <option value="">-- Pilih jenis laga --</option>
+    <option value="friendly">Friendly / tidak penting</option>
+    <option value="league_normal">Liga biasa</option>
+    <option value="big_match">Big match / zona Eropa</option>
+    <option value="derby">Derby / tensi tinggi</option>
+    <option value="final">Final / hidup-mati / degradasi</option>
+  </select>
+
+  <label>Perkiraan Gaya Pertandingan</label>
+  <select id="auto_match_style">
+    <option value="">-- Pilih gaya --</option>
+    <option value="slow_structured">Lambat & terstruktur</option>
+    <option value="balanced">Seimbang</option>
+    <option value="fast_open">Cepat & cukup terbuka</option>
+    <option value="wild">Sangat terbuka / liar</option>
+  </select>
+
+  <button id="btn_auto_tci">AUTO-FILL TEMPO / CHAOS / IMPORTANCE</button>
+  <small>
+    Menggunakan kombinasi xG, xGA, PPDA, error defensif, dan tipe laga  
+    untuk mengisi Tempo, Chaos, dan Importance secara otomatis.  
+    Nilai tetap bisa kamu edit manual setelah terisi.
+  </small>
+</div>
+
+<!-- =========================
+     PARAMETER SIMULASI
+========================= -->
+<div class="section">
+  <h2>Parameter Simulasi</h2>
+
+  <label>SimCount (Default 50000)</label>
+  <input id="simCount" type="number" min="5000" max="300000" placeholder="kosongkan untuk default">
+
+  <label>Score Cap (3–8, default auto)</label>
+  <input id="scoreCap" type="number" min="3" max="8" placeholder="kosongkan untuk auto">
+
+  <button id="btn_analyze">ANALYZE PRIME SINGULARITY ZERO</button>
+</div>
+
+<!-- =========================
+     OUTPUT
+========================= -->
+<div class="section">
+  <h2>Output</h2>
+  <textarea id="output" readonly></textarea>
+</div>
+
+<!-- SCRIPT PARTS AKAN DITEMPEL DI BAWAH INI (PART 2–5) -->
+  <script>
+// =============================================================
+// PART 2 — NAMESPACE + UTILITY + POISSON CORE
+// =============================================================
+
+// Semua fungsi engine disimpan di namespace V20
+const V20 = {};
+
+// ---------------------------
+// Number parsing aman
+// ---------------------------
+V20.num = function(v, fallback = 0){
+  const n = Number(v);
+  return isFinite(n) ? n : fallback;
+};
+
+// ---------------------------
+// Clamp helper
+// ---------------------------
+V20.clamp = function(value, min, max){
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+};
+
+// ---------------------------
+// Log factorial cache
+// ---------------------------
+V20._logFactorialCache = [0];
+V20._logFactorial = function(n){
+  const cache = V20._logFactorialCache;
+  if (cache[n] != null) return cache[n];
+
+  let val = cache[cache.length - 1];
+  for (let i = cache.length; i <= n; i++){
+    val += Math.log(i);
+    cache[i] = val;
+  }
+  return cache[n];
+};
+
+// ---------------------------
+// Poisson PMF — P(X = k)
+// ---------------------------
+V20.poissonPMF = function(lambda, k){
+  lambda = Math.max(lambda, 0.00001);
+  if (k < 0) return 0;
+  return Math.exp(-lambda + k*Math.log(lambda) - V20._logFactorial(k));
+};
+
+// ---------------------------
+// Poisson random sampler
+// ---------------------------
+V20.samplePoisson = function(lambda){
+  lambda = Math.max(lambda, 0.00001);
+  const L = Math.exp(-lambda);
+  let p = 1, k = 0;
+  do {
+    p *= Math.random();
+    k++;
+  } while (p > L);
+  return k - 1;
+};
+
+// ---------------------------
+// Normalize array ke proporsi
+// ---------------------------
+V20.normalize = function(arr){
+  let s = 0;
+  for (let x of arr) s += x;
+  if (!s) return arr.map(() => 1/arr.length);
+  return arr.map(x => x/s);
+};
+
+// =============================================================
+// PART 2 SELESAI
+// Lanjut PART 3:
+// • Pattern Oracle
+// • Hyper Lambda (God Layer)
+// • Monte Carlo Multi-Reality
+// • Deterministic & Chaos Model
+// =============================================================
+  </script>
+  <script>
+// =============================================================
+// PART 3 — PATTERN ORACLE + HYPER LAMBDA + MULTI-REALITY MC
+// =============================================================
+
+
+// -------------------------------------------------------------
+// PATTERN ORACLE — menentukan pola pertandingan
+// -------------------------------------------------------------
+V20.patternOracle = function(ctx, home, away, tact){
+  ctx  = ctx  || {};
+  home = home || {stability:5, momentum:5};
+  away = away || {stability:5, momentum:5};
+  tact = tact || {
+    home:{pressIntensity:5, flex:0.5},
+    away:{pressIntensity:5, flex:0.5}
+  };
+
+  const tempo = ctx.tempo || 5;
+  const chaos = ctx.chaos || 5;
+  const imp   = ctx.importance || 5;
+
+  const stH = home.stability || 5;
+  const stA = away.stability || 5;
+  const stabAvg = (stH + stA)/2;
+
+  const momH = home.momentum || 5;
+  const momA = away.momentum || 5;
+  const momGap = momH - momA;
+
+  const pressH = tact.home.pressIntensity || 5;
+  const pressA = tact.away.pressIntensity || 5;
+  const pressGap = pressH - pressA;
+
+  const tempoF = (tempo - 5)/5;
+  const chaosF = (chaos - 5)/5;
+  const impF   = (imp   - 5)/5;
+  const stabF  = (stabAvg - 5)/5;
+
+  let control = 0.35
+              - chaosF*0.20
+              + stabF*0.25
+              + impF*0.05;
+
+  let swing   = 0.25
+              + Math.abs(momGap)*0.04
+              + Math.abs(pressGap)*0.05
+              + tempoF*0.15;
+
+  let stalled = 0.15
+              + (-tempoF)*0.20
+              + stabF*0.15;
+
+  let chaotic = 0.25
+              + chaosF*0.35
+              + tempoF*0.15
+              - stabF*0.10;
+
+  // clamp minimum
+  control = Math.max(control, 0.01);
+  swing   = Math.max(swing  , 0.01);
+  stalled = Math.max(stalled, 0.01);
+  chaotic = Math.max(chaotic, 0.01);
+
+  // normalize
+  let sum = control + swing + stalled + chaotic;
+  const pattern = {
+    control: control/sum,
+    swing:   swing/sum,
+    stalled: stalled/sum,
+    chaotic: chaotic/sum
+  };
+
+  // dominant
+  let dom = "control";
+  let mx  = pattern.control;
+  if(pattern.swing   > mx){ dom="swing";   mx=pattern.swing; }
+  if(pattern.stalled > mx){ dom="stalled"; mx=pattern.stalled; }
+  if(pattern.chaotic > mx){ dom="chaotic"; mx=pattern.chaotic; }
+
+  return { pattern, dominant: dom };
+};
+
+
+// -------------------------------------------------------------
+// HYPER LAMBDA — mengubah λ berdasarkan pola & taktik
+// -------------------------------------------------------------
+V20.hyperLambda = function(lambda, ctx, home, away, tact){
+  lambda = lambda || {};
+  ctx    = ctx || {};
+  home   = home || {stability:5, momentum:5};
+  away   = away || {stability:5, momentum:5};
+  tact   = tact || {
+    home:{pressIntensity:5, flex:0.5},
+    away:{pressIntensity:5, flex:0.5}
+  };
+
+  let lamH = V20.num(lambda.lamH, 1.2);
+  let lamA = V20.num(lambda.lamA, 1.0);
+
+  const tempo = ctx.tempo || 5;
+  const chaos = ctx.chaos || 5;
+
+  const momH = home.momentum || 5;
+  const momA = away.momentum || 5;
+  const stH  = home.stability || 5;
+  const stA  = away.stability || 5;
+
+  const pressH = tact.home.pressIntensity || 5;
+  const pressA = tact.away.pressIntensity || 5;
+
+  const flexH = tact.home.flex || 0.5;
+  const flexA = tact.away.flex || 0.5;
+
+  const momGap   = momH - momA;
+  const pressGap = pressH - pressA;
+  const stabAvg  = (stH + stA)/2;
+
+  const PO  = V20.patternOracle(ctx, home, away, tact);
+  const pat = PO.pattern;
+
+  const chaosF = (chaos - 5)/5;
+  const tempoF = (tempo - 5)/5;
+  const stabF  = (stabAvg - 5)/5;
+
+  // Control → menahan sedikit output
+  lamH *= (1 - pat.control*0.05);
+  lamA *= (1 - pat.control*0.05);
+
+  // Swing → efek momentum & pressing
+  const swingH = pat.swing*(Math.max(0,momGap)/10 + Math.max(0,pressGap)/10);
+  const swingA = pat.swing*(Math.max(0,-momGap)/10 + Math.max(0,-pressGap)/10);
+  lamH *= (1 + swingH*0.22);
+  lamA *= (1 + swingA*0.22);
+
+  // Stalled → memperlambat
+  lamH *= (1 - pat.stalled*0.10);
+  lamA *= (1 - pat.stalled*0.10);
+
+  // Chaotic → membuka peluang
+  lamH *= (1 + pat.chaotic*0.25);
+  lamA *= (1 + pat.chaotic*0.25);
+
+  // Tekanan murni
+  lamH *= (1 + (pressH-5)*0.015);
+  lamA *= (1 + (pressA-5)*0.015);
+
+  // Fleksibilitas
+  lamH *= (1 + flexH*0.05);
+  lamA *= (1 + flexA*0.05);
+
+  // Chaos global
+  lamH *= (1 + chaosF*0.10 + tempoF*0.02);
+  lamA *= (1 + chaosF*0.10 + tempoF*0.02);
+
+  lamH = V20.clamp(lamH, 0.20, 6.00);
+  lamA = V20.clamp(lamA, 0.20, 6.00);
+
+  return {
+    lamH,
+    lamA,
+    pattern: pat,
+    dominantPattern: PO.dominant
+  };
+};
+
+
+// -------------------------------------------------------------
+// DETERMINISTIC POISSON ANALYTIC
+// -------------------------------------------------------------
+V20.detSim = function(lambda){
+  lambda = lambda || {};
+  const lamH = Math.max(V20.num(lambda.lamH,1.0), 0.01);
+  const lamA = Math.max(V20.num(lambda.lamA,1.0), 0.01);
+
+  let pH=0, pD=0, pA=0;
+  const maxG = 8;
+
+  let ou = {
+    "0.5":{over:0, under:0},
+    "1.5":{over:0, under:0},
+    "2.5":{over:0, under:0},
+    "3.5":{over:0, under:0}
+  };
+
+  let total = 0;
+
+  for (let h=0; h<=maxG; h++){
+    let pPH = V20.poissonPMF(lamH, h);
+    for (let a=0; a<=maxG; a++){
+      let pPA = V20.poissonPMF(lamA, a);
+      let p   = pPH*pPA;
+      total += p;
+
+      if(h > a)      pH += p;
+      else if(h==a)  pD += p;
+      else           pA += p;
+
+      const sum = h+a;
+      if(sum > 0) ou["0.5"].over += p; else ou["0.5"].under += p;
+      if(sum > 1) ou["1.5"].over += p; else ou["1.5"].under += p;
+      if(sum > 2) ou["2.5"].over += p; else ou["2.5"].under += p;
+      if(sum > 3) ou["3.5"].over += p; else ou["3.5"].under += p;
+    }
+  }
+
+  if(total>0){
+    pH/=total; pD/=total; pA/=total;
+    Object.values(ou).forEach(x=>{
+      x.over/=total; x.under/=total;
+    });
+  }
+
+  return {pH,pD,pA,ou};
+};
+
+
+// -------------------------------------------------------------
+// CHAOS MODEL — menambah/kurang intensitas
+// -------------------------------------------------------------
+V20.chaosModel = function(lambda, ctx){
+  lambda = lambda || {};
+  ctx    = ctx || {};
+
+  const lamH = Math.max(V20.num(lambda.lamH,1.0), 0.01);
+  const lamA = Math.max(V20.num(lambda.lamA,1.0), 0.01);
+  const chaos = ctx.chaos || 5;
+
+  const chaosF = (chaos - 5)/5;
+  const factor = 1 + V20.clamp(chaosF*0.24, -0.22, 0.32);
+
+  return {
+    lamH: V20.clamp(lamH*factor, 0.20, 6.00),
+    lamA: V20.clamp(lamA*factor, 0.20, 6.00)
+  };
+};
+
+
+// -------------------------------------------------------------
+// MONTE CARLO — Multi-Reality Divine Engine
+// -------------------------------------------------------------
+V20.monteCarlo = function(lambda, ctx, simCount, scoreCap, home, away, tact){
+  lambda = lambda || {};
+  ctx    = ctx || {};
+  home   = home || {stability:5, momentum:5};
+  away   = away || {stability:5, momentum:5};
+  tact   = tact || {
+    home:{pressIntensity:5, flex:0.5},
+    away:{pressIntensity:5, flex:0.5}
+  };
+
+  // Dapatkan Hyper Lambda
+  const HL = V20.hyperLambda(lambda, ctx, home, away, tact);
+  const lamH_base = HL.lamH;
+  const lamA_base = HL.lamA;
+  const totalLam = lamH_base + lamA_base || 0.0001;
+
+  const pat = HL.pattern;
+
+  const chaos = ctx.chaos || 5;
+  const tempo = ctx.tempo || 5;
+  const imp   = ctx.importance || 5;
+
+  const chaosF = (chaos - 5)/5;
+  const tempoF = (tempo - 5)/5;
+  const impF   = (imp   - 5)/5;
+
+  // Default simulasi
+  const baseSim = simCount ? V20.num(simCount, 50000) : 50000;
+
+  // Pola → adjust sim weight
+  let patternScale =
+      1.00
+    + pat.swing   * 0.30
+    + pat.chaotic * 0.35
+    - pat.stalled * 0.25;
+
+  const globalAdj =
+      chaosF*0.35 +
+      tempoF*0.25 +
+      impF  *0.15;
+
+  let simScaled = baseSim * (1 + globalAdj*0.7) * patternScale;
+  simScaled = V20.clamp(simScaled, 30000, 250000);
+  simCount  = Math.round(simScaled);
+
+  // Score Cap
+  const autoCap = totalLam > 3.4 ? 6 : 5;
+  scoreCap = V20.clamp(scoreCap || autoCap, 3, 8);
+
+  // Phase
+  const phases = [
+    {name:"early", w:0.25},
+    {name:"mid",   w:0.50},
+    {name:"late",  w:0.25}
+  ];
+  let acc=0;
+  phases.forEach(p=>{ acc+=p.w; p.cum=acc; });
+
+  function pickPhase(){
+    const r = Math.random();
+    for(let p of phases){
+      if(r <= p.cum) return p;
+    }
+    return phases[2];
+  }
+
+  // Reality A / B / C
+  const realityWeights = {
+    A: 0.40 + pat.control*0.20,
+    B: 0.30 + pat.chaotic*0.30,
+    C: 0.30 + pat.swing*0.30
+  };
+  let wSum = realityWeights.A + realityWeights.B + realityWeights.C;
+  realityWeights.A/=wSum;
+  realityWeights.B/=wSum;
+  realityWeights.C/=wSum;
+
+  function pickReality(){
+    const r = Math.random();
+    if(r <= realityWeights.A) return "A";
+    if(r <= realityWeights.A + realityWeights.B) return "B";
+    return "C";
+  }
+
+  function realityParams(type){
+    let fH=1, fA=1, spread=0.6;
+    if(type==="A"){
+      fH=1.00; fA=1.00; spread=0.45;
+    } else if(type==="B"){
+      fH=1.00 + Math.max(0,chaosF)*0.20;
+      fA=1.00 + Math.max(0,chaosF)*0.20;
+      spread = 0.6 + Math.max(0,chaosF)*0.6;
+    } else {
+      const swingBoost   = pat.swing*0.10;
+      const chaoticBoost = pat.chaotic*0.12;
+      fH = 1.00 + swingBoost + chaoticBoost;
+      fA = 1.00 + swingBoost + chaoticBoost;
+      spread = 0.6 + (pat.chaotic+pat.swing)*0.6;
+    }
+    return {fH,fA,spread};
+  }
+
+  // Scenario
+  const ratioH = lamH_base / totalLam;
+  const scenarios = [
+    {name:"base",      w:0.30, fH:1.00, fA:1.00},
+    {name:"control",   w:0.08 + 0.25*pat.control, fH:0.97, fA:0.97},
+    {name:"swing",     w:0.08 + 0.25*pat.swing,   fH:1.07, fA:1.07},
+    {name:"stalled",   w:0.06 + 0.22*pat.stalled, fH:0.78, fA:0.78},
+    {name:"chaotic",   w:0.06 + 0.22*pat.chaotic, fH:1.18, fA:1.18},
+    {name:"homeFront", w:0.06 + 0.10*ratioH,      fH:1.08, fA:0.97},
+    {name:"awayFront", w:0.06 + 0.10*(1-ratioH),  fH:0.97, fA:1.08},
+    {name:"wideOpen",  w:0.04 + 0.12*Math.max(0,tempoF)*Math.max(0,chaosF), 
+                       fH:1.22, fA:1.22}
+  ];
+
+  // Penalti
+  scenarios.forEach(s=>{
+    if(s.name==="wideOpen") s.w*=0.90;
+    if(s.name==="chaotic")  s.w*=0.93;
+    if(s.name==="stalled")  s.w*=0.95;
+  });
+
+  // Normalize scenario
+  let scSum = 0;
+  scenarios.forEach(s=>scSum+=s.w);
+  scenarios.forEach(s=>s.p = s.w/scSum);
+
+  // Cumulative
+  let cum = 0;
+  scenarios.forEach(s=>{ cum+=s.p; s.cum=cum; });
+
+  function pickScenario(){
+    const r = Math.random();
+    for(let s of scenarios){
+      if(r <= s.cum) return s;
+    }
+    return scenarios[scenarios.length-1];
+  }
+
+  function sampleHybrid(lambdaBase, spreadBase){
+    lambdaBase = Math.max(lambdaBase, 0.00001);
+    const r = Math.random();
+    if(r < 0.55){
+      return V20.samplePoisson(lambdaBase);
+    } else if(r < 0.85){
+      const factor = Math.exp((Math.random()-0.5)*spreadBase);
+      const lamVar = V20.clamp(lambdaBase*factor, 0.05, 6.2);
+      return V20.samplePoisson(lamVar);
+    } else {
+      const factor = Math.exp((Math.random()-0.5)*(spreadBase+0.4));
+      const lamVar = V20.clamp(lambdaBase*factor, 0.05, 6.8);
+      return V20.samplePoisson(lamVar);
+    }
+  }
+
+  let homeWins=0, draws=0, awayWins=0;
+  let total=0, goalsTotal=0;
+
+  const matrix=[];
+  for(let h=0;h<=scoreCap;h++){
+    matrix[h]=[];
+    for(let a=0;a<=scoreCap;a++){
+      matrix[h][a]=0;
+    }
+  }
+
+  const scenarioCount = {};
+  scenarios.forEach(s=>scenarioCount[s.name]=0);
+
+  // MAIN LOOP
+  for(let i=0;i<simCount;i++){
+    const phase   = pickPhase();
+    const sc      = pickScenario();
+    const reality = pickReality();
+
+    scenarioCount[sc.name]++;
+
+    const rp = realityParams(reality);
+
+    const lamH_sim = lamH_base * sc.fH * rp.fH;
+    const lamA_sim = lamA_base * sc.fA * rp.fA;
+
+    const h = sampleHybrid(lamH_sim, rp.spread);
+    const a = sampleHybrid(lamA_sim, rp.spread);
+
+    total++;
+    goalsTotal += (h+a);
+
+    if(h>a) homeWins++;
+    else if(h===a) draws++;
+    else awayWins++;
+
+    if(h<=scoreCap && a<=scoreCap){
+      matrix[h][a]++;
+    }
+  }
+
+  return{
+    simCount,
+    pH: homeWins/total,
+    pD: draws/total,
+    pA: awayWins/total,
+    avgGoals: goalsTotal/total,
+    matrix,
+    scoreCap,
+    god:{
+      hyperLambda:{lamH:lamH_base, lamA:lamA_base},
+      pattern: pat
+    },
+    scenarioStats:{
+      scenarios,
+      count:scenarioCount
+    }  
+  };
+};
+
+
+// =============================================================
+// PART 3 SELESAI
+// Selanjutnya PART 4:
+// • Risk Model
+// • Fragility
+// • Meta Consistency
+// • Flow Model
+// • Singularity Zero Layer
+// =============================================================
+  </script>
+  <script>
+// =============================================================
+// PART 4 — RISK, FRAGILITY, META, FLOW & SINGULARITY ZERO LAYER
+// =============================================================
+
+
+// -------------------------------------------------------------
+// RISK MODEL — seberapa tinggi ketidakpastian pertandingan
+// -------------------------------------------------------------
+V20.computeRisk = function(ctx, tact){
+  ctx  = ctx  || {};
+  tact = tact || {home:{flex:0.5}, away:{flex:0.5}};
+
+  const chaos = ctx.chaos || 5;
+  const tempo = ctx.tempo || 5;
+
+  const flexH = tact.home.flex || 0.5;
+  const flexA = tact.away.flex || 0.5;
+  const flexAvg = (flexH + flexA)/2;
+
+  const chaosF = (chaos - 5)/5;
+  const tempoF = (tempo - 5)/5;
+
+  let risk = 0.42
+           + chaosF*0.33
+           + tempoF*0.18
+           + flexAvg*0.20;
+
+  return V20.clamp(risk, 0, 1);
+};
+
+
+// -------------------------------------------------------------
+// FRAGILITY MODEL — seberapa mudah hasil berubah arah
+// -------------------------------------------------------------
+V20.computeFragility = function(ctx, home, away){
+  ctx  = ctx  || {};
+  home = home || {stability:5};
+  away = away || {stability:5};
+
+  const chaos = ctx.chaos || 5;
+  const stH   = home.stability || 5;
+  const stA   = away.stability || 5;
+
+  const stabAvg = (stH + stA)/2;
+  const chaosF  = (chaos - 5)/5;
+  const stabF   = (stabAvg - 5)/5;
+
+  let frag = 0.40
+            + chaosF*0.30
+            - stabF*0.25;
+
+  return V20.clamp(frag, 0, 1);
+};
+
+
+// -------------------------------------------------------------
+// SDI — Score Direction Index (arah tren skor)
+// -------------------------------------------------------------
+V20.computeSDI = function(lambda){
+  lambda = lambda || {};
+  const lamH = Math.max(V20.num(lambda.lamH,1.0), 0.01);
+  const lamA = Math.max(V20.num(lambda.lamA,1.0), 0.01);
+
+  const gap = lamH - lamA;
+  return V20.clamp(gap/2.5, -1, 1);
+};
+
+
+// -------------------------------------------------------------
+// META CONSISTENCY — konsistensi antar-lapisan model
+// -------------------------------------------------------------
+V20.computeMeta = function(det, chaosM, sdi){
+  if(!det || !chaosM) return 0.5;
+
+  const detGap   = det.pH - det.pA;
+  const chaosGap = chaosM.pH - chaosM.pA;
+
+  let meta = 1 - (Math.abs(detGap - chaosGap)*0.45
+                + Math.abs(sdi)*0.20);
+
+  return V20.clamp(meta, 0, 1);
+};
+
+
+// -------------------------------------------------------------
+// FLOW MODEL — momentum + pressing + pattern
+// -------------------------------------------------------------
+V20.computeFlow = function(ctx, home, away, tact, pat){
+  ctx  = ctx  || {};
+  home = home || {momentum:5};
+  away = away || {momentum:5};
+  tact = tact || {
+    home:{pressIntensity:5},
+    away:{pressIntensity:5}
+  };
+  pat  = pat  || {swing:0.25, chaotic:0.25};
+
+  const chaos = ctx.chaos || 5;
+  const tempo = ctx.tempo || 5;
+
+  const momH = home.momentum || 5;
+  const momA = away.momentum || 5;
+  const mg = momH - momA;
+
+  const pressH = tact.home.pressIntensity || 5;
+  const pressA = tact.away.pressIntensity || 5;
+  const pg = pressH - pressA;
+
+  let flow = mg*0.10 + pg*0.08;
+
+  // pattern influence
+  flow += (pat.swing*0.10 + pat.chaotic*0.06) * (mg/7);
+
+  const chaosF = (chaos - 5)/5;
+  const tempoF = (tempo - 5)/5;
+  flow += chaosF*0.05 + tempoF*0.03;
+
+  return V20.clamp(flow, -1, 1);
+};
+
+
+// -------------------------------------------------------------
+// MOMENTUM SWING — perubahan tren (swing positif/negatif)
+// -------------------------------------------------------------
+V20.computeMomentumSwing = function(home, away){
+  home = home || {momentum:5};
+  away = away || {momentum:5};
+
+  const mH = home.momentum || 5;
+  const mA = away.momentum || 5;
+
+  const base = (mH - mA)/10;
+  return V20.clamp(base*1.1, -1, 1);
+};
+
+
+// -------------------------------------------------------------
+// PRIME SINGULARITY ZERO — koreksi final probabilitas
+// -------------------------------------------------------------
+V20.singularityZero = function(raw, risk, frag, meta, flow, swing){
+  raw = raw || {};
+  let pH = raw.pH || 0.33;
+  let pD = raw.pD || 0.33;
+  let pA = raw.pA || 0.33;
+
+  const riskF = risk;
+  const fragF = frag;
+  const metaF = meta;
+
+  const lowMeta  = 1 - metaF;
+  const highRisk = riskF;
+  const highFrag = fragF;
+
+  // Kompresi probabilitas ketika ketidakpastian tinggi
+  const compress = 0.50
+                 + lowMeta*0.35
+                 + highRisk*0.30
+                 + highFrag*0.30;
+
+  const comp = V20.clamp(compress, 0, 0.99);
+
+  let center = (pH + pA)/2;
+  pH = center + (pH-center)*(1-comp);
+  pA = center + (pA-center)*(1-comp);
+
+  // Flow & Swing Adjustment
+  pH *= (1 + flow*0.14 + swing*0.10);
+  pA *= (1 - flow*0.14 - swing*0.10);
+
+  // Draw adjustment
+  const floor = 0.06;
+  const addD  = Math.abs(pH - pA)*0.22;
+  pD += addD;
+
+  pH = Math.max(pH - pD*0.10, floor);
+  pA = Math.max(pA - pD*0.10, floor);
+  pD = Math.max(pD, floor);
+
+  // Normalize 1
+  let s = pH + pD + pA;
+  pH/=s; pD/=s; pA/=s;
+
+  // Final directional influence
+  if(flow > 0 && swing > 0){
+    pH *= (1 + 0.07*flow + 0.05*swing);
+    pA *= (1 - 0.07*flow - 0.05*swing);
+  }
+  else if(flow < 0 && swing < 0){
+    pA *= (1 + 0.07*(-flow) + 0.05*(-swing));
+    pH *= (1 - 0.07*(-flow) - 0.05*(-swing));
+  }
+
+  // Normalize 2
+  let s2 = pH + pD + pA;
+  pH/=s2; pD/=s2; pA/=s2;
+
+  return {pH,pD,pA};
+};
+
+
+// -------------------------------------------------------------
+// OUTPUT FUSION
+// -------------------------------------------------------------
+V20.fuseOutputs = function(det, chaosM, mc, zero){
+  return {
+    raw:{
+      deterministic: det,
+      chaos: chaosM,
+      mc: mc
+    },
+    final:{
+      pH: zero.pH,
+      pD: zero.pD,
+      pA: zero.pA
+    }
+  };
+};
+
+
+// =============================================================
+// PART 4 SELESAI
+// PART 5 = FINAL ENGINE RUNNER + AUTO-CALC + AUTO-TCI + OUTPUT
+// =============================================================
+  </script>
+  <script>
+// =============================================================
+// PART 5 — AUTO-CALC + AUTO-FILL TCI + ENGINE RUNNER + OUTPUT
+// =============================================================
+
+// -------------------------------------------------------------
+// AUTO-CALC INPUT WAJIB (ADVANCED MODE)
+// -------------------------------------------------------------
+V20.autoCalcRequired = function(){
+  const outEl = document.getElementById('output');
+
+  // baca advanced stats
+  const xgH   = V20.num(document.getElementById('adv_xg_home').value, NaN);
+  const xgA   = V20.num(document.getElementById('adv_xg_away').value, NaN);
+  const xgaH  = V20.num(document.getElementById('adv_xga_home').value, NaN);
+  const xgaA  = V20.num(document.getElementById('adv_xga_away').value, NaN);
+
+  const fHw = V20.num(document.getElementById('adv_form_home_w').value, 0);
+  const fHd = V20.num(document.getElementById('adv_form_home_d').value, 0);
+  const fHl = V20.num(document.getElementById('adv_form_home_l').value, 0);
+
+  const fAw = V20.num(document.getElementById('adv_form_away_w').value, 0);
+  const fAd = V20.num(document.getElementById('adv_form_away_d').value, 0);
+  const fAl = V20.num(document.getElementById('adv_form_away_l').value, 0);
+
+  const ppdaH = V20.num(document.getElementById('adv_ppda_home').value, NaN);
+  const ppdaA = V20.num(document.getElementById('adv_ppda_away').value, NaN);
+
+  const errH  = V20.num(document.getElementById('adv_err_home').value, 0);
+  const errA  = V20.num(document.getElementById('adv_err_away').value, 0);
+
+  const formH = V20.num(document.getElementById('adv_formasi_home').value, 1);
+  const formA = V20.num(document.getElementById('adv_formasi_away').value, 1);
+
+  // ---- 1) λH & λA dari xG + xGA ----
+  let lamH = 1.20;
+  let lamA = 1.00;
+
+  if (isFinite(xgH) && isFinite(xgaA)){
+    lamH = 0.60 * xgH + 0.40 * xgaA;
+  }
+  if (isFinite(xgA) && isFinite(xgaH)){
+    lamA = 0.60 * xgA + 0.40 * xgaH;
+  }
+
+  lamH = V20.clamp(lamH, 0.20, 4.50);
+  lamA = V20.clamp(lamA, 0.20, 4.50);
+
+  document.getElementById('lamH').value = lamH.toFixed(2);
+  document.getElementById('lamA').value = lamA.toFixed(2);
+
+  // ---- 2) Momentum (1–10) dari W/D/L ----
+  function calcMomentum(W,D,L){
+    const total = W+D+L;
+    if (total <= 0) return 5;
+    const rawScore = (3*W + 1*D - 2*L) / (3*5);  // kira-kira -? .. +1
+    const norm = V20.clamp(0.5 + rawScore, 0, 1);
+    return V20.clamp(1 + 9*norm, 1, 10);
+  }
+
+  const momH = calcMomentum(fHw,fHd,fHl);
+  const momA = calcMomentum(fAw,fAd,fAl);
+
+  document.getElementById('home_mom').value = momH.toFixed(1);
+  document.getElementById('away_mom').value = momA.toFixed(1);
+
+  // ---- 3) Stability (1–10) dari xGA + error ----
+  function calcStability(xga, err){
+    if (!isFinite(xga)) xga = 1.2;
+    const base = 8.0 - (xga-1.0)*2.5 - err*1.2;
+    return V20.clamp(base, 1, 10);
+  }
+
+  const stH = calcStability(xgaH, errH);
+  const stA = calcStability(xgaA, errA);
+
+  document.getElementById('home_st').value = stH.toFixed(1);
+  document.getElementById('away_st').value = stA.toFixed(1);
+
+  // ---- 4) Press Intensity (1–10) dari PPDA ----
+  function calcPress(ppda){
+    if (!isFinite(ppda)) return 5;
+    // PPDA 4 → press ~9–10, PPDA 20 → press ~1–2
+    const press = 11 - (ppda-4)*0.6;
+    return V20.clamp(press, 1, 10);
+  }
+
+  const pressH = calcPress(ppdaH);
+  const pressA = calcPress(ppdaA);
+
+  document.getElementById('home_press').value = pressH.toFixed(1);
+  document.getElementById('away_press').value = pressA.toFixed(1);
+
+  // ---- 5) Flex (0–1) dari jumlah formasi aktif ----
+  function calcFlex(formCount){
+    if (formCount <= 1) return 0.20;
+    if (formCount >= 3) return 0.80;
+    return 0.50; // 2 formasi aktif
+  }
+
+  const flexH = calcFlex(formH);
+  const flexA = calcFlex(formA);
+
+  document.getElementById('home_flex').value = flexH.toFixed(2);
+  document.getElementById('away_flex').value = flexA.toFixed(2);
+
+  // Log singkat ke output
+  if (outEl){
+    let log = "";
+    log += "[AUTO-CALC INPUT WAJIB — ADVANCED MODE]\n";
+    log += `λH : ${lamH.toFixed(3)} | λA : ${lamA.toFixed(3)}\n`;
+    log += `Momentum H/A : ${momH.toFixed(1)} / ${momA.toFixed(1)}\n`;
+    log += `Stability H/A: ${stH.toFixed(1)} / ${stA.toFixed(1)}\n`;
+    log += `Press H/A    : ${pressH.toFixed(1)} / ${pressA.toFixed(1)}\n`;
+    log += `Flex H/A     : ${flexH.toFixed(2)} / ${flexA.toFixed(2)}\n\n`;
+    outEl.value = log + (outEl.value || "");
+  }
+
+  alert("Auto-calc selesai. Input utama sudah terisi.");
+};
+// -------------------------------------------------------------
+// AUTO-ESTIMATE PPDA dari gaya pressing + xGA + error
+// -------------------------------------------------------------
+V20.autoEstimatePPDA = function(){
+  const outEl = document.getElementById('output');
+
+  const styleH = (document.getElementById('press_style_home') || {}).value || "";
+  const styleA = (document.getElementById('press_style_away') || {}).value || "";
+
+  const xgaH  = V20.num(document.getElementById('adv_xga_home').value, NaN);
+  const xgaA  = V20.num(document.getElementById('adv_xga_away').value, NaN);
+  const errH  = V20.num(document.getElementById('adv_err_home').value, NaN);
+  const errA  = V20.num(document.getElementById('adv_err_away').value, NaN);
+
+  function basePPDA(style){
+    switch(style){
+      case "high":     return 6.5;   // high press
+      case "mid_high": return 9.0;   // mid–high
+      case "mid":      return 12.0;  // mid block
+      case "mid_low":  return 15.0;  // mid–low
+      case "low":      return 18.0;  // low block
+      default:         return 12.0;  // netral
+    }
+  }
+
+  function refine(ppda, xga, err){
+    let v = ppda;
+
+    // xGA kecil → tim sulit ditembus → press cenderung lebih agresif / rapi
+    if (isFinite(xga)){
+      if (xga < 1.0)      v -= 0.8;
+      else if (xga > 1.6) v += 0.8;
+    }
+
+    // error tinggi → press sering telat / salah → PPDA cenderung naik
+    if (isFinite(err)){
+      if (err > 1.0) v += 0.8;
+      else if (err < 0.5) v -= 0.4;
+    }
+
+    return V20.clamp(v, 4.0, 22.0);
+  }
+
+  let ppdaH = basePPDA(styleH || "mid");
+  let ppdaA = basePPDA(styleA || "mid");
+
+  ppdaH = refine(ppdaH, xgaH, errH);
+  ppdaA = refine(ppdaA, xgaA, errA);
+
+  const elH = document.getElementById('adv_ppda_home');
+  const elA = document.getElementById('adv_ppda_away');
+
+  if (elH) elH.value = ppdaH.toFixed(2);
+  if (elA) elA.value = ppdaA.toFixed(2);
+
+  if (outEl){
+    let log = "[AUTO-ESTIMATE PPDA]\n";
+    log += `PPDA Home (est) : ${ppdaH.toFixed(2)}\n`;
+    log += `PPDA Away (est) : ${ppdaA.toFixed(2)}\n`;
+    log += `(Berdasarkan gaya pressing + xGA + error)\n\n`;
+    outEl.value = log + (outEl.value || "");
+  }
+
+  alert("Estimasi PPDA selesai. PPDA Home/Away sudah terisi.");
+};
+    
+
+// -------------------------------------------------------------
+// AUTO-FILL TEMPO / CHAOS / IMPORTANCE
+// -------------------------------------------------------------
+V20.autoFillTCI = function(){
+  const outEl = document.getElementById('output');
+
+  const xgH   = V20.num(document.getElementById('adv_xg_home').value, NaN);
+  const xgA   = V20.num(document.getElementById('adv_xg_away').value, NaN);
+  const xgaH  = V20.num(document.getElementById('adv_xga_home').value, NaN);
+  const xgaA  = V20.num(document.getElementById('adv_xga_away').value, NaN);
+
+  const ppdaH = V20.num(document.getElementById('adv_ppda_home').value, NaN);
+  const ppdaA = V20.num(document.getElementById('adv_ppda_away').value, NaN);
+
+  const errH  = V20.num(document.getElementById('adv_err_home').value, NaN);
+  const errA  = V20.num(document.getElementById('adv_err_away').value, NaN);
+
+  const matchType  = (document.getElementById('auto_match_type')  || {}).value || "";
+  const matchStyle = (document.getElementById('auto_match_style') || {}).value || "";
+
+  // nilai awal netral
+  let tempo = 5;
+  let chaos = 5;
+  let importance = 5;
+
+  // 1) jenis laga
+  switch (matchType){
+    case "friendly":
+      importance = 2.5;
+      tempo     -= 0.5;
+      chaos     -= 0.5;
+      break;
+    case "league_normal":
+      importance = 4.5;
+      break;
+    case "big_match":
+      importance = 6.5;
+      tempo     += 0.5;
+      break;
+    case "derby":
+      importance = 8.0;
+      tempo     += 0.8;
+      chaos     += 1.0;
+      break;
+    case "final":
+      importance = 9.5;
+      tempo     += 0.5;
+      chaos     += 0.8;
+      break;
+    default:
+      importance = 5.0;
+  }
+
+  // 2) gaya pertandingan
+  switch (matchStyle){
+    case "slow_structured":
+      tempo -= 1.5;
+      chaos -= 1.5;
+      break;
+    case "balanced":
+      break;
+    case "fast_open":
+      tempo += 1.5;
+      chaos += 1.0;
+      break;
+    case "wild":
+      tempo += 2.0;
+      chaos += 2.2;
+      break;
+  }
+
+  // 3) xG/xGA → intensitas serangan
+  let avgXg = NaN;
+  if (isFinite(xgH) && isFinite(xgA)){
+    avgXg = (xgH + xgA)/2;
+    tempo += (avgXg - 1.5) * 1.5;
+    chaos += (avgXg - 1.5) * 1.0;
+  }
+
+  // 4) PPDA → pressing & chaos
+  let avgPPDA = NaN;
+  if (isFinite(ppdaH) && isFinite(ppdaA)){
+    avgPPDA = (ppdaH + ppdaA)/2;
+    if (avgPPDA <= 8){
+      tempo += 1.0;
+      chaos += 1.4;
+    } else if (avgPPDA <= 11){
+      tempo += 0.3;
+      chaos += 0.6;
+    } else if (avgPPDA >= 16){
+      tempo -= 0.7;
+      chaos -= 0.7;
+    }
+  }
+
+  // 5) error → chaos
+  let avgErr = NaN;
+  if (isFinite(errH) && isFinite(errA)){
+    avgErr = (errH + errA)/2;
+    chaos += avgErr * 0.5;
+  }
+
+  tempo      = V20.clamp(tempo, 1, 10);
+  chaos      = V20.clamp(chaos, 1, 10);
+  importance = V20.clamp(importance, 1, 10);
+
+  const tempoEl = document.getElementById('tempo');
+  const chaosEl = document.getElementById('chaos');
+  const impEl   = document.getElementById('importance');
+
+  if (tempoEl) tempoEl.value = tempo.toFixed(1);
+  if (chaosEl) chaosEl.value = chaos.toFixed(1);
+  if (impEl)   impEl.value   = importance.toFixed(1);
+
+  if (outEl){
+    let log = "[AUTO-FILL TEMPO / CHAOS / IMPORTANCE]\n";
+    log += `Tempo       : ${tempo.toFixed(1)}\n`;
+    log += `Chaos       : ${chaos.toFixed(1)}\n`;
+    log += `Importance  : ${importance.toFixed(1)}\n`;
+    if (isFinite(avgXg))   log += `avg xG      : ${avgXg.toFixed(2)}\n`;
+    if (isFinite(avgPPDA)) log += `avg PPDA    : ${avgPPDA.toFixed(2)}\n`;
+    if (isFinite(avgErr))  log += `avg Error   : ${avgErr.toFixed(2)}\n`;
+    log += "\n";
+    outEl.value = log + (outEl.value || "");
+  }
+
+  alert("Auto-fill Tempo / Chaos / Importance selesai.");
+};
+
+
+// -------------------------------------------------------------
+// UNCERTAINTY (ENTROPI 1X2)
+// -------------------------------------------------------------
+V20.computeUncertainty = function(pH,pD,pA){
+  const probs = [pH,pD,pA];
+  let entropy = 0;
+  probs.forEach(p=>{
+    if (p>0) entropy -= p*Math.log2(p);
+  });
+  const maxE = Math.log2(3);
+  const norm = maxE>0 ? entropy/maxE : 0;
+  return {
+    entropy,
+    norm,
+    score: norm*100
+  };
+};
+
+
+// -------------------------------------------------------------
+// BTTS (Both Teams To Score) dari λ
+// -------------------------------------------------------------
+V20.computeBTTS = function(lambda){
+  lambda = lambda || {};
+  const lamH = Math.max(V20.num(lambda.lamH,1.0), 0.0001);
+  const lamA = Math.max(V20.num(lambda.lamA,1.0), 0.0001);
+
+  const pH0 = Math.exp(-lamH);
+  const pA0 = Math.exp(-lamA);
+  const p00 = Math.exp(-(lamH+lamA));
+
+  const pBTTS = 1 - (pH0 + pA0 - p00);
+  return V20.clamp(pBTTS, 0, 1);
+};
+
+
+// -------------------------------------------------------------
+// ENGINE RUNNER — PRIME SINGULARITY ZERO ∑.REBUILD
+// -------------------------------------------------------------
+V20.runPrimeZero = function(){
+  const outEl = document.getElementById('output');
+  if (!outEl) return;
+
+  // --- BACA INPUT ---
+  const lamH  = V20.num(document.getElementById('lamH').value, 1.20);
+  const lamA  = V20.num(document.getElementById('lamA').value, 1.00);
+
+  const tempo = V20.num(document.getElementById('tempo').value, 5);
+  const chaos = V20.num(document.getElementById('chaos').value, 5);
+  const importance = V20.num(document.getElementById('importance').value, 5);
+
+  const home_st  = V20.num(document.getElementById('home_st').value, 5);
+  const away_st  = V20.num(document.getElementById('away_st').value, 5);
+  const home_mom = V20.num(document.getElementById('home_mom').value, 5);
+  const away_mom = V20.num(document.getElementById('away_mom').value, 5);
+
+  const home_press = V20.num(document.getElementById('home_press').value, 5);
+  const away_press = V20.num(document.getElementById('away_press').value, 5);
+  const home_flex  = V20.num(document.getElementById('home_flex').value, 0.5);
+  const away_flex  = V20.num(document.getElementById('away_flex').value, 0.5);
+
+  let simCount  = V20.num(document.getElementById('simCount').value, NaN);
+  let scoreCap  = V20.num(document.getElementById('scoreCap').value, NaN);
+  if (!isFinite(simCount)) simCount = undefined;
+  if (!isFinite(scoreCap)) scoreCap = undefined;
+
+  const lambda = { lamH, lamA };
+  const ctx = { tempo, chaos, importance };
+  const home = { stability: home_st, momentum: home_mom };
+  const away = { stability: away_st, momentum: away_mom };
+  const tact = {
+    home: { pressIntensity: home_press, flex: home_flex },
+    away: { pressIntensity: away_press, flex: away_flex }
+  };
+
+  // --- MODEL INTI ---
+  const det       = V20.detSim(lambda);
+  const chaosL    = V20.chaosModel(lambda, ctx);
+  const detChaos  = V20.detSim(chaosL);
+  const mc        = V20.monteCarlo(lambda, ctx, simCount, scoreCap, home, away, tact);
+
+  const godHL  = mc.god && mc.god.hyperLambda ? mc.god.hyperLambda : {lamH, lamA};
+  const godPat = mc.god && mc.god.pattern ? mc.god.pattern : {control:0.25,swing:0.25,stalled:0.25,chaotic:0.25};
+
+  // baseline 1X2 (gabungan 3 model)
+  const base = {
+    pH: (det.pH + detChaos.pH + mc.pH)/3,
+    pD: (det.pD + detChaos.pD + mc.pD)/3,
+    pA: (det.pA + detChaos.pA + mc.pA)/3
+  };
+
+  // --- METRIK LANJUTAN ---
+  const risk01   = V20.computeRisk(ctx, tact);
+  const frag01   = V20.computeFragility(ctx, home, away);
+  const sdi      = V20.computeSDI(godHL);
+  const meta01   = V20.computeMeta(det, detChaos, sdi);
+  const flowVal  = V20.computeFlow(ctx, home, away, tact, godPat);
+  const swingVal = V20.computeMomentumSwing(home, away);
+
+  const zeroProb = V20.singularityZero(base, risk01, frag01, meta01, flowVal, swingVal);
+  const fused    = V20.fuseOutputs(det, detChaos, mc, zeroProb);
+
+  const unc   = V20.computeUncertainty(fused.final.pH, fused.final.pD, fused.final.pA);
+  const btts  = V20.computeBTTS(godHL);
+
+  const riskScore = risk01*100;
+  const fragScore = frag01*100;
+  const metaScore = meta01*100;
+
+  let engineStatus = "PRIME STABLE";
+  if (metaScore < 40 || riskScore > 70 || fragScore > 70){
+    engineStatus = "PRIME CAUTION";
+  } else if (metaScore < 60){
+    engineStatus = "PRIME NEUTRAL";
+  }
+
+  // --- O/U dari MC + Analytic blend ---
+  const totalLamBase = godHL.lamH + godHL.lamA;
+  let lamEff = totalLamBase;
+  const chaosF = (chaos - 5)/5;
+  const tempoF = (tempo - 5)/5;
+  lamEff *= (1 + chaosF*0.10 + tempoF*0.05);
+  lamEff = V20.clamp(lamEff, 0.5, 5.8);
+
+  const lines = [0.5,1.5,2.5,3.5];
+  const ouAn = {};
+  const ouMC = {};
+  const ou   = {};
+
+  // analytic Poisson OU (total goals)
+  lines.forEach(line=>{
+    const cut = Math.floor(line);
+    let under=0;
+    for(let k=0;k<=cut;k++){
+      under += V20.poissonPMF(lamEff,k);
+    }
+    ouAn[line] = {under, over:1-under};
+  });
+
+  // MC OU
+  const mat = mc.matrix;
+  const cap = mc.scoreCap;
+  lines.forEach(line=>{
+    const cut = Math.floor(line);
+    let under=0, over=0;
+    for(let h=0;h<=cap;h++){
+      for(let a=0;a<=cap;a++){
+        const sum = h+a;
+        const freq = (mat[h] && mat[h][a]) ? mat[h][a] : 0;
+        if(sum<=cut) under += freq;
+        else over += freq;
+      }
+    }
+    ouMC[line] = {
+      under: under/mc.simCount,
+      over:  over/mc.simCount
+    };
+  });
+
+  // blend OU
+  const patternChaos = godPat.chaotic + godPat.swing*0.6;
+  const wMC = 0.40 + 0.40*Math.max(0,patternChaos);
+  const wAN = 1 - wMC;
+
+  lines.forEach(line=>{
+    ou[line] = {
+      over: ouAn[line].over*wAN + ouMC[line].over*wMC,
+      under:ouAn[line].under*wAN + ouMC[line].under*wMC
+    };
+  });
+
+  // --- SUSUN OUTPUT TEKS ---
+  let text = "";
+  text += "=== MATCH SIMULATION REPORT — PRIME SINGULARITY ZERO ∑.REBUILD ===\n\n";
+
+  text += "[ENGINE STATUS]\n";
+  text += "Core    : Pattern Oracle + Hyper Lambda + Multi-Reality MC + Singularity Zero\n";
+  text += `Status  : ${engineStatus}\n\n`;
+
+  text += "[INPUT]\n";
+  text += `λH (input) : ${lamH.toFixed(3)}\n`;
+  text += `λA (input) : ${lamA.toFixed(3)}\n`;
+  text += `Tempo       : ${tempo.toFixed(1)}\n`;
+  text += `Chaos       : ${chaos.toFixed(1)}\n`;
+  text += `Importance  : ${importance.toFixed(1)}\n`;
+  text += `Home Stab   : ${home_st.toFixed(1)} | Mom: ${home_mom.toFixed(1)}\n`;
+  text += `Away Stab   : ${away_st.toFixed(1)} | Mom: ${away_mom.toFixed(1)}\n`;
+  text += `Press H/A   : ${home_press.toFixed(1)} / ${away_press.toFixed(1)}\n`;
+  text += `Flex  H/A   : ${home_flex.toFixed(2)} / ${away_flex.toFixed(2)}\n`;
+  text += `SimCount    : ${mc.simCount}\n`;
+  text += `Score Cap   : ${mc.scoreCap}\n\n`;
+
+  text += "[GOD HYPER LAMBDA]\n";
+  text += `λH (Hyper) : ${godHL.lamH.toFixed(3)}\n`;
+  text += `λA (Hyper) : ${godHL.lamA.toFixed(3)}\n\n`;
+
+  text += "[PATTERN ORACLE]\n";
+  text += `Control : ${(godPat.control*100).toFixed(1)}%\n`;
+  text += `Swing   : ${(godPat.swing*100).toFixed(1)}%\n`;
+  text += `Stalled : ${(godPat.stalled*100).toFixed(1)}%\n`;
+  text += `Chaotic : ${(godPat.chaotic*100).toFixed(1)}%\n`;
+
+  let domPattern = "control";
+  let best = godPat.control;
+  if (godPat.swing   > best){ domPattern = "swing";   best = godPat.swing; }
+  if (godPat.stalled > best){ domPattern = "stalled"; best = godPat.stalled; }
+  if (godPat.chaotic > best){ domPattern = "chaotic"; best = godPat.chaotic; }
+
+  text += `Dominant Pattern : ${domPattern.toUpperCase()}\n\n`;
+
+  text += "[1X2 PROBABILITIES — PRIME SINGULARITY ZERO]\n";
+  text += `Home Win : ${(fused.final.pH*100).toFixed(1)}%\n`;
+  text += `Draw     : ${(fused.final.pD*100).toFixed(1)}%\n`;
+  text += `Away Win : ${(fused.final.pA*100).toFixed(1)}%\n\n`;
+
+  text += "[RISK / FRAGILITY / META / UNCERTAINTY]\n";
+  text += `Risk Index        : ${riskScore.toFixed(1)} / 100\n`;
+  text += `Fragility Index   : ${fragScore.toFixed(1)} / 100\n`;
+  text += `Meta-Consistency  : ${metaScore.toFixed(1)} / 100\n`;
+  text += `Uncertainty (1X2) : ${unc.score.toFixed(1)} / 100\n`;
+  text += `Flow Value        : ${flowVal.toFixed(3)} (H+ vs A-)\n`;
+  text += `Momentum Swing    : ${swingVal.toFixed(3)}\n\n`;
+
+  text += "[GOAL MODEL]\n";
+  text += `Avg Goals (MC)       : ${mc.avgGoals.toFixed(3)}\n`;
+  text += `BTTS (kedua tim gol) : ${(btts*100).toFixed(1)}%\n\n`;
+
+  text += "[OVER/UNDER (Blend MC + Analytic)]\n";
+  ["0.5","1.5","2.5","3.5"].forEach(k=>{
+    const o = ou[k] || {over:0,under:0};
+    text += `O/U ${k}  -> Over: ${(o.over*100).toFixed(1)}% | Under: ${(o.under*100).toFixed(1)}%\n`;
+  });
+  text += "\n";
+
+  text += "[SCENARIO DISTRIBUTION]\n";
+  if (mc.scenarioStats && mc.scenarioStats.scenarios){
+    mc.scenarioStats.scenarios.forEach(s=>{
+      const p = s.p || 0;
+      text += `${(s.name || "").padEnd(10," ")} : ${(p*100).toFixed(1)}%\n`;
+    });
+  }
+  text += "\n";
+
+  text += "[SCORE MATRIX] (frekuensi relatif simulasi)\n";
+  text += "     ";
+  for(let a=0;a<=mc.scoreCap;a++){
+    text += `A${a}    `;
+  }
+  text += "\n";
+
+  for(let h=0;h<=mc.scoreCap;h++){
+    text += `H${h}  `;
+    for(let a=0;a<=mc.scoreCap;a++){
+      const v = (mc.matrix[h] && mc.matrix[h][a]) ? mc.matrix[h][a]/mc.simCount : 0;
+      text += v.toFixed(3).padEnd(7," ");
+    }
+    text += "\n";
+  }
+
+  outEl.value = text;
+};
+
+
+// -------------------------------------------------------------
+// EVENT LISTENER TOMBOL
+// -------------------------------------------------------------
+window.addEventListener('DOMContentLoaded', function(){
+  const btnAnalyze = document.getElementById('btn_analyze');
+  if (btnAnalyze){
+    btnAnalyze.addEventListener('click', function(){
+      try {
+        V20.runPrimeZero();
+      } catch(e){
+        console.error(e);
+        alert("Terjadi error saat menjalankan PRIME SINGULARITY ZERO. Cek console.");
+      }
+    });
+  }
+
+  const btnAuto = document.getElementById('btn_auto_calc');
+  if (btnAuto){
+    btnAuto.addEventListener('click', function(){
+      try {
+        V20.autoCalcRequired();
+      } catch(e){
+        console.error(e);
+        alert("Terjadi error saat AUTO-CALC. Cek console & input advanced.");
+      }
+    });
+  }
+
+  const btnAutoTCI = document.getElementById('btn_auto_tci');
+  if (btnAutoTCI){
+    btnAutoTCI.addEventListener('click', function(){
+      try {
+        V20.autoFillTCI();
+      } catch(e){
+        console.error(e);
+        alert("Terjadi error saat AUTO-FILL Tempo/Chaos/Importance. Cek input & console.");
+      }
+    });
+  }
+
+  const btnAutoPPDA = document.getElementById('btn_auto_ppda');
+  if (btnAutoPPDA){
+    btnAutoPPDA.addEventListener('click', function(){
+      try {
+        V20.autoEstimatePPDA();
+      } catch(e){
+        console.error(e);
+        alert("Terjadi error saat AUTO-ESTIMATE PPDA. Cek input & console.");
+      }
+    });
+  }
+});
+
+// =============================================================
+// PART 5 SELESAI — PRIME SINGULARITY ZERO ∑.REBUILD ENGINE COMPLETE
+// =============================================================
+</script>
+<!-- ==============================
+     PART 2 — MATCH TYPE BOOST LOGIC
+     ============================== -->
+
+<script>
+function patchMatchType(type){
+    let tempo = 0;
+    let chaos = 0;
+    let importance = 5;
+
+    switch(type){
+
+        /* ===== LIGA ===== */
+        case "league_big":
+            importance = 7.5;
+            tempo += 0.4;
+            chaos += 0.6;
+            break;
+
+        case "league_relegation":
+            importance = 8.5;
+            tempo -= 0.3;
+            chaos += 0.5;
+            break;
+
+        case "league_title_race":
+            importance = 9;
+            tempo += 0.2;
+            chaos += 0.7;
+            break;
+
+        /* ===== CUP ===== */
+        case "cup_quarter":
+            importance = 7.5;
+            tempo += 0.4;
+            break;
+
+        case "cup_semi":
+            importance = 8.5;
+            tempo += 0.7;
+            chaos += 0.8;
+            break;
+
+        case "cup_final":
+            importance = 9.8;
+            tempo += 1.0;
+            chaos += 1.2;
+            break;
+
+        /* ===== UCL ===== */
+        case "ucl_knockout":
+            importance = 9.0;
+            tempo += 0.7;
+            chaos += 1.0;
+            break;
+
+        case "ucl_final":
+            importance = 10;
+            tempo += 1.3;
+            chaos += 1.5;
+            break;
+    }
+
+    return { tempo, chaos, importance };
+}
+</script>
+  <!-- ==============================
+     PART 3 — PRESSING PREMIUM LOGIC
+     ============================== -->
+
+<script>
+function applyPressingPremium(style){
+    switch(style){
+
+        case "hp_pro":
+            return { press:+2, chaos:+1.2, tempo:+1.5 };
+
+        case "hp_trigger":
+            return { press:+1.5, chaos:+0.8, tempo:+1.0 };
+
+        case "mid_press":
+            return { press:+0.5, chaos:+0.3, tempo:+0.4 };
+
+        case "mid_low_trap":
+            return { press:-0.2, chaos:+0.6, tempo:-0.3 };
+
+        case "low_block":
+            return { press:-1.5, chaos:-1.0, tempo:-1.0 };
+
+        default:
+            return { press:0, chaos:0, tempo:0 };
+    }
+}
+</script>
+  <!-- ==============================
+     PART 4 — PATCH OUTPUT LAYER
+     ============================== -->
+
+<script>
+function applyPatchesToOutput(){
+
+    const type = document.getElementById("match_type").value;
+    const ph   = document.getElementById("press_premium_home").value;
+    const pa   = document.getElementById("press_premium_away").value;
+
+    const mt  = patchMatchType(type);
+    const pH  = applyPressingPremium(ph);
+    const pA  = applyPressingPremium(pa);
+
+    let log = "<h3>[PATCH ENHANCED LAYER]</h3>";
+
+    if(type){
+        log += `
+        <b>Match Type:</b> ${type}<br>
+        Tempo +${mt.tempo}<br>
+        Chaos +${mt.chaos}<br>
+        Importance ${mt.importance}<br><br>
+        `;
+    }
+
+    if(ph){
+        log += `
+        <b>Home Pressing:</b> ${ph}<br>
+        Press +${pH.press}, Tempo +${pH.tempo}, Chaos +${pH.chaos}<br><br>
+        `;
+    }
+
+    if(pa){
+        log += `
+        <b>Away Pressing:</b> ${pa}<br>
+        Press +${pA.press}, Tempo +${pA.tempo}, Chaos +${pA.chaos}<br>
+        `;
+    }
+
+    document.getElementById("output").innerHTML += "<hr>" + log;
+}
+</script>
+  
+</body>
+  </html>
