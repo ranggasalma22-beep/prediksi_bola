@@ -286,8 +286,21 @@ window.PSZ = window.PSZ || {};
     const sotH  = PSZ.num(document.getElementById("sot_home")?.value, 4);
     const sotA  = PSZ.num(document.getElementById("sot_away")?.value, 3);
     const posH  = PSZ.num(document.getElementById("pos_home")?.value, 50);
-    const imp   = PSZ.num(document.getElementById("importance")?.value, 5);
+    let impInput = document.getElementById("importance")?.value;
 
+// matchType BELUM ADA di sini → pakai sementara
+let tempMatchType =
+  document.getElementById("match_type")?.value || "AUTO";
+
+let imp = impInput
+  ? PSZ.num(impInput, 5)   // MANUAL override
+  : PSZ.autoImportance({
+      matchType: tempMatchType,
+      tablePressure: "high",   // nanti bisa auto
+      oddsBalance: "even",     // nanti bisa auto
+      isDerby: false
+    });
+const impSource = impInput ? "MANUAL" : "AUTO";
     const shotsTotal = shH + shA;
 
     /* ============================
@@ -346,6 +359,36 @@ window.PSZ = window.PSZ || {};
       + (pressH + pressA) / 20;
 
     risk = PSZ.clamp(risk, 0, 1);
+      /* ============================
+       AUTO INPORTANCE 
+       ============================ */
+
+      PSZ.autoImportance = function(ctx){
+
+  let imp = 5; // default league
+
+  // A. Competition / match type
+  const mt = ctx.matchType || "";
+  if(mt.includes("friendly")) imp = 2;
+  if(mt.includes("league")) imp = 5;
+  if(mt.includes("big")) imp = 6;
+  if(mt.includes("relegation")) imp = 7;
+  if(mt.includes("knockout")) imp = 8;
+  if(mt.includes("semi")) imp = 9;
+  if(mt.includes("final")) imp = 10;
+
+  // B. Table pressure
+  if(ctx.tablePressure === "high") imp += 1;
+
+  // C. Odds signal
+  if(ctx.oddsBalance === "even") imp += 1;
+  if(ctx.oddsBalance === "heavy_fav") imp -= 0.5;
+
+  // D. Derby
+  if(ctx.isDerby) imp += 1;
+
+  return PSZ.clamp(imp, 1, 10);
+};
 
     /* ============================
        AUTO PARKIR BUS
@@ -371,20 +414,22 @@ window.PSZ = window.PSZ || {};
        FINAL CONTEXT
        ============================ */
     return {
-      base:{
-        xgH, xgA, shH, shA, sotH, sotA, posH, imp
-      },
-      auto:{
-        pressH, pressA,
-        ppdaH, ppdaA,
-        tempo,
-        volatility,
-        risk,
-        parkHome, parkAway,
-        staminaH, staminaA,
-        matchType
-      }
-    };
+  base:{
+    xgH, xgA, shH, shA, sotH, sotA, posH,
+    imp,
+    impSource
+  },
+  auto:{
+    pressH, pressA,
+    ppdaH, ppdaA,
+    tempo,
+    volatility,
+    risk,
+    parkHome, parkAway,
+    staminaH, staminaA,
+    matchType
+  }
+};
   };
 
   console.log("PART 3 loaded: Auto Input Engine (FULL AUTO)");
