@@ -272,7 +272,29 @@ window.PSZ = window.PSZ || {};
     const n = Number(v);
     return isFinite(n) ? n : def;
   };
+/* ============================
+   AUTO IMPORTANCE
+   ============================ */
+PSZ.autoImportance = function(ctx){
 
+  let imp = 5; // default league
+  const mt = ctx.matchType || "";
+
+  if(mt.includes("friendly")) imp = 2;
+  if(mt.includes("league")) imp = 5;
+  if(mt.includes("big")) imp = 6;
+  if(mt.includes("relegation")) imp = 7;
+  if(mt.includes("knockout")) imp = 8;
+  if(mt.includes("semi")) imp = 9;
+  if(mt.includes("final")) imp = 10;
+
+  if(ctx.tablePressure === "high") imp += 1;
+  if(ctx.oddsBalance === "even") imp += 1;
+  if(ctx.oddsBalance === "heavy_fav") imp -= 0.5;
+  if(ctx.isDerby) imp += 1;
+
+  return PSZ.clamp(imp, 1, 10);
+};
   /* ============================
      MAIN AUTO INPUT BUILDER
      ============================ */
@@ -359,37 +381,7 @@ const impSource = impInput ? "MANUAL" : "AUTO";
       + (pressH + pressA) / 20;
 
     risk = PSZ.clamp(risk, 0, 1);
-      /* ============================
-       AUTO INPORTANCE 
-       ============================ */
-
-      PSZ.autoImportance = function(ctx){
-
-  let imp = 5; // default league
-
-  // A. Competition / match type
-  const mt = ctx.matchType || "";
-  if(mt.includes("friendly")) imp = 2;
-  if(mt.includes("league")) imp = 5;
-  if(mt.includes("big")) imp = 6;
-  if(mt.includes("relegation")) imp = 7;
-  if(mt.includes("knockout")) imp = 8;
-  if(mt.includes("semi")) imp = 9;
-  if(mt.includes("final")) imp = 10;
-
-  // B. Table pressure
-  if(ctx.tablePressure === "high") imp += 1;
-
-  // C. Odds signal
-  if(ctx.oddsBalance === "even") imp += 1;
-  if(ctx.oddsBalance === "heavy_fav") imp -= 0.5;
-
-  // D. Derby
-  if(ctx.isDerby) imp += 1;
-
-  return PSZ.clamp(imp, 1, 10);
-};
-
+      
     /* ============================
        AUTO PARKIR BUS
        ============================ */
