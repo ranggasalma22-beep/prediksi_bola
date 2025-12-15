@@ -279,93 +279,86 @@ window.PSZ = window.PSZ || {};
    PART 3 — AUTO INPUT ENGINE
    Level 1500 — FULL AUTO MODE
    ====================================================== */
-    PSZ.LEAGUE_PRESETS = {
+PSZ.LEAGUE_PRESETS = {
+
+  // 🇬🇧 Premier League (ENG)
   EPL: {
-    tempo: 6.5,
-    volatility: 0.65,
-    overBias: 0.10,
-    bttsBias: 0.08,
-    riskMod: 0.00
+    tempo: 6.6,
+    volatility: 0.62,
+    overBias: 0.05,
+    bttsBias: 0.06,
+    riskMod: 0.04,
+    confMin: 60
   },
 
+  // 🇪🇸 La Liga (ESP)
   LALIGA: {
-    tempo: 5.5,
-    volatility: 0.55,
-    overBias: -0.05,
-    bttsBias: -0.02,
-    riskMod: -0.05
-  },
-
-  SERIEA: {
-    tempo: 5.3,
-    volatility: 0.52,
+    tempo: 5.7,
+    volatility: 0.48,
     overBias: -0.08,
     bttsBias: -0.05,
-    riskMod: -0.08
+    riskMod: -0.12,
+    confMin: 62
   },
 
-  BUNDES: {
-    tempo: 6.8,
-    volatility: 0.70,
-    overBias: 0.15,
-    bttsBias: 0.12,
-    riskMod: 0.05
-  },
-
-  LIGUE1: {
-    tempo: 5.8,
-    volatility: 0.60,
-    overBias: 0.00,
-    bttsBias: 0.02,
-    riskMod: -0.02
-  },
-
-  EREDIV: {
-    tempo: 7.0,
-    volatility: 0.75,
-    overBias: 0.20,
-    bttsBias: 0.18,
-    riskMod: 0.10
-  },
-
-  PRIMEIRA: {
-    tempo: 5.2,
-    volatility: 0.50,
+  // 🇮🇹 Serie A (ITA)
+  SERIEA: {
+    tempo: 5.3,
+    volatility: 0.45,
     overBias: -0.10,
     bttsBias: -0.08,
-    riskMod: -0.10
+    riskMod: -0.15,
+    confMin: 65
   },
 
-  MLS: {
-    tempo: 6.6,
-    volatility: 0.72,
-    overBias: 0.12,
+  // 🇩🇪 Bundesliga (GER)
+  BUNDES: {
+    tempo: 7.2,
+    volatility: 0.75,
+    overBias: 0.08,
     bttsBias: 0.10,
-    riskMod: 0.08
+    riskMod: 0.06,
+    confMin: 58
   },
 
+  // 🇫🇷 Ligue 1 (FRA)
+  LIGUE1: {
+    tempo: 5.5,
+    volatility: 0.46,
+    overBias: -0.03,
+    bttsBias: -0.02,
+    riskMod: -0.08,
+    confMin: 63
+  },
+
+  // 🏆 Champions League
   UCL: {
-    tempo: 5.6,
-    volatility: 0.45,
-    overBias: -0.15,
-    bttsBias: -0.10,
-    riskMod: -0.20
+    tempo: 5.8,
+    volatility: 0.48,
+    overBias: -0.08,
+    bttsBias: -0.06,
+    riskMod: -0.18,
+    confMin: 68
   },
 
+  // 🏆 Europa League
   UEL: {
     tempo: 5.9,
     volatility: 0.55,
     overBias: -0.05,
     bttsBias: -0.03,
-    riskMod: -0.10
+    riskMod: -0.10,
+    confMin: 65
   },
 
+  // 🌍 International Match
   INT: {
     tempo: 5.0,
     volatility: 0.40,
-    overBias: -0.20,
+    overBias: -0.10,
     bttsBias: -0.15,
-    riskMod: -0.25
+    riskMod: -0.25,
+    confMin: 70
   }
 };
 
@@ -1028,11 +1021,12 @@ window.PSZ = window.PSZ || {};
 
     return out;
   };
-if(ctx.leaguePreset){
+// League preset bias (applied ONCE after MC OU)
+    if (ctx.leaguePreset) {
   const L = PSZ.LEAGUE_PRESETS[ctx.leaguePreset];
-  if(L){
-    ou[2.5].over += L.overBias;
-    res.BTTS += L.bttsBias;
+  if (L) {
+    ou[2.5].over = PSZ.clamp(ou[2.5].over + L.overBias, 0, 1);
+    res.BTTS = PSZ.clamp(res.BTTS + L.bttsBias, 0, 1);
   }
     }
   /* ============================
@@ -1232,7 +1226,22 @@ if(ctx.auto?.volatility > 0.80){
       noBetReasons: reasons
     };
   }
+let minConf = 60;
 
+if (ctx.leaguePreset && PSZ.LEAGUE_PRESETS[ctx.leaguePreset]?.confMin) {
+  minConf = PSZ.LEAGUE_PRESETS[ctx.leaguePreset].confMin;
+}
+
+if (conf < minConf) {
+  reasons.push(`Low confidence (<${minConf})`);
+    }
+    if (
+  ctx.leaguePreset &&
+  PSZ.LEAGUE_PRESETS[ctx.leaguePreset]?.noBetStrict &&
+  conf < 70
+) {
+  reasons.push("Strict league: confidence too low");
+    }
   return rec;
 };
   /* ============================
