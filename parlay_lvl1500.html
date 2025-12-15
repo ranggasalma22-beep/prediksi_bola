@@ -93,6 +93,31 @@
     <label>SOT (Away)</label>
     <input id="sot_away" type="number">
 
+    <label>Preset Liga</label>
+<select id="league_preset">
+  <option value="AUTO">Auto Detect</option>
+
+  <optgroup label="Top Leagues">
+    <option value="EPL">Premier League (ENG)</option>
+    <option value="LALIGA">La Liga (ESP)</option>
+    <option value="SERIEA">Serie A (ITA)</option>
+    <option value="BUNDES">Bundesliga (GER)</option>
+    <option value="LIGUE1">Ligue 1 (FRA)</option>
+  </optgroup>
+
+  <optgroup label="Secondary">
+    <option value="EREDIV">Eredivisie</option>
+    <option value="PRIMEIRA">Primeira Liga</option>
+    <option value="MLS">MLS</option>
+  </optgroup>
+
+  <optgroup label="Cups / International">
+    <option value="UCL">Champions League</option>
+    <option value="UEL">Europa League</option>
+    <option value="INT">International Match</option>
+  </optgroup>
+</select>
+
     <label>Possession Home (%)</label>
     <input id="pos_home" type="number">
 
@@ -254,6 +279,95 @@ window.PSZ = window.PSZ || {};
    PART 3 — AUTO INPUT ENGINE
    Level 1500 — FULL AUTO MODE
    ====================================================== */
+    PSZ.LEAGUE_PRESETS = {
+  EPL: {
+    tempo: 6.5,
+    volatility: 0.65,
+    overBias: 0.10,
+    bttsBias: 0.08,
+    riskMod: 0.00
+  },
+
+  LALIGA: {
+    tempo: 5.5,
+    volatility: 0.55,
+    overBias: -0.05,
+    bttsBias: -0.02,
+    riskMod: -0.05
+  },
+
+  SERIEA: {
+    tempo: 5.3,
+    volatility: 0.52,
+    overBias: -0.08,
+    bttsBias: -0.05,
+    riskMod: -0.08
+  },
+
+  BUNDES: {
+    tempo: 6.8,
+    volatility: 0.70,
+    overBias: 0.15,
+    bttsBias: 0.12,
+    riskMod: 0.05
+  },
+
+  LIGUE1: {
+    tempo: 5.8,
+    volatility: 0.60,
+    overBias: 0.00,
+    bttsBias: 0.02,
+    riskMod: -0.02
+  },
+
+  EREDIV: {
+    tempo: 7.0,
+    volatility: 0.75,
+    overBias: 0.20,
+    bttsBias: 0.18,
+    riskMod: 0.10
+  },
+
+  PRIMEIRA: {
+    tempo: 5.2,
+    volatility: 0.50,
+    overBias: -0.10,
+    bttsBias: -0.08,
+    riskMod: -0.10
+  },
+
+  MLS: {
+    tempo: 6.6,
+    volatility: 0.72,
+    overBias: 0.12,
+    bttsBias: 0.10,
+    riskMod: 0.08
+  },
+
+  UCL: {
+    tempo: 5.6,
+    volatility: 0.45,
+    overBias: -0.15,
+    bttsBias: -0.10,
+    riskMod: -0.20
+  },
+
+  UEL: {
+    tempo: 5.9,
+    volatility: 0.55,
+    overBias: -0.05,
+    bttsBias: -0.03,
+    riskMod: -0.10
+  },
+
+  INT: {
+    tempo: 5.0,
+    volatility: 0.40,
+    overBias: -0.20,
+    bttsBias: -0.15,
+    riskMod: -0.25
+  }
+};
 
 window.PSZ = window.PSZ || {};
 (function(PSZ){
@@ -372,7 +486,20 @@ const impSource = impInput ? "MANUAL" : "AUTO";
       + Math.abs(posH - 50) / 50 * 0.4;
 
     volatility = PSZ.clamp(volatility, 0.3, 1.0);
+const leagueKey =
+  document.getElementById("league_preset")?.value || "AUTO";
 
+let leagueRiskMod = 0;
+
+if (leagueKey !== "AUTO" && PSZ.LEAGUE_PRESETS[leagueKey]) {
+  const L = PSZ.LEAGUE_PRESETS[leagueKey];
+
+  tempo = (tempo + L.tempo) / 2;
+  volatility = (volatility + L.volatility) / 2;
+
+  leagueRiskMod = L.riskMod;   // ⬅️ SIMPAN DULU
+  ctx.leaguePreset = leagueKey;
+    }
     /* ============================
        AUTO RISK
        ============================ */
@@ -388,7 +515,7 @@ const impSource = impInput ? "MANUAL" : "AUTO";
     const parkHome = (xgA - xgH > 0.7) || (imp > 7 && posH < 45);
     const parkAway = (xgH - xgA > 0.7) || (imp > 7 && posH > 55);
 
-    /* ============================
+    /* ====l========================
        AUTO STAMINA BASELINE
        ============================ */
     const staminaH = PSZ.clamp(1 - (pressH - 5)*0.03 - (tempo - 5)*0.02, 0.6, 1);
@@ -901,7 +1028,13 @@ window.PSZ = window.PSZ || {};
 
     return out;
   };
-
+if(ctx.leaguePreset){
+  const L = PSZ.LEAGUE_PRESETS[ctx.leaguePreset];
+  if(L){
+    ou[2.5].over += L.overBias;
+    res.BTTS += L.bttsBias;
+  }
+    }
   /* ============================
      Confidence Score
      ============================ */
@@ -1056,6 +1189,52 @@ PSZ.buildReason = function(ctx, res, rec){
 
   return reasons;
 };
+    /* ======================================
+   FINAL NO BET GATE — v1700 SAFE
+   ====================================== */
+PSZ.applyFinalNoBetGate = function(ctx, rec, conf){
+  let reasons = [];
+
+  // Rule 1: confidence zone
+  if(conf < 60){
+    reasons.push("Low confidence (<60)");
+  }
+
+  // Rule 2: big match no edge
+  if(ctx.base?.imp >= 8 && conf < 65){
+    reasons.push("High importance without strong edge");
+  }
+
+  // Rule 3: volatility extremes
+  if(ctx.auto?.volatility < 0.40){
+  reasons.push("Very low volatility (deadlock risk)");
+}
+if(ctx.auto?.volatility > 0.80){
+  reasons.push("Very high volatility (chaos risk)");
+    }
+
+  // Rule 4: conflicting signals
+  let conflict = 0;
+  if(ctx.auto?.tempo < 4) conflict++;
+  if(ctx.auto?.volatility < 0.45) conflict++;
+  if(ctx.base?.imp >= 8) conflict++;
+
+  if(conflict >= 2){
+    reasons.push("Multiple conflicting signals");
+  }
+
+  // === FORCE NO BET ===
+  if(reasons.length){
+    return {
+      result: "NO BET",
+      goals: "NO BET",
+      btts: "NO BET",
+      noBetReasons: reasons
+    };
+  }
+
+  return rec;
+};
   /* ============================
      Patch Output Builder
      ============================ */
@@ -1066,9 +1245,12 @@ PSZ.buildReason = function(ctx, res, rec){
 
     const ou = PSZ.computeOU(res);
     const conf = PSZ.computeConfidence(ctx, res);
-    const rec = PSZ.buildRecommendation(ctx, res, ou, conf);
-    const reasons = PSZ.buildReason(ctx, res, rec);
-
+    let rec = PSZ.buildRecommendation(ctx, res, ou, conf);
+    rec = PSZ.applyFinalNoBetGate(ctx, rec, conf);
+    const reasons = PSZ.buildReason(ctx, res, rec); 
+    
+    
+      
     let t = baseText;
 
     // Over / Under
@@ -1084,6 +1266,10 @@ PSZ.buildReason = function(ctx, res, rec){
     t += "Result : " + rec.result + "\n";
     t += "Goals  : " + rec.goals + "\n";
     t += "BTTS   : " + rec.btts + "\n";
+if(ctx.leaguePreset){
+  t += "\n[LEAGUE PRESET]\n";
+  t += ctx.leaguePreset + "\n";
+    }
     // ===== REASONS =====
 if(reasons.goals.length){
   t += "\nReason (Goals):\n";
@@ -1113,6 +1299,7 @@ if(reasons.result.length){
 
     return t;
   };
+                                                   
 
   console.log("PART 8 loaded: OU + Confidence + Recommendation");
 
