@@ -838,28 +838,33 @@ window.PSZ = window.PSZ || {};
   /* ============================
      RUN BUTTON HANDLER
      ============================ */
-  PSZ.runAnalysis = function(){
-    const out = document.getElementById("output");
-    if(!out) return;
+PSZ.runAnalysis = function () {
+  const out = document.getElementById("output");
+  if (!out) return;
 
-    out.textContent = "Running analysis...\n";
+  out.textContent = "Running analysis...\n";
 
-    try{
-      // 1) Build context
-      const ctx = PSZ.buildAutoContext();
+  try {
+    // === 1. BUILD CONTEXT ===
+    const ctx = PSZ.buildAutoContext();
+    PSZ.guard(ctx, "Context (ctx) gagal dibuat");
 
-      // 2) Run Monte Carlo
-      const res = PSZ.runMonteCarlo(ctx, { N: 8000, cap: 6 });
+    // === 2. MONTE CARLO CORE ===
+    const res = PSZ.runMonteCarlo(ctx, {
+      N: 8000,
+      cap: 6
+    });
+    PSZ.guard(res && res.meta, "Result (res) tidak valid");
 
-      // 3) Build output
-      const text = PSZ.buildOutputText(ctx, res);
-      out.textContent = text;
+    // === 3. FINAL OUTPUT ===
+    const text = PSZ.buildOutputText(ctx, res);
+    out.textContent = text;
 
-    }catch(e){
-      out.textContent = "ERROR:\n" + (e.message || e);
-      console.error(e);
-    }
-  };
+  } catch (e) {
+    out.textContent = "ERROR: " + e.message;
+    console.error("[PSZ ERROR]", e);
+  }
+};
 
   /* ============================
      Bind Button
@@ -997,37 +1002,36 @@ window.PSZ = window.PSZ || {};
   /* ============================
      Over / Under from MC Matrix
      ============================ */
-  PSZ.computeOU = function(res){
-    const lines = [0.5, 1.5, 2.5, 3.5];
-    const out = {};
-    const mat = res.matrix;
-    const CAP = res.meta.CAP;
-    const N = res.meta.N;
+  PSZ.computeOU = function(ctx, res){
+  const lines = [0.5, 1.5, 2.5, 3.5];
+  const out = {};
+  const mat = res.matrix;
+  const CAP = res.meta.CAP;
+  const N = res.meta.N;
 
-    lines.forEach(line=>{
-      const cut = Math.floor(line);
-      let under = 0;
-      for(let h=0; h<=CAP; h++){
-        for(let a=0; a<=CAP; a++){
-          if(h + a <= cut) under += mat[h][a];
-        }
+  lines.forEach(line=>{
+    const cut = Math.floor(line);
+    let under = 0;
+    for(let h=0; h<=CAP; h++){
+      for(let a=0; a<=CAP; a++){
+        if(h + a <= cut) under += mat[h][a];
       }
-      out[line] = {
-        under: under / N,
-        over: 1 - (under / N)
-      };
-    });
+    }
+    out[line] = {
+      under: under / N,
+      over: 1 - (under / N)
+    };
+  });
 
-    return out;
-  };
-// League preset bias (applied ONCE after MC OU)
-    if (ctx.leaguePreset) {
-  const L = PSZ.LEAGUE_PRESETS[ctx.leaguePreset];
-  if (L) {
-    ou[2.5].over = PSZ.clamp(ou[2.5].over + L.overBias, 0, 1);
+  // ✅ APPLY LEAGUE PRESET BIAS DI SINI
+  if(ctx.leaguePreset && PSZ.LEAGUE_PRESETS[ctx.leaguePreset]){
+    const L = PSZ.LEAGUE_PRESETS[ctx.leaguePreset];
+    out[2.5].over = PSZ.clamp(out[2.5].over + L.overBias, 0, 1);
     res.BTTS = PSZ.clamp(res.BTTS + L.bttsBias, 0, 1);
   }
-    }
+
+  return out;
+};
   /* ============================
      Confidence Score
      ============================ */
@@ -1244,74 +1248,84 @@ if (conf < minConf) {
   return rec;
 };
   /* ============================
-     Patch Output Builder
-     ============================ */
-  const _origBuildOutputText = PSZ.buildOutputText;
-  PSZ.buildOutputText = function(ctx, res){
+  /* ==============================
+   FINAL OUTPUT BUILDER (CLEAN)
+   ============================== */
 
-    const baseText = _origBuildOutputText(ctx, res);
+const _origBuildOutputText = PSZ.buildOutputText;
 
-    const ou = PSZ.computeOU(res);
-    const conf = PSZ.computeConfidence(ctx, res);
-    let rec = PSZ.buildRecommendation(ctx, res, ou, conf);
-    rec = PSZ.applyFinalNoBetGate(ctx, rec, conf);
-    const reasons = PSZ.buildReason(ctx, res, rec); 
-    
-    
-      
-    let t = baseText;
+PSZ.buildOutputText = function (ctx, res) {
 
-    // Over / Under
-    t += "\n[OVER / UNDER]\n";
-    Object.keys(ou).forEach(k=>{
-      t += "O/U " + k +
-           " → Over " + (ou[k].over*100).toFixed(1) + "%" +
-           " | Under " + (ou[k].under*100).toFixed(1) + "%\n";
-    });
+  // === GUARD ===
+  PSZ.guard(ctx, "ctx missing in output");
+  PSZ.guard(res, "res missing in output");
 
-    // Recommendation
-    t += "\n[RECOMMENDATION]\n";
-    t += "Result : " + rec.result + "\n";
-    t += "Goals  : " + rec.goals + "\n";
-    t += "BTTS   : " + rec.btts + "\n";
-if(ctx.leaguePreset){
-  t += "\n[LEAGUE PRESET]\n";
-  t += ctx.leaguePreset + "\n";
-    }
-    // ===== REASONS =====
-if(reasons.goals.length){
-  t += "\nReason (Goals):\n";
-  reasons.goals.forEach(r => {
-    t += "- " + r + "\n";
+  // === BASE OUTPUT (ENGINE CORE) ===
+  const baseText = _origBuildOutputText
+    ? _origBuildOutputText(ctx, res)
+    : "";
+
+  // === DERIVED LAYERS ===
+  const ou    = PSZ.computeOU(ctx, res);
+  const conf  = PSZ.computeConfidence(ctx, res);
+
+  let rec = PSZ.buildRecommendation(ctx, res, ou, conf);
+  rec     = PSZ.applyFinalNoBetGate(ctx, rec, conf);
+
+  const reasons = PSZ.buildReason(ctx, res, rec);
+
+  // === BUILD TEXT ===
+  let t = baseText;
+
+  // ------------------
+  // OVER / UNDER
+  // ------------------
+  t += "\n[OVER / UNDER]\n";
+  Object.keys(ou).forEach(k => {
+    t += `O/U ${k} → Over ${(ou[k].over * 100).toFixed(1)}% | Under ${(ou[k].under * 100).toFixed(1)}%\n`;
   });
-}
 
-if(reasons.btts.length){
-  t += "\nReason (BTTS):\n";
-  reasons.btts.forEach(r => {
-    t += "- " + r + "\n";
-  });
-}
+  // ------------------
+  // RECOMMENDATION
+  // ------------------
+  t += "\n[RECOMMENDATION]\n";
+  t += "Result : " + rec.result + "\n";
+  t += "Goals  : " + rec.goals + "\n";
+  t += "BTTS   : " + rec.btts + "\n";
 
-if(reasons.result.length){
-  t += "\nReason (Result):\n";
-  reasons.result.forEach(r => {
-    t += "- " + r + "\n";
-  });
-    }
-    t += "Note   : " + rec.warning + "\n";
+  // ------------------
+  // LEAGUE PRESET INFO
+  // ------------------
+  if (ctx.leaguePreset) {
+    t += "\n[LEAGUE PRESET]\n";
+    t += ctx.leaguePreset + "\n";
+  }
 
-    // Confidence
-    t += "\n[CONFIDENCE SCORE]\n";
-    t += conf.toFixed(0) + " / 100\n";
+  // ------------------
+  // REASONS
+  // ------------------
+  if (reasons.goals?.length) {
+    t += "\nReason (Goals):\n";
+    reasons.goals.forEach(r => t += "- " + r + "\n");
+  }
 
-    return t;
-  };
-                                                   
+  if (reasons.btts?.length) {
+    t += "\nReason (BTTS):\n";
+    reasons.btts.forEach(r => t += "- " + r + "\n");
+  }
 
-  
+  if (reasons.result?.length) {
+    t += "\nReason (Result):\n";
+    reasons.result.forEach(r => t += "- " + r + "\n");
+  }
 
-})(window.PSZ);
+  if (rec.result === "NO BET" && rec.noBetReasons?.length) {
+    t += "\n[NO BET REASONS]\n";
+    rec.noBetReasons.forEach(r => t += "- " + r + "\n");
+  }
+
+  return t;
+};
 </script>
     <script>
 /* ======================================================
