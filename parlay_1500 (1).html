@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PSZ LEVEL 1500 - FULL POWER MODE</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background: #0d1117;
+        color: #e6edf3;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+    }
+    #leftPanel {
+        width: 28%;
+        background: #161b22;
+        padding: 20px;
+        overflow-y: auto;
+        border-right: 2px solid #30363d;
+    }
+    #rightPanel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        overflow-y: auto;
+    }
+    .sectionTitle {
+        font-size: 18px;
+        margin: 20px 0 10px;
+        font-weight: bold;
+        border-bottom: 1px solid #30363d;
+        padding-bottom: 5px;
+    }
+    select, input {
+        width: 100%;
+        padding: 6px;
+        margin: 6px 0;
+        border-radius: 6px;
+        border: none;
+        background: #21262d;
+        color: #e6edf3;
+    }
+    button {
+        width: 100%;
+        padding: 10px;
+        background: #238636;
+        border: none;
+        border-radius: 6px;
+        margin-top: 12px;
+        color: white;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #2ea043;
+    }
+    #output {
+        flex: 1;
+        white-space: pre-wrap;
+        background: #0d1117;
+        border: 1px solid #30363d;
+        padding: 10px;
+        margin-top: 10px;
+        border-radius: 6px;
+        overflow-y: auto;
+    }
+</style>
+</head>
+<body>
+
+<div id="leftPanel">
+    <div class="sectionTitle">Match Input</div>
+
+    <label>Expected Goals (Home)</label>
+    <input id="xg_home" type="number" step="0.01">
+
+    <label>Expected Goals (Away)</label>
+    <input id="xg_away" type="number" step="0.01">
+
+    <label>Shots (Home)</label>
+    <input id="shots_home" type="number">
+
+    <label>Shots (Away)</label>
+    <input id="shots_away" type="number">
+
+    <label>SOT (Home)</label>
+    <input id="sot_home" type="number">
+
+    <label>SOT (Away)</label>
+    <input id="sot_away" type="number">
+
+    <label>Preset Liga</label>
+<select id="league_preset">
+  <option value="AUTO">Auto Detect</option>
+
+  <optgroup label="Top Leagues">
+    <option value="EPL">Premier League (ENG)</option>
+    <option value="LALIGA">La Liga (ESP)</option>
+    <option value="SERIEA">Serie A (ITA)</option>
+    <option value="BUNDES">Bundesliga (GER)</option>
+    <option value="LIGUE1">Ligue 1 (FRA)</option>
+  </optgroup>
+
+  <optgroup label="Secondary">
+    <option value="EREDIV">Eredivisie</option>
+    <option value="PRIMEIRA">Primeira Liga</option>
+    <option value="MLS">MLS</option>
+  </optgroup>
+
+  <optgroup label="Cups / International">
+    <option value="UCL">Champions League</option>
+    <option value="UEL">Europa League</option>
+    <option value="INT">International Match</option>
+  </optgroup>
+</select>
+
+    <label>Possession Home (%)</label>
+    <input id="pos_home" type="number">
+
+    <label>Importance (1–10)</label>
+    <input id="importance" type="number" min="1" max="10">
+
+    <div class="sectionTitle">Match Type (57 Types)</div>
+    <select id="match_type">
+        <!-- Will be filled in PART 2 -->
+    </select>
+
+    <button id="runEngine">RUN ANALYSIS</button>
+</div>
+
+<div id="rightPanel">
+    <div class="sectionTitle">PSZ LEVEL 1500 — RESULT</div>
+    <div id="output">Waiting for input…</div>
+</div>
+<script>
+/* =========================================================
+   PART 0 — BOOTSTRAP & GLOBAL GUARD
+   PSZ LEVEL 1500 — FINAL ENGINE
+   ========================================================= */
+
+(function () {
+  // Prevent double initialization
+  if (window.__PSZ_BOOTSTRAPPED__) {
+    console.warn("PSZ already bootstrapped — skipped");
+    return;
+  }
+  window.__PSZ_BOOTSTRAPPED__ = true;
+
+  // Root namespace
+  window.PSZ = window.PSZ || {};
+  const PSZ = window.PSZ;
+
+  /* =========================
+     Global Flags
+     ========================= */
+  PSZ.VERSION = "1.5.0-final";
+  PSZ.MODE = "BALANCED"; // SAFE | BALANCED | AGGRESSIVE
+  PSZ.LANG = "MIX";      // EN | ID | MIX
+
+  /* =========================
+     Core Guards
+     ========================= */
+
+  PSZ.guard = function (cond, msg) {
+    if (!cond) throw new Error(msg || "Guard failed");
+  };
+
+  PSZ.safeNum = function (v, d = 0) {
+    v = parseFloat(v);
+    return Number.isFinite(v) ? v : d;
+  };
+
+  PSZ.clamp = function (v, min, max) {
+    if (!Number.isFinite(v)) return min;
+    if (min !== undefined) v = Math.max(min, v);
+    if (max !== undefined) v = Math.min(max, v);
+    return v;
+  };
+
+  PSZ.safeObj = function (o) {
+    return (o && typeof o === "object") ? o : {};
+  };
+
+  /* =========================
+     Debug / Trace
+     ========================= */
+  PSZ.debug = {
+    enabled: true,
+    log(...args) {
+      if (this.enabled) console.log("[PSZ]", ...args);
+    },
+    warn(...args) {
+      console.warn("[PSZ]", ...args);
+    },
+    error(...args) {
+      console.error("[PSZ]", ...args);
+    }
+  };
+
+
+
+})();
+          </script>
+<script>
+/* =========================================================
+   PART 1 — LEAGUE PRESETS (FINAL)
+   PSZ LEVEL 1500
+   ========================================================= */
+
+(function () {
+  const PSZ = window.PSZ;
+  PSZ.guard(PSZ, "PSZ not initialized");
+
+  /* =========================
+     League Preset Registry
+     ========================= */
+
+  PSZ.LEAGUE_PRESETS = {
+
+    // ===== DOMESTIC TOP LEAGUES =====
+
+    EPL: { // England Premier League
+      label: "Premier League",
+      tempo: 6.6,
+      volatility: 0.62,
+      overBias: 0.05,
+      bttsBias: 0.06,
+      riskMod: 0.04,
+      confMin: 60
+    },
+
+    LALIGA: { // Spain
+      label: "La Liga",
+      tempo: 5.7,
+      volatility: 0.48,
+      overBias: -0.08,
+      bttsBias: -0.05,
+      riskMod: -0.12,
+      confMin: 62
+    },
+
+    SERIEA: { // Italy
+      label: "Serie A",
+      tempo: 5.3,
+      volatility: 0.45,
+      overBias: -0.10,
+      bttsBias: -0.08,
+      riskMod: -0.15,
+      confMin: 65
+    },
+
+    BUNDES: { // Germany
+      label: "Bundesliga",
+      tempo: 7.2,
+      volatility: 0.75,
+      overBias: 0.08,
+      bttsBias: 0.10,
+      riskMod: 0.06,
+      confMin: 58
+    },
+
+    LIGUE1: { // France
+      label: "Ligue 1",
+      tempo: 5.5,
+      volatility: 0.46,
+      overBias: -0.03,
+      bttsBias: -0.02,
+      riskMod: -0.08,
+      confMin: 63
+    },
+
+    // ===== EUROPEAN COMPETITIONS =====
+
+    UCL: { // Champions League
+      label: "UEFA Champions League",
+      tempo: 5.8,
+      volatility: 0.48,
+      overBias: -0.08,
+      bttsBias: -0.06,
+      riskMod: -0.18,
+      confMin: 68
+    },
+
+    UEL: { // Europa League
+      label: "UEFA Europa League",
+      tempo: 5.9,
+      volatility: 0.55,
+      overBias: -0.05,
+      bttsBias: -0.03,
+      riskMod: -0.10,
+      confMin: 65
+    },
+
+    UECL: { // Conference League
+      label: "UEFA Conference League",
+      tempo: 6.0,
+      volatility: 0.58,
+      overBias: -0.02,
+      bttsBias: 0.00,
+      riskMod: -0.06,
+      confMin: 64
+    },
+
+    // ===== INTERNATIONAL =====
+
+    INT: { // International match
+      label: "International / National Team",
+      tempo: 5.0,
+      volatility: 0.40,
+      overBias: -0.10,
+      bttsBias: -0.15,
+      riskMod: -0.25,
+      confMin: 70
+    },
+
+    // ===== DEFAULT FALLBACK =====
+
+    AUTO: {
+      label: "Auto Detect",
+      tempo: 6.0,
+      volatility: 0.55,
+      overBias: 0.00,
+      bttsBias: 0.00,
+      riskMod: 0.00,
+      confMin: 60
+    }
+  };
+
+  /* =========================
+     Helper: Resolve League Preset
+     ========================= */
+
+  PSZ.resolveLeaguePreset = function (key) {
+    if (!key) return PSZ.LEAGUE_PRESETS.AUTO;
+    return PSZ.LEAGUE_PRESETS[key] || PSZ.LEAGUE_PRESETS.AUTO;
+  };
+
+  
+
+})();
+</script>
+<script>
+/* =========================================================
+   PART 2 — MATCH TYPE REGISTRY & AUTO CLASSIFIER (FINAL)
+   PSZ LEVEL 1500
+   ========================================================= */
+
+(function () {
+  const PSZ = window.PSZ;
+  PSZ.guard(PSZ, "PSZ not initialized");
+
+  /* =========================
+     Match Type Registry
+     ========================= */
+
+  PSZ.MATCH_TYPES = {
+    LEAGUE_REGULAR: {
+      label: "League Regular",
+      risk: 0.00,
+      confMod: 0
+    },
+
+    DERBY: {
+      label: "Derby / Big Rivalry",
+      risk: 0.10,
+      confMod: -5
+    },
+
+    TITLE_DECIDER: {
+      label: "Title Decider",
+      risk: 0.15,
+      confMod: -7
+    },
+
+    RELEGATION_BATTLE: {
+      label: "Relegation Battle",
+      risk: 0.12,
+      confMod: -6
+    },
+
+    CUP_KNOCKOUT: {
+      label: "Cup Knockout",
+      risk: 0.18,
+      confMod: -8
+    },
+
+    FINAL: {
+      label: "Final",
+      risk: 0.25,
+      confMod: -12
+    },
+
+    FRIENDLY: {
+      label: "Friendly / Experimental",
+      risk: 0.30,
+      confMod: -15
+    }
+  };
+
+  /* =========================
+     Auto Classifier
+     ========================= */
+
+  PSZ.classifyMatchType = function (ctx) {
+    PSZ.guard(ctx && ctx.base && ctx.auto, "Invalid ctx for match type");
+
+    const reasons = [];
+
+    const imp = PSZ.safeNum(ctx.base.imp, 5);
+    const strengthDiff = Math.abs(
+      PSZ.safeNum(ctx.base.strHome) - PSZ.safeNum(ctx.base.strAway)
+    );
+
+    // Friendly / experimental
+    if (imp <= 3) {
+      reasons.push("Low importance");
+      return { type: "FRIENDLY", reasons };
+    }
+
+    // Final
+    if (imp >= 9 && ctx.base.isFinal) {
+      reasons.push("Final match");
+      return { type: "FINAL", reasons };
+    }
+
+    // Title decider
+    if (imp >= 8 && strengthDiff < 0.5) {
+      reasons.push("High importance & balanced strength");
+      return { type: "TITLE_DECIDER", reasons };
+    }
+
+    // Relegation battle
+    if (imp >= 8 && strengthDiff < 0.8 && ctx.base.relegationPressure) {
+      reasons.push("Relegation pressure");
+      return { type: "RELEGATION_BATTLE", reasons };
+    }
+
+    // Cup knockout
+    if (ctx.base.isCup) {
+      reasons.push("Cup context");
+      return { type: "CUP_KNOCKOUT", reasons };
+    }
+
+    // Derby
+    if (imp >= 7 && strengthDiff < 1.0) {
+      reasons.push("High intensity & rivalry");
+      return { type: "DERBY", reasons };
+    }
+
+    // Default
+    return { type: "LEAGUE_REGULAR", reasons };
+  };
+
+  /* =========================
+     Apply Match Type (AUTO + MANUAL)
+     ========================= */
+
+  PSZ.applyMatchType = function (ctx) {
+    PSZ.guard(ctx, "ctx missing in applyMatchType");
+
+    let finalType = "LEAGUE_REGULAR";
+    let reasons = [];
+
+    // Manual override from UI
+    if (ctx.manualMatchType && ctx.manualMatchType !== "AUTO") {
+      finalType = ctx.manualMatchType;
+      reasons.push("Manual override");
+    } else {
+      const auto = PSZ.classifyMatchType(ctx);
+      finalType = auto.type;
+      reasons = auto.reasons;
+    }
+
+    ctx.matchType = finalType;
+    ctx.matchTypeReason = reasons;
+
+    const meta = PSZ.MATCH_TYPES[finalType] || PSZ.MATCH_TYPES.LEAGUE_REGULAR;
+
+    ctx.matchRisk = PSZ.safeNum(meta.risk, 0);
+    ctx.matchConfMod = PSZ.safeNum(meta.confMod, 0);
+  };
+
+  
+
+})();
+</script>
+<script>
+/* =========================================================
+   PART 3 — AUTO CONTEXT BUILDER (FINAL)
+   PSZ LEVEL 1500
+   ========================================================= */
+
+(function () {
+  const PSZ = window.PSZ;
+  PSZ.guard(PSZ, "PSZ not initialized");
+
+  /* =========================
+     Build Context (SAFE)
+     ========================= */
+
+  PSZ.buildAutoContext = function () {
+
+    /* -------- UI READ (RAW) -------- */
+    const leagueKey = document.getElementById("leaguePreset")?.value || "AUTO";
+    const manualMatchType = document.getElementById("matchType")?.value || "AUTO";
+
+    const homeStr = PSZ.safeNum(document.getElementById("homeStrength")?.value, 5);
+    const awayStr = PSZ.safeNum(document.getElementById("awayStrength")?.value, 5);
+
+    const importance = PSZ.safeNum(document.getElementById("importance")?.value, 5);
+    const tempoInput = PSZ.safeNum(document.getElementById("tempo")?.value, 5);
+    const pressHome = PSZ.safeNum(document.getElementById("pressHome")?.value, 5);
+    const pressAway = PSZ.safeNum(document.getElementById("pressAway")?.value, 5);
+
+    /* -------- Resolve League Preset -------- */
+    const leaguePreset = PSZ.resolveLeaguePreset(leagueKey);
+
+    /* -------- Base Context -------- */
+    const ctx = {
+      base: {
+        strHome: homeStr,
+        strAway: awayStr,
+        imp: importance,
+
+        isFinal: importance >= 9,
+        isCup: leagueKey === "UCL" || leagueKey === "UEL" || leagueKey === "UECL",
+        relegationPressure: importance >= 8 && Math.abs(homeStr - awayStr) < 1
+      },
+
+      auto: {
+        tempo: PSZ.clamp(
+          (tempoInput + leaguePreset.tempo) / 2,
+          3,
+          8
+        ),
+
+        pressHome,
+        pressAway
+      },
+
+      leaguePreset: leagueKey,
+      manualMatchType: manualMatchType,
+
+      matchType: "LEAGUE_REGULAR",
+      matchTypeReason: [],
+
+      match—allRisk: 0,
+      matchConfMod: 0
+    };
+
+    /* -------- Volatility (derived) -------- */
+    ctx.auto.volatility = PSZ.clamp(
+      (Math.abs(pressHome - pressAway) / 10 + leaguePreset.volatility) / 2,
+      0.30,
+      0.85
+    );
+
+    /* -------- Apply Match Type -------- */
+    PSZ.applyMatchType(ctx);
+
+    /* -------- Apply League Risk Mod -------- */
+    ctx.leagueRiskMod = PSZ.safeNum(leaguePreset.riskMod, 0);
+
+    PSZ.debug.log("Context built:", ctx);
+    return ctx;
+  };
+
+
+})();
+</script>
+<script>
+/* =========================================================
+   PART 4 — CORE ENGINE (Dynamic λ, fxG, Stamina)
+   PSZ LEVEL 1500
+   ========================================================= */
+
+(function () {
+  const PSZ = window.PSZ;
+  PSZ.guard(PSZ, "PSZ not initialized");
+
+  /* =========================
+     Core Parameter Builder
+     ========================= */
+
+  PSZ.buildCoreParams = function (ctx) {
+    PSZ.guard(ctx && ctx.base && ctx.auto, "Invalid ctx in core params");
+
+    const H = ctx.base.strHome;
+    const A = ctx.base.strAway;
+
+    const tempo = ctx.auto.tempo;
+    const vol   = ctx.auto.volatility;
+
+    /* -------- Base λ from strength -------- */
+    let lambdaHome = 0.9 + H * 0.22;
+    let lambdaAway = 0.9 + A * 0.22;
+
+    /* -------- Tempo effect -------- */
+    const tempoFactor = 1 + (tempo - 5) * 0.08;
+    lambdaHome *= tempoFactor;
+    lambdaAway *= tempoFactor;
+
+    /* -------- Volatility effect -------- */
+    const volFactor = 1 + (vol - 0.55) * 0.30;
+    lambdaHome *= volFactor;
+    lambdaAway *= volFactor;
+
+    /* -------- Home advantage -------- */
+    lambdaHome *= 1.08;
+
+    /* -------- Match Type Risk -------- */
+    if (ctx.matchRisk) {
+      lambdaHome *= (1 - ctx.matchRisk * 0.5);
+      lambdaAway *= (1 - ctx.matchRisk * 0.5);
+    }
+
+    /* -------- League Risk Modifier -------- */
+    if (ctx.leagueRiskMod) {
+      lambdaHome *= (1 + ctx.leagueRiskMod);
+      lambdaAway *= (1 + ctx.leagueRiskMod);
+    }
+
+    /* -------- fxG (finishing randomness) -------- */
+    const fxGHome = PSZ.clamp(1 + (Math.random() - 0.5) * 0.10, 0.90, 1.10);
+    const fxGAway = PSZ.clamp(1 + (Math.random() - 0.5) * 0.10, 0.90, 1.10);
+
+    lambdaHome *= fxGHome;
+    lambdaAway *= fxGAway;
+
+    /* -------- Stamina & late game effect -------- */
+    const staminaPenalty = PSZ.clamp((tempo - 6) * 0.03, 0, 0.10);
+    lambdaHome *= (1 - staminaPenalty);
+    lambdaAway *= (1 - staminaPenalty);
+
+    /* -------- Clamp final λ -------- */
+    lambdaHome = PSZ.clamp(lambdaHome, 0.2, 3.5);
+    lambdaAway = PSZ.clamp(lambdaAway, 0.2, 3.5);
+
+    return {
+      lambdaHome,
+      lambdaAway,
+      tempo,
+      volatility: vol
+    };
+  };
+
+  
+
+})();
+</script>
+<script>
+/* =========================================================
+   PART 5 — MONTE CARLO ENGINE (FINAL)
+   PSZ LEVEL 1500
+   ========================================================= */
+
+(function () {
+  const PSZ = window.PSZ;
+  PSZ.guard(PSZ, "PSZ not initialized");
+
+  /* =========================
+     Poisson Sampler
+     ========================= */
+  function samplePoisson(lambda) {
+    let L = Math.exp(-lambda);
+    let p = 1.0;
+    let k = 0;
+
+    do {
+      k++;
+      p *= Math.random();
+    } while (p > L);
+
+    return k - 1;
+  }
+
+  /* =========================
+     Monte Carlo Runner
+     ========================= */
+
+  PSZ.runMonteCarlo = function (ctx, opts = {}) {
+    PSZ.guard(ctx, "ctx missing in Monte Carlo");
+
+    const N   = PSZ.safeNum(opts.N, 8000);
+    const CAP = PSZ.safeNum(opts.cap, 6);
+
+    const core = PSZ.buildCoreParams(ctx);
+    PSZ.guard(core && core.lambdaHome && core.lambdaAway, "Core params invalid");
+
+    const λH = core.lambdaHome;
+    const λA = core.lambdaAway;
+
+    /* -------- Init Matrix -------- */
+    const matrix = [];
+    for (let i = 0; i <= CAP; i++) {
+      matrix[i] = [];
+      for (let j = 0; j <= CAP; j++) {
+        matrix[i][j] = 0;
+      }
+    }
+
+    /* -------- Simulation -------- */
+    for (let i = 0; i < N; i++) {
+      let h = samplePoisson(λH);
+      let a = samplePoisson(λA);
+
+      // Cap extreme scores
+      h = Math.min(h, CAP);
+      a = Math.min(a, CAP);
+
+      matrix[h][a]++;
+    }
+
+    return {
+      matrix,
+      meta: {
+        N,
+        CAP,
+        lambdaHome: λH,
+        lambdaAway: λA,
+        tempo: core.tempo,
+        volatility: core.volatility
+      }
+    };
+  };
+
+  
+})();
+</script>
+  
+<script>
+/* =========================================================
+   PART 6 — DERIVED METRICS (OU, BTTS, GOALS)
+   PSZ LEVEL 1500
+   ========================================================= */
+
+(function () {
+  const PSZ = window.PSZ;
+  PSZ.guard(PSZ, "PSZ not initialized");
+
+  /* =========================
+     Compute Over / Under
+     ========================= */
+
+  PSZ.computeOU = function (ctx, res) {
+    PSZ.guard(ctx && res && res.matrix, "Invalid input for computeOU");
+
+    const lines = [0.5, 1.5, 2.5, 3.5];
+    const out = {};
+    const mat = res.matrix;
+    const CAP = res.meta.CAP;
+    const N   = res.meta.N;
+
+    lines.forEach(line => {
+      const cut = Math.floor(line);
+      let under = 0;
+
+      for (let h = 0; h <= CAP; h++) {
+        for (let a = 0; a <= CAP; a++) {
+          if (h + a <= cut) under += mat[h][a];
+        }
+      }
+
+      out[line] = {
+        under: under / N,
+        over: 1 - (under / N)
+      };
+    });
+
+    /* -------- League Preset Bias (APPLIED ONCE) -------- */
+    if (ctx.leaguePreset && PSZ.LEAGUE_PRESETS[ctx.leaguePreset]) {
+      const L = PSZ.LEAGUE_PRESETS[ctx.leaguePreset];
+      out[2.5].over = PSZ.clamp(out[2.5].over + PSZ.safeNum(L.overBias), 0, 1);
+      out[2.5].under = 1 - out[2.5].over;
+    }
+
+    return out;
+  };
+
+  /* =========================
+     Compute BTTS
+     ========================= */
+
+  PSZ.computeBTTS = function (ctx, res) {
+    PSZ.guard(ctx && res && res.matrix, "Invalid input for computeBTTS");
+
+    const mat = res.matrix;
+    const CAP = res.meta.CAP;
+    const N   = res.meta.N;
+
+    let yes = 0;
+
+    for (let h = 1; h <= CAP; h++) {
+      for (let a = 1; a <= CAP; a++) {
+        yes += mat[h][a];
+      }
+    }
+
+    let bttsYes = yes / N;
+
+    /* -------- League Preset Bias -------- */
+    if (ctx.leaguePreset && PSZ.LEAGUE_PRESETS[ctx.leaguePreset]) {
+      const L = PSZ.LEAGUE_PRESETS[ctx.leaguePreset];
+      bttsYes = PSZ.clamp(bttsYes + PSZ.safeNum(L.bttsBias), 0, 1);
+    }
+
+    return {
+      yes: bttsYes,
+      no: 1 - bttsYes
+    };
+  };
+
+  /* =========================
+     Total Goals Distribution
+     ========================= */
+
+  PSZ.computeGoalTotals = function (res) {
+    PSZ.guard(res && res.matrix, "Invalid input for computeGoalTotals");
+
+    const mat = res.matrix;
+    const CAP = res.meta.CAP;
+    const N   = res.meta.N;
+
+    const totals = {};
+
+    for (let h = 0; h <= CAP; h++) {
+      for (let a = 0; a <= CAP; a++) {
+        const g = h + a;
+        totals[g] = (totals[g] || 0) + mat[h][a];
+      }
+    }
+
+    Object.keys(totals).forEach(k => {
+      totals[k] = totals[k] / N;
+    });
+
+    return totals;
+  };
+
+  
+
+})();
+</script>
+<script>
+/* =========================================================
+   PART 7 — CONFIDENCE, RECOMMENDATION & NO BET GATE (FINAL)
+   PSZ LEVEL 1500
+   ========================================================= */
+
+(function () {
+  const PSZ = window.PSZ;
+  PSZ.guard(PSZ, "PSZ not initialized");
+
+  /* =========================
+     Confidence Engine
+     ========================= */
+
+  PSZ.computeConfidence = function (ctx, res, ou, btts) {
+    PSZ.guard(ctx && res && ou && btts, "Invalid input for confidence");
+
+    // Base confidence from strongest signal
+    let base = Math.max(
+      ou[2.5]?.over || 0,
+      ou[2.5]?.under || 0,
+      btts.yes || 0,
+      btts.no || 0
+    ) * 100;
+
+    // Penalize volatility extremes
+    const vol = PSZ.safeNum(ctx.auto?.volatility, 0.55);
+    if (vol > 0.80 || vol < 0.35) base -= 6;
+
+    // Match type modifier
+    base += PSZ.safeNum(ctx.matchConfMod, 0);
+
+    // League preset minimum confidence
+    const L = PSZ.resolveLeaguePreset(ctx.leaguePreset);
+    base = Math.max(base, PSZ.safeNum(L.confMin, 60));
+
+    // Clamp final confidence
+    return Math.round(PSZ.clamp(base, 35, 95));
+  };
+
+  /* =========================
+     Recommendation Builder
+     ========================= */
+
+  PSZ.buildRecommendation = function (ctx, res, ou, btts, conf) {
+    PSZ.guard(ctx && ou && btts, "Invalid input for recommendation");
+
+    let result = "NO BET";
+    let goals  = "NO BET";
+    let bttsPick = "NO BET";
+    const noBetReasons = [];
+
+    // Goals market
+    if (ou[2.5].over >= 0.60 && conf >= 60) {
+      goals = "OVER 2.5";
+    } else if (ou[2.5].under >= 0.60 && conf >= 60) {
+      goals = "UNDER 2.5";
+    }
+
+    // BTTS market
+    if (btts.yes >= 0.58 && conf >= 60) {
+      bttsPick = "BTTS YES";
+    } else if (btts.no >= 0.60 && conf >= 60) {
+      bttsPick = "BTTS NO";
+    }
+
+    // Result market (very conservative)
+    const diff = PSZ.safeNum(ctx.base.strHome) - PSZ.safeNum(ctx.base.strAway);
+    if (Math.abs(diff) >= 1.5 && conf >= 65) {
+      result = diff > 0 ? "HOME WIN" : "AWAY WIN";
+    }
+
+    // Collect NO BET reasons
+    if (conf < 60) noBetReasons.push("Low confidence");
+    if (ctx.matchRisk >= 0.20) noBetReasons.push("High match risk");
+    if (ctx.matchType === "FINAL" || ctx.matchType === "CUP_KNOCKOUT") {
+      noBetReasons.push("Knockout / Final risk");
+    }
+
+    return {
+      result,
+      goals,
+      btts: bttsPick,
+      noBetReasons
+    };
+  };
+
+  /* =========================
+     FINAL NO BET GATE
+     ========================= */
+
+  PSZ.applyFinalNoBetGate = function (ctx, rec, conf) {
+    PSZ.guard(ctx && rec, "Invalid input for No Bet Gate");
+
+    const L = PSZ.resolveLeaguePreset(ctx.leaguePreset);
+
+    const reasons = rec.noBetReasons || [];
+
+    // League strictness
+    if (conf < PSZ.safeNum(L.confMin, 60)) {
+      reasons.push("Below league confidence threshold");
+    }
+
+    // Extreme match types
+    if (
+      ctx.matchType === "FINAL" ||
+      ctx.matchType === "DERBY" ||
+      ctx.matchType === "TITLE_DECIDER"
+    ) {
+      if (conf < 70) reasons.push("Big match safety gate");
+    }
+
+    // If any NO BET reason exists → force NO BET
+    if (reasons.length > 0) {
+      return {
+        result: "NO BET",
+        goals: "NO BET",
+        btts: "NO BET",
+        noBetReasons: reasons
+      };
+    }
+
+    return rec;
+  };
+
+  <script>
+/* =========================================================
+   PART 8 — FINAL OUTPUT BUILDER (ONLY ONE)
+   PSZ LEVEL 1500
+   ========================================================= */
+
+(function () {
+  const PSZ = window.PSZ;
+  PSZ.guard(PSZ, "PSZ not initialized");
+
+  /* =========================
+     FINAL buildOutputText
+     ========================= */
+
+  PSZ.buildOutputText = function (ctx, res) {
+    PSZ.guard(ctx && res, "Invalid input for output builder");
+
+    // --- Derived metrics ---
+    const ou   = PSZ.computeOU(ctx, res);
+    const btts = PSZ.computeBTTS(ctx, res);
+    const conf = PSZ.computeConfidence(ctx, res, ou, btts);
+
+    let rec = PSZ.buildRecommendation(ctx, res, ou, btts, conf);
+    rec = PSZ.applyFinalNoBetGate(ctx, rec, conf);
+
+    // --- Text builder ---
+    let t = "";
+
+    /* =====================
+       HEADER
+       ===================== */
+    t += "PSZ ENGINE v" + PSZ.VERSION + "\n";
+    t += "Mode : " + PSZ.MODE + "\n\n";
+
+    /* =====================
+       LEAGUE & MATCH TYPE
+       ===================== */
+    const L = PSZ.resolveLeaguePreset(ctx.leaguePreset);
+
+    t += "[LEAGUE]\n";
+    t += (L.label || ctx.leaguePreset) + "\n\n";
+
+    t += "[MATCH TYPE]\n";
+    t += ctx.matchType + "\n";
+    if (ctx.matchTypeReason && ctx.matchTypeReason.length) {
+      ctx.matchTypeReason.forEach(r => {
+        t += "- " + r + "\n";
+      });
+    }
+    t += "\n";
+
+    /* =====================
+       OVER / UNDER
+       ===================== */
+    t += "[OVER / UNDER]\n";
+    Object.keys(ou).forEach(k => {
+      t += `O/U ${k} : Over ${(ou[k].over * 100).toFixed(1)}% | Under ${(ou[k].under * 100).toFixed(1)}%\n`;
+    });
+    t += "\n";
+
+    /* =====================
+       BTTS
+       ===================== */
+    t += "[BTTS]\n";
+    t += `YES ${(btts.yes * 100).toFixed(1)}% | NO ${(btts.no * 100).toFixed(1)}%\n\n`;
+
+    /* =====================
+       CONFIDENCE
+       ===================== */
+    t += "[CONFIDENCE]\n";
+    t += conf + "%\n\n";
+
+    /* =====================
+       RECOMMENDATION
+       ===================== */
+    t += "[RECOMMENDATION]\n";
+    t += "Result : " + rec.result + "\n";
+    t += "Goals  : " + rec.goals + "\n";
+    t += "BTTS   : " + rec.btts + "\n\n";
+
+    /* =====================
+       NO BET REASONS
+       ===================== */
+    if (rec.result === "NO BET" && rec.noBetReasons?.length) {
+      t += "[NO BET REASONS]\n";
+      rec.noBetReasons.forEach(r => {
+        t += "- " + r + "\n";
+      });
+    }
+
+    return t;
+  };
+<script>
+/* =========================================================
+   PART 9 — RUN BINDING (FINAL)
+   PSZ LEVEL 1500
+   ========================================================= */
+
+(function () {
+  const PSZ = window.PSZ;
+  PSZ.guard(PSZ, "PSZ not initialized");
+
+  /* =========================
+     Run Analysis Handler
+     ========================= */
+
+  PSZ.runAnalysis = function () {
+    const out = document.getElementById("output");
+    if (!out) return;
+
+    out.textContent = "Running analysis...\n";
+
+    try {
+      // 1. Build context from UI
+      const ctx = PSZ.buildAutoContext();
+      PSZ.guard(ctx, "Context build failed");
+
+      // 2. Run Monte Carlo simulation
+      const res = PSZ.runMonteCarlo(ctx, {
+        N: 8000,
+        cap: 6
+      });
+      PSZ.guard(res && res.matrix, "Monte Carlo failed");
+
+      // 3. Build final output text
+      const text = PSZ.buildOutputText(ctx, res);
+      out.textContent = text;
+
+    } catch (e) {
+      out.textContent = "ERROR:\n" + (e.message || e);
+      console.error("[PSZ ERROR]", e);
+    }
+  };
+
+  /* =========================
+     Button Binding
+     ========================= */
+
+  document.addEventListener("DOMContentLoaded", function () {
+    const btn = document.getElementById("runAnalysis");
+    if (!btn) {
+      PSZ.debug.warn("Run button not found");
+      return;
+    }
+
+    btn.addEventListener("click", PSZ.runAnalysis);
+  });
+
+  
+})();
+</script>
+  
+})();
+</script>
+    
+
+})();
+</script>
+    
+</body>
+</html>
