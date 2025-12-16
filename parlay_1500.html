@@ -446,7 +446,7 @@
     }
 
     // Derby
-    if (imp >= 7 && strengthDiff < 1.0) {
+    if (imp >= 8 && strengthDiff < 0.7) {
       reasons.push("High intensity & rivalry");
       return { type: "DERBY", reasons };
     }
@@ -537,7 +537,11 @@ const pressAway = PSZ.clamp((100 - posHome) / 10, 3, 7);
       
     /* -------- Resolve League Preset -------- */
     const leaguePreset = PSZ.resolveLeaguePreset(leagueKey);
-
+const importance = PSZ.clamp(
+  PSZ.safeNum(document.getElementById("importance")?.value, 5),
+  1,
+  10
+);
     /* -------- Base Context -------- */
     const ctx = {
       base: {
