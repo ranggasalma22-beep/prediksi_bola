@@ -483,7 +483,18 @@
     ctx.matchRisk = PSZ.safeNum(meta.risk, 0);
     ctx.matchConfMod = PSZ.safeNum(meta.confMod, 0);
   };
+document.addEventListener("DOMContentLoaded", () => {
+  const sel = document.getElementById("match_type");
+  if (!sel) return;
 
+  sel.innerHTML = '<option value="AUTO">AUTO</option>';
+  Object.keys(PSZ.MATCH_TYPES).forEach(k => {
+    const o = document.createElement("option");
+    o.value = k;
+    o.textContent = PSZ.MATCH_TYPES[k].label;
+    sel.appendChild(o);
+  });
+});
   
 
 })();
@@ -505,17 +516,25 @@
   PSZ.buildAutoContext = function () {
 
     /* -------- UI READ (RAW) -------- */
-    const leagueKey = document.getElementById("leaguePreset")?.value || "AUTO";
-    const manualMatchType = document.getElementById("matchType")?.value || "AUTO";
+    const leagueKey = document.getElementById("league_preset")?.value || "AUTO";
+    const manualMatchType = document.getElementById("match_type")?.value || "AUTO";
+      
+    const xgHome = PSZ.safeNum(document.getElementById("xg_home")?.value, 1.2);
+const xgAway = PSZ.safeNum(document.getElementById("xg_away")?.value, 1.0);
 
-    const homeStr = PSZ.safeNum(document.getElementById("homeStrength")?.value, 5);
-    const awayStr = PSZ.safeNum(document.getElementById("awayStrength")?.value, 5);
+const shotsHome = PSZ.safeNum(document.getElementById("shots_home")?.value, 10);
+const shotsAway = PSZ.safeNum(document.getElementById("shots_away")?.value, 9);
 
-    const importance = PSZ.safeNum(document.getElementById("importance")?.value, 5);
-    const tempoInput = PSZ.safeNum(document.getElementById("tempo")?.value, 5);
-    const pressHome = PSZ.safeNum(document.getElementById("pressHome")?.value, 5);
-    const pressAway = PSZ.safeNum(document.getElementById("pressAway")?.value, 5);
+const posHome = PSZ.safeNum(document.getElementById("pos_home")?.value, 50);
 
+const homeStr = PSZ.clamp(xgHome * 2.5, 1, 9);
+const awayStr = PSZ.clamp(xgAway * 2.5, 1, 9);
+
+const tempoInput = PSZ.clamp((shotsHome + shotsAway) / 6, 3, 8);
+
+const pressHome = PSZ.clamp(posHome / 10, 3, 7);
+const pressAway = PSZ.clamp((100 - posHome) / 10, 3, 7);
+      
     /* -------- Resolve League Preset -------- */
     const leaguePreset = PSZ.resolveLeaguePreset(leagueKey);
 
@@ -548,7 +567,7 @@
       matchType: "LEAGUE_REGULAR",
       matchTypeReason: [],
 
-      match—allRisk: 0,
+      matchRisk: 0,
       matchConfMod: 0
     };
 
@@ -565,7 +584,7 @@
     /* -------- Apply League Risk Mod -------- */
     ctx.leagueRiskMod = PSZ.safeNum(leaguePreset.riskMod, 0);
 
-    PSZ.debug.log("Context built:", ctx);
+    
     return ctx;
   };
 
@@ -1112,7 +1131,7 @@
      ========================= */
 
   document.addEventListener("DOMContentLoaded", function () {
-    const btn = document.getElementById("runAnalysis");
+    const btn = document.getElementById("runEngine");
     if (!btn) {
       PSZ.debug.warn("Run button not found");
       return;
