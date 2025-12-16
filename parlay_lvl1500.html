@@ -490,8 +490,7 @@ if (leagueKey !== "AUTO" && PSZ.LEAGUE_PRESETS[leagueKey]) {
   tempo = (tempo + L.tempo) / 2;
   volatility = (volatility + L.volatility) / 2;
 
-  leagueRiskMod = L.riskMod;   // ⬅️ SIMPAN DULU
-  ctx.leaguePreset = leagueKey;
+  
     }
     /* ============================
        AUTO RISK
@@ -540,7 +539,8 @@ if (leagueKey !== "AUTO" && PSZ.LEAGUE_PRESETS[leagueKey]) {
     parkHome, parkAway,
     staminaH, staminaA,
     matchType
-  }
+  },
+  leaguePreset: leagueKey !== "AUTO" ? leagueKey : null
 };
   };
 
