@@ -1020,14 +1020,7 @@ window.PSZ = window.PSZ || {};
 
     return out;
   };
-// League preset bias (applied ONCE after MC OU)
-    if (ctx.leaguePreset) {
-  const L = PSZ.LEAGUE_PRESETS[ctx.leaguePreset];
-  if (L) {
-    ou[2.5].over = PSZ.clamp(ou[2.5].over + L.overBias, 0, 1);
-    res.BTTS = PSZ.clamp(res.BTTS + L.bttsBias, 0, 1);
-  }
-    }
+
   /* ============================
      Confidence Score
      ============================ */
