@@ -1,0 +1,131 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FBref xG Calculator (PSZ Ready)</title>
+  <style>
+    body {
+      background: #0f172a;
+      color: #e5e7eb;
+      font-family: Arial, Helvetica, sans-serif;
+      padding: 20px;
+      max-width: 520px;
+      margin: auto;
+    }
+    h1 {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+    .box {
+      background: #020617;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 15px;
+    }
+    label {
+      font-size: 14px;
+      display: block;
+      margin-top: 10px;
+    }
+    input {
+      width: 100%;
+      padding: 8px;
+      margin-top: 4px;
+      background: #020617;
+      color: #e5e7eb;
+      border: 1px solid #334155;
+      border-radius: 6px;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 15px;
+      background: #16a34a;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      color: #022c22;
+    }
+    .result {
+      margin-top: 10px;
+      font-size: 15px;
+      background: #020617;
+      padding: 10px;
+      border-radius: 8px;
+    }
+    .note {
+      font-size: 12px;
+      opacity: 0.8;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>  <h1>⚽ FBref xG Calculator (PSZ v1500)</h1>  <div class="box">
+    <h3>Home Team</h3>
+    <label>xG per match (FBref, league only)</label>
+    <textarea id="hxglist" rows="4" placeholder="Example: 1.9, 2.2, 1.4, 0.8, 1.6"></textarea>
+    <div class="result" id="hresult">xG Home: -</div>
+  </div>  <div class="box">
+    <h3>Away Team</h3>
+    <label>xG per match (FBref, league only)</label>
+    <textarea id="axglist" rows="4" placeholder="Example: 0.9, 1.1, 0.7, 1.0, 0.8"></textarea>
+    <div class="result" id="aresult">xG Away: -</div>
+  </div><button onclick="calculate()">Calculate xG</button>
+
+  <div class="note">
+    • Use 5–10 league matches only<br />
+    • Do NOT include cup or friendly<br />
+    • Result is ready to input into PSZ
+  </div>  <script>
+    function clamp(val, min, max) {
+      return Math.max(min, Math.min(max, val));
+    }
+
+    function clamp(val, min, max) {
+      return Math.max(min, Math.min(max, val));
+    }
+
+    function parseList(str) {
+      return str
+        .split(',')
+        .map(v => parseFloat(v.trim()))
+        .filter(v => !isNaN(v));
+    }
+
+    function average(arr) {
+      if (!arr.length) return null;
+      return arr.reduce((a, b) => a + b, 0) / arr.length;
+    }
+
+    function calculate() {
+      const hList = parseList(document.getElementById('hxglist').value);
+      const aList = parseList(document.getElementById('axglist').value);
+
+      if (hList.length >= 5 && hList.length <= 10) {
+        let h = average(hList);
+        h = clamp(h, 0.7, 2.1);
+        document.getElementById('hresult').innerText = `xG Home: ${h.toFixed(2)} (${hList.length} matches)`;
+      } else if (hList.length > 0) {
+        document.getElementById('hresult').innerText = 'xG Home: use 5–10 matches';
+      }
+
+      if (aList.length >= 5 && aList.length <= 10) {
+        let a = average(aList);
+        a = clamp(a, 0.7, 2.1);
+        document.getElementById('aresult').innerText = `xG Away: ${a.toFixed(2)} (${aList.length} matches)`;
+      } else if (aList.length > 0) {
+        document.getElementById('aresult').innerText = 'xG Away: use 5–10 matches';
+      }
+    }`;
+      }
+
+      if (axg && amatch) {
+        let a = axg / amatch;
+        a = clamp(a, 0.7, 2.1);
+        document.getElementById('aresult').innerText = `xG Away: ${a.toFixed(2)}`;
+      }
+    }
+  </script></body>
+</html>
