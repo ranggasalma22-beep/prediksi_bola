@@ -63,15 +63,31 @@
   </style>
 </head>
 <body>  <h1>⚽ FBref xG Calculator (PSZ v1500)</h1>  <div class="box">
-    <h3>Home Team</h3>
-    <label>xG per match (FBref, league only)</label>
-    <textarea id="hxglist" rows="4" placeholder="Example: 1.9, 2.2, 1.4, 0.8, 1.6"></textarea>
-    <div class="result" id="hresult">xG Home: -</div>
+    <h3>Home Team</h3><label>xG per match (FBref, league only)</label>
+<textarea id="hxglist" rows="3" placeholder="Example: 1.9, 2.2, 1.4, 0.8, 1.6"></textarea>
+
+<label>Shots per match</label>
+<textarea id="hshots" rows="2" placeholder="Example: 14, 15, 13, 16, 12"></textarea>
+
+<label>Shots on Target per match</label>
+<textarea id="hsot" rows="2" placeholder="Example: 5, 6, 4, 5, 5"></textarea>
+
+<div class="result" id="hresult">Home Output: -</div>
+
+  </div>
   </div>  <div class="box">
-    <h3>Away Team</h3>
-    <label>xG per match (FBref, league only)</label>
-    <textarea id="axglist" rows="4" placeholder="Example: 0.9, 1.1, 0.7, 1.0, 0.8"></textarea>
-    <div class="result" id="aresult">xG Away: -</div>
+    <h3>Away Team</h3><label>xG per match (FBref, league only)</label>
+<textarea id="axglist" rows="3" placeholder="Example: 0.9, 1.1, 0.7, 1.0, 0.8"></textarea>
+
+<label>Shots per match</label>
+<textarea id="ashots" rows="2" placeholder="Example: 9, 10, 8, 11, 9"></textarea>
+
+<label>Shots on Target per match</label>
+<textarea id="asot" rows="2" placeholder="Example: 3, 4, 2, 3, 3"></textarea>
+
+<div class="result" id="aresult">Away Output: -</div>
+
+  </div>
   </div><button onclick="calculate()">Calculate xG</button>
 
   <div class="note">
@@ -99,14 +115,52 @@
       return arr.reduce((a, b) => a + b, 0) / arr.length;
     }
 
-    function calculate() {
-      const hList = parseList(document.getElementById('hxglist').value);
-      const aList = parseList(document.getElementById('axglist').value);
+    function clamp(val, min, max) {
+      return Math.max(min, Math.min(max, val));
+    }
 
-      if (hList.length >= 5 && hList.length <= 10) {
-        let h = average(hList);
-        h = clamp(h, 0.7, 2.1);
-        document.getElementById('hresult').innerText = `xG Home: ${h.toFixed(2)} (${hList.length} matches)`;
+    function parseList(str) {
+      return str.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+    }
+
+    function average(arr) {
+      if (!arr.length) return null;
+      return arr.reduce((a, b) => a + b, 0) / arr.length;
+    }
+
+    function calcBlock(xgList, shotsList, sotList, label) {
+      if (xgList.length < 5 || xgList.length > 10) {
+        return `${label}: use 5–10 matches`;
+      }
+
+      let xg = clamp(average(xgList), 0.7, 2.1);
+      let shots = shotsList.length ? average(shotsList) : null;
+      let sot = sotList.length ? average(sotList) : null;
+
+      let out = `${label}: xG ${xg.toFixed(2)} (${xgList.length} m)`;
+      if (shots !== null) out += ` | Shots ${shots.toFixed(1)}`;
+      if (sot !== null) out += ` | SOT ${sot.toFixed(1)}`;
+      return out;
+    }
+
+    function calculate() {
+      const h = calcBlock(
+        parseList(document.getElementById('hxglist').value),
+        parseList(document.getElementById('hshots').value),
+        parseList(document.getElementById('hsot').value),
+        'Home'
+      );
+
+      const a = calcBlock(
+        parseList(document.getElementById('axglist').value),
+        parseList(document.getElementById('ashots').value),
+        parseList(document.getElementById('asot').value),
+        'Away'
+      );
+
+      document.getElementById('hresult').innerText = h;
+      document.getElementById('aresult').innerText = a;
+    } (${hList.length} matches)`;
       } else if (hList.length > 0) {
         document.getElementById('hresult').innerText = 'xG Home: use 5–10 matches';
       }
