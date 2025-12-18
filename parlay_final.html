@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Neutral Football Analysis Engine</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{background:#05070b;color:#eaeaea;font-family:Arial;padding:20px}
+h1,h3{color:#66fcf1}
+.section{background:#0f1420;border:1px solid #333;border-radius:6px;padding:14px;margin-bottom:14px}
+label{display:block;margin-top:8px;font-size:13px}
+input,select{width:100%;padding:6px;background:#1a2030;border:1px solid #555;color:#fff;border-radius:4px}
+button{width:100%;padding:12px;margin-top:16px;background:#66fcf1;border:none;border-radius:6px;font-weight:bold;cursor:pointer}
+textarea{width:100%;height:520px;background:#020304;color:#00ff88;font-family:monospace;font-size:12px;padding:10px;border:1px solid #333;border-radius:5px}
+</style>
+</head>
+
+<body>
+
+<h1>Neutral Market Analysis Engine</h1>
+
+<div class="section">
+<h3>League & Match Type</h3>
+<label>League</label>
+<select id="league">
+<option value=""></option>
+<option value="EPL">Premier League</option>
+<option value="LL">La Liga</option>
+<option value="SA">Serie A</option>
+<option value="BL">Bundesliga</option>
+<option value="L1">Ligue 1</option>
+<option value="MLS">MLS</option>
+<option value="JPN">J-League</option>
+<option value="KOR">K-League</option>
+<option value="INT">International</option>
+</select>
+
+<label>Match Type</label>
+<select id="matchType">
+<option value=""></option>
+<option value="league">League</option>
+<option value="big">Big Match</option>
+<option value="cup">Cup</option>
+<option value="knockout">Knockout</option>
+<option value="final">Final</option>
+</select>
+</div>
+
+<div class="section">
+<h3>Match Context (Optional)</h3>
+<label>Tempo (1–10)</label><input id="tempo" type="number">
+<label>Chaos (1–10)</label><input id="chaos" type="number">
+<label>Importance (1–10)</label><input id="importance" type="number">
+</div>
+
+<div class="section">
+<h3>HOME TEAM</h3>
+<label>xG (5 matches avg)</label><input id="xgH" type="number" step="0.01">
+<label>xGA (5 matches avg)</label><input id="xgaH" type="number" step="0.01">
+<label>Goals For (5 matches)</label><input id="gfH" type="number">
+<label>Goals Against (5 matches)</label><input id="gaH" type="number">
+<label>PPDA (optional)</label><input id="ppdaH" type="number" step="0.1">
+<label>Pressing Style</label>
+<select id="pressH">
+<option value=""></option>
+<option value="high">High</option>
+<option value="mid">Mid</option>
+<option value="low">Low</option>
+</select>
+<label>Shots on Target / match</label><input id="sotH" type="number" step="0.1">
+<label>Defensive Errors (5 matches)</label><input id="errH" type="number">
+<label>Clean Sheet Rate (0–1)</label><input id="csH" type="number" step="0.01">
+</div>
+
+<div class="section">
+<h3>AWAY TEAM</h3>
+<label>xG (5 matches avg)</label><input id="xgA" type="number" step="0.01">
+<label>xGA (5 matches avg)</label><input id="xgaA" type="number" step="0.01">
+<label>Goals For (5 matches)</label><input id="gfA" type="number">
+<label>Goals Against (5 matches)</label><input id="gaA" type="number">
+<label>PPDA (optional)</label><input id="ppdaA" type="number" step="0.1">
+<label>Pressing Style</label>
+<select id="pressA">
+<option value=""></option>
+<option value="high">High</option>
+<option value="mid">Mid</option>
+<option value="low">Low</option>
+</select>
+<label>Shots on Target / match</label><input id="sotA" type="number" step="0.1">
+<label>Defensive Errors (5 matches)</label><input id="errA" type="number">
+<label>Clean Sheet Rate (0–1)</label><input id="csA" type="number" step="0.01">
+</div>
+
+<button onclick="run()">ANALYZE</button>
+
+<div class="section">
+<h3>OUTPUT</h3>
+<textarea id="out" readonly></textarea>
+</div>
+
+<script>
+const g=id=>Number(document.getElementById(id).value);
+const s=id=>document.getElementById(id).value;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+const LPPDA={EPL:11,LL:12,SA:13,BL:11.5,L1:12.5,MLS:14,JPN:13.5,KOR:14,INT:13};
+
+function estPPDA(ppda,press){
+  if(ppda>0) return ppda;
+  return press==="high"?7:press==="low"?16:12;
+}
+
+function finReg(xg,g){
+  if(!xg||xg<=0) return xg;
+  const r=g/xg;
+  if(r>1.3) return xg*(0.7+0.3/r);
+  if(r<0.7) return xg*(1+(0.7-r)*0.2);
+  return xg;
+}
+
+function autoTempo(xgH,xgA,sotH,sotA,ppH,ppA){
+  const xgTot=xgH+xgA;
+  const sotTot=sotH+sotA;
+  const ppInv=1/((ppH+ppA)/2||12);
+  let t=0.4*Math.min(10,xgTot*3)+0.3*Math.min(10,sotTot)+0.3*Math.min(10,ppInv*120);
+  return clamp(t*0.85,2,8);
+}
+
+function autoChaos(errH,errA,gfH,gaH,gfA,gaA,ppH,ppA){
+  const err=errH+errA;
+  const varG=Math.abs(gfH-gaH)+Math.abs(gfA-gaA);
+  let c=Math.min(4,err*0.8)+Math.min(3,varG*0.3)+(ppH<8||ppA<8||ppH>18||ppA>18?1:0);
+  return clamp(c*0.8,2,6);
+}
+
+function autoImportance(type){
+  if(type==="final") return 8;
+  if(type==="knockout") return 7;
+  if(type==="cup") return 6;
+  return 5;
+}
+
+function DFI(err,chaos,cs){
+  return clamp((Math.min(err/5,1))*0.4+(chaos/10)*0.3+(1-cs)*0.3,0,1);
+}
+
+function poisson(l,k){
+  let f=1; for(let i=2;i<=k;i++)f*=i;
+  return Math.exp(-l)*Math.pow(l,k)/f;
+}
+
+function confidence(lh,la,chaos){
+  let c=100;
+  const gap=Math.abs(lh-la);
+  if(gap<0.2)c-=25;
+  else if(gap<0.4)c-=15;
+  if(chaos>5)c-=(chaos-5)*5;
+  return clamp(c,0,100);
+}
+
+function run(){
+  const required=["xgH","xgA"];
+  if(required.some(id=>!g(id))){
+    out.value="";
+    return;
+  }
+
+  const ppH=estPPDA(g("ppdaH"),s("pressH"));
+  const ppA=estPPDA(g("ppdaA"),s("pressA"));
+
+  const tempoEff=g("tempo")||autoTempo(g("xgH"),g("xgA"),g("sotH"),g("sotA"),ppH,ppA);
+  const chaosEff=g("chaos")||autoChaos(g("errH"),g("errA"),g("gfH"),g("gaH"),g("gfA"),g("gaA"),ppH,ppA);
+  const impEff=g("importance")||autoImportance(s("matchType"));
+
+  const xgH=finReg(g("xgH"),g("gfH")/5);
+  const xgA=finReg(g("xgA"),g("gfA")/5);
+
+  let lamH=xgH*(1-(ppA/(LPPDA[s("league")]||13)-1)*0.15);
+  let lamA=xgA*(1-(ppH/(LPPDA[s("league")]||13)-1)*0.15);
+
+  lamH*=1+DFI(g("errA"),chaosEff,g("csA"))*0.25;
+  lamA*=1+DFI(g("errH"),chaosEff,g("csH"))*0.25;
+
+  lamH=clamp(lamH,0.2,4);
+  lamA=clamp(lamA,0.2,4);
+
+  const conf=confidence(lamH,lamA,chaosEff);
+
+  let txt="";
+  txt+="AUTO CONTEXT\n";
+  txt+="Tempo      : "+tempoEff.toFixed(2)+"\n";
+  txt+="Chaos      : "+chaosEff.toFixed(2)+"\n";
+  txt+="Importance : "+impEff.toFixed(2)+"\n\n";
+
+  txt+="EFFECTIVE LAMBDA\n";
+  txt+="Home : "+lamH.toFixed(3)+"\n";
+  txt+="Away : "+lamA.toFixed(3)+"\n\n";
+  txt+="CONFIDENCE : "+conf+" / 100\n\n";
+
+  if(conf<55){
+    txt+="RECOMMENDATION\nHDP : NO BET\nOVER/UNDER : NO BET";
+    out.value=txt;
+    return;
+  }
+
+  const diff=lamH-lamA;
+  const hdp=diff>=0.75?"HOME -0.5":diff>=0.45?"HOME -0.25":diff>-0.45?"HDP 0":diff>-0.75?"AWAY +0.25":"AWAY -0.5";
+
+  let over25=0;
+  for(let i=0;i<=10;i++)for(let j=0;j<=10;j++){
+    if(i+j>2.5)over25+=poisson(lamH,i)*poisson(lamA,j);
+  }
+  const ou=over25>=0.62?"OVER 2.5":over25>=0.55?"OVER 2.0":"UNDER 2.5";
+
+  txt+="RECOMMENDATION\n";
+  txt+="HDP        : "+hdp+"\n";
+  txt+="OVER/UNDER : "+ou+"\n";
+
+  out.value=txt;
+}
+</script>
+
+</body>
+</html>
