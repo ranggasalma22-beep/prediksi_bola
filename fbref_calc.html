@@ -1,0 +1,138 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FBref Calculator (PSZ v1500)</title>
+  <style>
+    body {
+      background:#0f172a;
+      color:#e5e7eb;
+      font-family:Arial, Helvetica, sans-serif;
+      max-width:520px;
+      margin:auto;
+      padding:16px;
+    }
+    h1 { font-size:18px; margin-bottom:12px; }
+    .box {
+      background:#020617;
+      padding:14px;
+      border-radius:10px;
+      margin-bottom:14px;
+    }
+    label { font-size:13px; display:block; margin-top:8px; }
+    textarea {
+      width:100%;
+      background:#020617;
+      color:#e5e7eb;
+      border:1px solid #334155;
+      border-radius:6px;
+      padding:8px;
+      margin-top:4px;
+      resize:vertical;
+    }
+    button {
+      width:100%;
+      padding:12px;
+      background:#16a34a;
+      color:#022c22;
+      border:none;
+      border-radius:10px;
+      font-size:15px;
+      font-weight:bold;
+      cursor:pointer;
+    }
+    .result {
+      margin-top:10px;
+      background:#020617;
+      padding:10px;
+      border-radius:8px;
+      font-size:14px;
+    }
+    .note {
+      margin-top:10px;
+      font-size:12px;
+      opacity:0.8;
+    }
+  </style>
+</head>
+<body><h1>⚽ FBref Calculator (xG + Shots + SOT)</h1><div class="box">
+  <h3>Home Team</h3>
+  <label>xG per match (comma separated)</label>
+  <textarea id="hxglist" rows="3">1.9,2.2,1.4,0.8,1.6</textarea><label>Shots per match</label>
+
+  <textarea id="hshots" rows="2">14,15,13,16,12</textarea><label>SOT per match</label>
+
+  <textarea id="hsot" rows="2">5,6,4,5,5</textarea>  <div class="result" id="hresult">Home: -</div>
+</div><div class="box">
+  <h3>Away Team</h3>
+  <label>xG per match (comma separated)</label>
+  <textarea id="axglist" rows="3">0.9,1.1,0.7,1.0,0.8</textarea><label>Shots per match</label>
+
+  <textarea id="ashots" rows="2">9,10,8,11,9</textarea><label>SOT per match</label>
+
+  <textarea id="asot" rows="2">3,4,2,3,3</textarea>  <div class="result" id="aresult">Away: -</div>
+</div><button id="calcBtn">CALCULATE</button>
+
+<div class="note">
+• Gunakan 5–10 match liga saja<br>
+• ⚠️ High Volatility muncul jika rasio SOT/Shot ekstrem<br>
+• Output siap untuk PSZ v1500
+</div><script>
+  function clamp(v, min, max) {
+    return Math.max(min, Math.min(max, v));
+  }
+
+  function parseList(text) {
+    return text
+      .split(',')
+      .map(v => parseFloat(v.trim()))
+      .filter(v => !isNaN(v));
+  }
+
+  function avg(arr) {
+    return arr.reduce((a,b)=>a+b,0) / arr.length;
+  }
+
+  function calc(label, xgList, shotsList, sotList) {
+    if (xgList.length < 5 || xgList.length > 10) {
+      return label + ': use 5–10 matches';
+    }
+
+    let xg = clamp(avg(xgList), 0.7, 2.1);
+    let shots = shotsList.length ? avg(shotsList) : null;
+    let sot = sotList.length ? avg(sotList) : null;
+
+    let out = label + ': xG ' + xg.toFixed(2);
+    if (shots) out += ' | Shots ' + shots.toFixed(1);
+    if (sot) out += ' | SOT ' + sot.toFixed(1);
+
+    if (shots && sot) {
+      let ratio = sot / shots;
+      if (ratio < 0.28 || ratio > 0.42) {
+        out += ' ⚠️ High Volatility';
+      }
+    }
+    return out;
+  }
+
+  document.getElementById('calcBtn').addEventListener('click', function () {
+    try {
+      document.getElementById('hresult').innerText = calc(
+        'Home',
+        parseList(document.getElementById('hxglist').value),
+        parseList(document.getElementById('hshots').value),
+        parseList(document.getElementById('hsot').value)
+      );
+
+      document.getElementById('aresult').innerText = calc(
+        'Away',
+        parseList(document.getElementById('axglist').value),
+        parseList(document.getElementById('ashots').value),
+        parseList(document.getElementById('asot').value)
+      );
+    } catch (e) {
+      alert('Error: ' + e.message);
+    }
+  });
+</script></body>
+  </html>
