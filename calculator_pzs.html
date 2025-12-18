@@ -93,6 +93,7 @@
   <div class="note">
     • Use 5–10 league matches only<br />
     • Do NOT include cup or friendly<br />
+    • Volatility warning will appear if xG gap is small or shots are chaotic<br />
     • Result is ready to input into PSZ
   </div>  <script>
     function clamp(val, min, max) {
@@ -113,13 +114,25 @@
       if (xgList.length < 5 || xgList.length > 10) {
         return label + ': use 5–10 matches';
       }
+
       let xg = clamp(average(xgList), 0.7, 2.1);
       let shots = shotsList.length ? average(shotsList) : null;
       let sot = sotList.length ? average(sotList) : null;
+
       let out = label + ': xG ' + xg.toFixed(2) + ' (' + xgList.length + ' m)';
       if (shots !== null) out += ' | Shots ' + shots.toFixed(1);
       if (sot !== null) out += ' | SOT ' + sot.toFixed(1);
+
+      // Volatility heuristic
+      if (shots !== null && sot !== null) {
+        const ratio = sot / shots;
+        if (ratio < 0.28 || ratio > 0.42) {
+          out += ' ⚠️ High Volatility';
+        }
+      }
+
       return out;
+    }
     }
 
     function calculate() {
