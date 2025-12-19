@@ -1,91 +1,157 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Football Stats Calculator</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-body{background:#0f172a;color:#e5e7eb;font-family:Arial;max-width:520px;margin:auto;padding:16px}
-h1{font-size:18px;margin-bottom:12px}
-.section{background:#020617;padding:14px;border-radius:10px;margin-bottom:14px}
-label{display:block;font-size:13px;margin-top:8px}
-textarea,input{width:100%;background:#020617;color:#e5e7eb;border:1px solid #334155;border-radius:6px;padding:8px;margin-top:4px}
-button{width:100%;padding:12px;background:#16a34a;color:#022c22;border:none;border-radius:10px;font-size:15px;font-weight:bold;cursor:pointer}
-.result{margin-top:10px;background:#020617;padding:10px;border-radius:8px;font-family:monospace;font-size:13px}
-small{opacity:.7}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FBref Calculator (PSZ v1500 – Clean)</title>
+  <style>
+    body {
+      background:#0f172a;
+      color:#e5e7eb;
+      font-family:Arial, Helvetica, sans-serif;
+      max-width:520px;
+      margin:auto;
+      padding:16px;
+    }
+    h1 {
+      font-size:18px;
+      margin-bottom:12px;
+    }
+    .box {
+      background:#020617;
+      padding:14px;
+      border-radius:10px;
+      margin-bottom:14px;
+    }
+    label {
+      font-size:13px;
+      display:block;
+      margin-top:8px;
+    }
+    textarea {
+      width:100%;
+      background:#020617;
+      color:#e5e7eb;
+      border:1px solid #334155;
+      border-radius:6px;
+      padding:8px;
+      margin-top:4px;
+      resize:vertical;
+    }
+    button {
+      width:100%;
+      padding:12px;
+      background:#16a34a;
+      color:#022c22;
+      border:none;
+      border-radius:10px;
+      font-size:15px;
+      font-weight:bold;
+      cursor:pointer;
+    }
+    .result {
+      margin-top:10px;
+      background:#020617;
+      padding:10px;
+      border-radius:8px;
+      font-size:14px;
+    }
+    .note {
+      margin-top:10px;
+      font-size:12px;
+      opacity:0.8;
+    }
+  </style>
 </head>
 
 <body>
+  <h1>⚽ FBref Calculator (xG + Shots + SOT)</h1>
 
-<h1>⚽ Football Stats Calculator</h1>
+  <div class="box">
+    <h3>Home Team</h3>
 
-<div class="section">
-<label>xG per match (comma separated)</label>
-<textarea id="xg"></textarea>
+    <label>xG per match (comma separated)</label>
+    <textarea id="hxglist" rows="3">1.9,2.2,1.4,0.8,1.6</textarea>
 
-<label>xGA per match (comma separated)</label>
-<textarea id="xga"></textarea>
+    <label>Shots per match</label>
+    <textarea id="hshots" rows="2">14,15,13,16,12</textarea>
 
-<label>Shots per match</label>
-<textarea id="shots"></textarea>
+    <label>SOT per match</label>
+    <textarea id="hsot" rows="2">5,6,4,5,5</textarea>
 
-<label>Shots on Target per match</label>
-<textarea id="sot"></textarea>
+    <div class="result" id="hresult">Home: -</div>
+  </div>
 
-<label>Goals Scored per match</label>
-<textarea id="gf"></textarea>
+  <div class="box">
+    <h3>Away Team</h3>
 
-<label>Goals Conceded per match</label>
-<textarea id="ga"></textarea>
+    <label>xG per match (comma separated)</label>
+    <textarea id="axglist" rows="3">0.9,1.1,0.7,1.0,0.8</textarea>
 
-<label>Defensive Errors (total 5 match)</label>
-<input id="err" type="number">
-</div>
+    <label>Shots per match</label>
+    <textarea id="ashots" rows="2">9,10,8,11,9</textarea>
 
-<button onclick="calc()">CALCULATE</button>
+    <label>SOT per match</label>
+    <textarea id="asot" rows="2">3,4,2,3,3</textarea>
 
-<div class="section result" id="out">—</div>
+    <div class="result" id="aresult">Away: -</div>
+  </div>
+
+  <button id="calcBtn">CALCULATE</button>
+
+  <div class="note">
+    • Gunakan 5–10 match liga saja<br>
+    • Tidak ada defensive / volatility filter<br>
+    • Output bersih untuk PSZ v1500
+  </div>
 
 <script>
-function parseList(t){
-  return t.split(',').map(v=>Number(v.trim())).filter(v=>!isNaN(v))
-}
-function avg(a){return a.reduce((s,v)=>s+v,0)/a.length}
-function sum(a){return a.reduce((s,v)=>s+v,0)}
-
-function calc(){
-  const xg=parseList(xgEl.value)
-  const xga=parseList(xgaEl.value)
-  const shots=parseList(shotsEl.value)
-  const sot=parseList(sotEl.value)
-  const gf=parseList(gfEl.value)
-  const ga=parseList(gaEl.value)
-  const err=Number(errEl.value)||0
-
-  if([xg,xga,shots,sot,gf,ga].some(a=>a.length!==5)){
-    out.innerText="ERROR: semua list harus tepat 5 match"
-    return
+  function clamp(v, min, max) {
+    return Math.max(min, Math.min(max, v));
   }
 
-  let txt=""
-  txt+="xG AVG  : "+avg(xg).toFixed(2)+"\n"
-  txt+="xGA AVG : "+avg(xga).toFixed(2)+"\n"
-  txt+="Shots AVG : "+avg(shots).toFixed(1)+"\n"
-  txt+="SOT AVG   : "+avg(sot).toFixed(1)+"\n\n"
+  function parseList(text) {
+    return text
+      .split(',')
+      .map(v => parseFloat(v.trim()))
+      .filter(v => !isNaN(v));
+  }
 
-  txt+="GF (5) : "+sum(gf)+"\n"
-  txt+="GA (5) : "+sum(ga)+"\n"
-  txt+="CS Rate: "+(ga.filter(v=>v===0).length/5).toFixed(2)+"\n"
-  txt+="Def Errors: "+err+"\n\n"
+  function avg(arr) {
+    return arr.reduce((a, b) => a + b, 0) / arr.length;
+  }
 
-  txt+="SOT/Shot Ratio: "+(avg(sot)/avg(shots)).toFixed(2)
+  function calc(label, xgList, shotsList, sotList) {
+    if (xgList.length < 5 || xgList.length > 10) {
+      return label + ': use 5–10 matches';
+    }
 
-  out.innerText=txt
-}
+    let xg = clamp(avg(xgList), 0.7, 2.1);
+    let shots = shotsList.length ? avg(shotsList) : null;
+    let sot = sotList.length ? avg(sotList) : null;
 
-const xgEl=xg, xgaEl=xga, shotsEl=shots, sotEl=sot, gfEl=gf, gaEl=ga, errEl=err
+    let out = label + ': xG ' + xg.toFixed(2);
+    if (shots) out += ' | Shots ' + shots.toFixed(1);
+    if (sot) out += ' | SOT ' + sot.toFixed(1);
+
+    return out;
+  }
+
+  document.getElementById('calcBtn').addEventListener('click', function () {
+    document.getElementById('hresult').innerText = calc(
+      'Home',
+      parseList(document.getElementById('hxglist').value),
+      parseList(document.getElementById('hshots').value),
+      parseList(document.getElementById('hsot').value)
+    );
+
+    document.getElementById('aresult').innerText = calc(
+      'Away',
+      parseList(document.getElementById('axglist').value),
+      parseList(document.getElementById('ashots').value),
+      parseList(document.getElementById('asot').value)
+    );
+  });
 </script>
-
 </body>
 </html>
