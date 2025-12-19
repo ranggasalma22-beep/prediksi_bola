@@ -1,165 +1,174 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FBref Calculator (PSZ v1500 – xG + xGA)</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FBref Calculator (PSZ v1500 – Full Clean)</title>
 
-  <style>
-    body {
-      background:#0f172a;
-      color:#e5e7eb;
-      font-family:Arial, Helvetica, sans-serif;
-      max-width:520px;
-      margin:auto;
-      padding:16px;
-    }
-    h1 { font-size:18px; margin-bottom:12px; }
-    .box {
-      background:#020617;
-      padding:14px;
-      border-radius:10px;
-      margin-bottom:14px;
-    }
-    label { font-size:13px; display:block; margin-top:8px; }
-    textarea {
-      width:100%;
-      background:#020617;
-      color:#e5e7eb;
-      border:1px solid #334155;
-      border-radius:6px;
-      padding:8px;
-      margin-top:4px;
-      resize:vertical;
-    }
-    button {
-      width:100%;
-      padding:12px;
-      background:#16a34a;
-      color:#022c22;
-      border:none;
-      border-radius:10px;
-      font-size:15px;
-      font-weight:bold;
-      cursor:pointer;
-    }
-    .result {
-      margin-top:10px;
-      background:#020617;
-      padding:10px;
-      border-radius:8px;
-      font-size:14px;
-    }
-    .note {
-      margin-top:10px;
-      font-size:12px;
-      opacity:0.8;
-    }
-  </style>
+<style>
+body{
+  background:#0f172a;
+  color:#e5e7eb;
+  font-family:Arial, Helvetica, sans-serif;
+  max-width:520px;
+  margin:auto;
+  padding:16px;
+}
+h1{font-size:18px;margin-bottom:12px;}
+.box{
+  background:#020617;
+  padding:14px;
+  border-radius:10px;
+  margin-bottom:14px;
+}
+label{font-size:13px;display:block;margin-top:8px;}
+textarea{
+  width:100%;
+  background:#020617;
+  color:#e5e7eb;
+  border:1px solid #334155;
+  border-radius:6px;
+  padding:8px;
+  margin-top:4px;
+  resize:vertical;
+}
+button{
+  width:100%;
+  padding:12px;
+  background:#16a34a;
+  color:#022c22;
+  border:none;
+  border-radius:10px;
+  font-size:15px;
+  font-weight:bold;
+  cursor:pointer;
+}
+.result{
+  margin-top:10px;
+  background:#020617;
+  padding:10px;
+  border-radius:8px;
+  font-size:14px;
+}
+.note{
+  margin-top:10px;
+  font-size:12px;
+  opacity:0.8;
+}
+</style>
 </head>
 
 <body>
-<h1>⚽ FBref Calculator (xG + xGA)</h1>
+<h1>⚽ FBref Calculator (xG + xGA + CS)</h1>
 
 <!-- HOME -->
 <div class="box">
-  <h3>Home Team</h3>
+<h3>Home Team</h3>
 
-  <label>xG per match</label>
-  <textarea id="hxg" rows="2">1.8,2.1,1.4,1.2,1.6</textarea>
+<label>xG per match</label>
+<textarea id="hxg">1.8,2.1,1.4,1.2,1.6</textarea>
 
-  <label>xGA per match</label>
-  <textarea id="hxga" rows="2">0.9,1.1,0.8,1.0,0.7</textarea>
+<label>xGA per match</label>
+<textarea id="hxga">0.9,1.1,0.8,1.0,0.7</textarea>
 
-  <label>Shots</label>
-  <textarea id="hshots" rows="2">14,15,13,16,12</textarea>
+<label>Clean Sheets (1 = CS, 0 = Conceded)</label>
+<textarea id="hcs">1,0,1,1,0</textarea>
 
-  <label>SOT</label>
-  <textarea id="hsot" rows="2">5,6,4,5,5</textarea>
+<label>Shots</label>
+<textarea id="hshots">14,15,13,16,12</textarea>
 
-  <div class="result" id="hresult">Home: -</div>
+<label>SOT</label>
+<textarea id="hsot">5,6,4,5,5</textarea>
+
+<div class="result" id="hresult">Home: -</div>
 </div>
 
 <!-- AWAY -->
 <div class="box">
-  <h3>Away Team</h3>
+<h3>Away Team</h3>
 
-  <label>xG per match</label>
-  <textarea id="axg" rows="2">0.9,1.0,0.8,1.1,0.7</textarea>
+<label>xG per match</label>
+<textarea id="axg">0.9,1.0,0.8,1.1,0.7</textarea>
 
-  <label>xGA per match</label>
-  <textarea id="axga" rows="2">1.6,1.4,1.7,1.5,1.8</textarea>
+<label>xGA per match</label>
+<textarea id="axga">1.6,1.4,1.7,1.5,1.8</textarea>
 
-  <label>Shots</label>
-  <textarea id="ashots" rows="2">9,10,8,11,9</textarea>
+<label>Clean Sheets (1 = CS, 0 = Conceded)</label>
+<textarea id="acs">0,0,0,1,0</textarea>
 
-  <label>SOT</label>
-  <textarea id="asot" rows="2">3,4,2,3,3</textarea>
+<label>Shots</label>
+<textarea id="ashots">9,10,8,11,9</textarea>
 
-  <div class="result" id="aresult">Away: -</div>
+<label>SOT</label>
+<textarea id="asot">3,4,2,3,3</textarea>
+
+<div class="result" id="aresult">Away: -</div>
 </div>
 
 <button id="calcBtn">CALCULATE</button>
 
 <div class="note">
 • Gunakan 5–10 match liga<br>
-• xG & xGA di-clamp agar stabil<br>
+• CS Rate = jumlah clean sheet / match<br>
 • Tanpa defensive / volatility filter<br>
-• Output siap untuk PSZ v1500
+• Output clean untuk PSZ v1500+
 </div>
 
 <script>
-function clamp(v, min, max) {
-  return Math.max(min, Math.min(max, v));
+function clamp(v,min,max){
+  return Math.max(min,Math.min(max,v));
+}
+function parseList(t){
+  return t.split(',').map(v=>parseFloat(v.trim())).filter(v=>!isNaN(v));
+}
+function avg(a){
+  return a.reduce((x,y)=>x+y,0)/a.length;
+}
+function sum(a){
+  return a.reduce((x,y)=>x+y,0);
 }
 
-function parseList(text) {
-  return text.split(',')
-    .map(v => parseFloat(v.trim()))
-    .filter(v => !isNaN(v));
-}
-
-function avg(arr) {
-  return arr.reduce((a,b)=>a+b,0) / arr.length;
-}
-
-function calc(label, xg, xga, shots, sot) {
-  if (xg.length < 5 || xg.length > 10) {
-    return label + ': use 5–10 matches';
+function calc(label,xg,xga,cs,shots,sot){
+  if(xg.length<5||xg.length>10){
+    return label+': use 5–10 matches';
   }
 
-  let axg  = clamp(avg(xg), 0.7, 2.1);
-  let axga = clamp(avg(xga), 0.6, 2.2);
-  let sh   = shots.length ? avg(shots) : null;
-  let st   = sot.length ? avg(sot) : null;
+  let axg  = clamp(avg(xg),0.7,2.1);
+  let axga = clamp(avg(xga),0.6,2.2);
+  let csrt = sum(cs)/cs.length*100;
 
-  let out = label + 
-    ': xG ' + axg.toFixed(2) +
-    ' | xGA ' + axga.toFixed(2);
+  let sh = shots.length?avg(shots):null;
+  let st = sot.length?avg(sot):null;
 
-  if (sh) out += ' | Shots ' + sh.toFixed(1);
-  if (st) out += ' | SOT ' + st.toFixed(1);
+  let out = label+
+    ': xG '+axg.toFixed(2)+
+    ' | xGA '+axga.toFixed(2)+
+    ' | CS '+csrt.toFixed(0)+'%';
+
+  if(sh) out+=' | Shots '+sh.toFixed(1);
+  if(st) out+=' | SOT '+st.toFixed(1);
 
   return out;
 }
 
-document.getElementById('calcBtn').addEventListener('click', function () {
-  document.getElementById('hresult').innerText = calc(
+calcBtn.onclick=function(){
+  hresult.innerText=calc(
     'Home',
     parseList(hxg.value),
     parseList(hxga.value),
+    parseList(hcs.value),
     parseList(hshots.value),
     parseList(hsot.value)
   );
-
-  document.getElementById('aresult').innerText = calc(
+  aresult.innerText=calc(
     'Away',
     parseList(axg.value),
     parseList(axga.value),
+    parseList(acs.value),
     parseList(ashots.value),
     parseList(asot.value)
   );
-});
+};
 </script>
 </body>
-  </html>
+</html>
