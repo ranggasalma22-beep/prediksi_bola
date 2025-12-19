@@ -42,13 +42,13 @@ button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;
 <div class="grid">
 <div>
 <h3>HOME TEAM</h3>
-<label>xG</label><textarea id="xgH"></textarea>
+<label>xG</label><textarea id="xgH" placeholder="contoh: 1.4,1.2,0.9,1.6,1.1"></textarea>
 <label>xGA</label><textarea id="xgaH"></textarea>
 <label>Goals For</label><textarea id="gfH"></textarea>
 <label>Goals Against</label><textarea id="gaH"></textarea>
-<label>Defensive Errors</label><textarea id="errH"></textarea>
 <label>Shots on Target</label><textarea id="sotH"></textarea>
-<label>Clean Sheet (1=CS,0=No)</label><textarea id="csH"></textarea>
+<label>Clean Sheet (1 / 0)</label><textarea id="csH"></textarea>
+<label>Defensive Errors</label><textarea id="errH"></textarea>
 </div>
 <div>
 <h3>AWAY TEAM</h3>
@@ -56,9 +56,10 @@ button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;
 <label>xGA</label><textarea id="xgaA"></textarea>
 <label>Goals For</label><textarea id="gfA"></textarea>
 <label>Goals Against</label><textarea id="gaA"></textarea>
-<label>Defensive Errors</label><textarea id="errA"></textarea>
 <label>Shots on Target</label><textarea id="sotA"></textarea>
-<label>Clean Sheet (1=CS,0=No)</label><textarea id="csA"></textarea>
+<label>Clean Sheet (1 / 0)</label><textarea id="csA"></textarea>
+<label>Defensive Errors</label><textarea id="errA"></textarea>
+</div>
 </div>
 </div>
 </div><button onclick="run()">ANALYZE</button>
@@ -134,4 +135,4 @@ function run(){
      : ${(over25*100).toFixed(1)}%\n`;
  }catch(e){out.value='ERROR: '+e.message;}}
 </script></body>
-</html>
+  </html>
