@@ -3,163 +3,174 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>FBref Calculator (Extended)</title>
+<title>Football Stats Calculator (All-in-One)</title>
 <style>
-body{background:#0f172a;color:#e5e7eb;font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;padding:16px}
+body{background:#0f172a;color:#e5e7eb;font-family:Arial,Helvetica,sans-serif;max-width:620px;margin:auto;padding:16px}
 h1{font-size:18px;margin-bottom:12px}
 .box{background:#020617;padding:14px;border-radius:10px;margin-bottom:14px}
 label{font-size:13px;display:block;margin-top:8px}
-textarea,input{width:100%;background:#020617;color:#e5e7eb;border:1px solid #334155;border-radius:6px;padding:8px;margin-top:4px}
-button{width:100%;padding:12px;background:#16a34a;color:#022c22;border:none;border-radius:10px;font-size:15px;font-weight:bold;cursor:pointer;margin-top:10px}
+textarea,input,select{
+  width:100%;background:#020617;color:#e5e7eb;
+  border:1px solid #334155;border-radius:6px;
+  padding:8px;margin-top:4px
+}
+button{
+  width:100%;padding:12px;background:#16a34a;color:#022c22;
+  border:none;border-radius:10px;font-size:15px;font-weight:bold;cursor:pointer
+}
 .result{margin-top:10px;background:#020617;padding:10px;border-radius:8px;font-size:14px}
-.note{margin-top:10px;font-size:12px;opacity:.8}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.note{font-size:12px;opacity:.8;margin-top:10px}
 </style>
 </head>
 
 <body>
 
-<h1>⚽ FBref Calculator (Extended Manual)</h1>
-
-<!-- ================= EXISTING CALCULATOR ================= -->
+<h1>⚽ Football Stats Calculator — All in One</h1>
 
 <div class="box">
-<h3>Home Team — xG / Shots / SOT</h3>
-<label>xG per match (comma separated)</label>
-<textarea id="hxglist"></textarea>
-
-<label>Shots per match</label>
-<textarea id="hshots"></textarea>
-
-<label>SOT per match</label>
-<textarea id="hsot"></textarea>
-
-<div class="result" id="hresult">Home: -</div>
-</div>
-
-<div class="box">
-<h3>Away Team — xG / Shots / SOT</h3>
-<label>xG per match (comma separated)</label>
-<textarea id="axglist"></textarea>
-
-<label>Shots per match</label>
-<textarea id="ashots"></textarea>
-
-<label>SOT per match</label>
-<textarea id="asot"></textarea>
-
-<div class="result" id="aresult">Away: -</div>
-</div>
-
-<button id="calcBtn">CALCULATE xG / SHOTS / SOT</button>
-
-<!-- ================= NEW MANUAL STATS CALCULATOR ================= -->
-
-<div class="box">
-<h3>Manual Match Stats (5 Matches)</h3>
-<small>Untuk menghitung GF / GA / Clean Sheet Rate / Defensive Errors</small>
+<h3>Match Data (per match list)</h3>
 
 <div class="grid">
-
 <div>
 <h4>HOME</h4>
-<label>Goals Scored (5 match, comma separated)</label>
-<textarea id="gfH_list"></textarea>
+<label>xG (comma separated)</label>
+<textarea id="hxg"></textarea>
 
-<label>Goals Conceded (5 match, comma separated)</label>
-<textarea id="gaH_list"></textarea>
+<label>xGA (comma separated)</label>
+<textarea id="hxga"></textarea>
 
-<label>Defensive Errors (total)</label>
-<input id="errH" type="number">
+<label>Shots</label>
+<textarea id="hshots"></textarea>
 
-<div class="result" id="hstat">Home Stats: -</div>
+<label>Shots on Target</label>
+<textarea id="hsot"></textarea>
+
+<label>Pressing Style</label>
+<select id="hpress">
+<option value=""></option>
+<option value="high">High</option>
+<option value="mid">Mid</option>
+<option value="low">Low</option>
+</select>
 </div>
 
 <div>
 <h4>AWAY</h4>
-<label>Goals Scored (5 match, comma separated)</label>
-<textarea id="gfA_list"></textarea>
+<label>xG (comma separated)</label>
+<textarea id="axg"></textarea>
 
-<label>Goals Conceded (5 match, comma separated)</label>
-<textarea id="gaA_list"></textarea>
+<label>xGA (comma separated)</label>
+<textarea id="axga"></textarea>
+
+<label>Shots</label>
+<textarea id="ashots"></textarea>
+
+<label>Shots on Target</label>
+<textarea id="asot"></textarea>
+
+<label>Pressing Style</label>
+<select id="apress">
+<option value=""></option>
+<option value="high">High</option>
+<option value="mid">Mid</option>
+<option value="low">Low</option>
+</select>
+</div>
+</div>
+</div>
+
+<div class="box">
+<h3>Manual Match Results (5 Matches)</h3>
+
+<div class="grid">
+<div>
+<h4>HOME</h4>
+<label>Goals For (5 match)</label>
+<textarea id="hgf"></textarea>
+
+<label>Goals Against (5 match)</label>
+<textarea id="hga"></textarea>
 
 <label>Defensive Errors (total)</label>
-<input id="errA" type="number">
-
-<div class="result" id="astat">Away Stats: -</div>
+<input id="herr" type="number">
 </div>
 
+<div>
+<h4>AWAY</h4>
+<label>Goals For (5 match)</label>
+<textarea id="agf"></textarea>
+
+<label>Goals Against (5 match)</label>
+<textarea id="aga"></textarea>
+
+<label>Defensive Errors (total)</label>
+<input id="aerr" type="number">
+</div>
+</div>
 </div>
 
-<button onclick="calcManual()">CALCULATE GF / GA / CS</button>
+<button onclick="calculateAll()">CALCULATE ALL</button>
+
+<div class="box">
+<h3>OUTPUT</h3>
+<div class="result" id="out">-</div>
 </div>
 
 <div class="note">
-• Tidak ada default value<br>
-• Calculator ini TIDAK mempengaruhi engine utama<br>
-• Output siap dipindahkan ke engine analisis
+• Gunakan 5–10 match untuk xG/xGA/Shots/SOT<br>
+• GF/GA wajib tepat 5 match<br>
+• Tidak ada default & tidak ada auto-boost
 </div>
 
 <script>
-function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
-function parseList(t){return t.split(',').map(x=>Number(x.trim())).filter(x=>!isNaN(x))}
-function avg(a){return a.reduce((s,v)=>s+v,0)/a.length}
+const parseList=t=>t.split(',').map(v=>Number(v.trim())).filter(v=>!isNaN(v));
+const avg=a=>a.reduce((s,v)=>s+v,0)/a.length;
+const sum=a=>a.reduce((s,v)=>s+v,0);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
-function calc(label,xgList,shotsList,sotList){
-  if(xgList.length<5||xgList.length>10)return label+": use 5–10 matches"
-  let xg=clamp(avg(xgList),0.7,2.1)
-  let shots=shotsList.length?avg(shotsList):null
-  let sot=sotList.length?avg(sotList):null
-  let out=label+": xG "+xg.toFixed(2)
-  if(shots)out+=" | Shots "+shots.toFixed(1)
-  if(sot)out+=" | SOT "+sot.toFixed(1)
-  if(shots&&sot){
-    let r=sot/shots
-    if(r<0.28||r>0.42)out+=" ⚠️ High Volatility"
+function block(label,xg,xga,shots,sot,gf,ga,err,press){
+  let o=label+"\n";
+  if(xg.length>=5)o+="xG avg : "+avg(xg).toFixed(2)+"\n";
+  if(xga.length>=5)o+="xGA avg: "+avg(xga).toFixed(2)+"\n";
+  if(shots.length)o+="Shots avg: "+avg(shots).toFixed(1)+"\n";
+  if(sot.length)o+="SOT avg  : "+avg(sot).toFixed(1)+"\n";
+  if(shots.length&&sot.length){
+    let r=avg(sot)/avg(shots);
+    o+="SOT/Shot: "+r.toFixed(2);
+    if(r<0.28||r>0.42)o+=" ⚠️ Volatility";
+    o+="\n";
   }
-  return out
+  if(gf.length===5&&ga.length===5){
+    o+="GF total: "+sum(gf)+"\n";
+    o+="GA total: "+sum(ga)+"\n";
+    o+="CS rate : "+(ga.filter(v=>v===0).length/5).toFixed(2)+"\n";
+  }
+  o+="Errors  : "+(err||0)+"\n";
+  o+="Pressing: "+(press||"-")+"\n";
+  return o;
 }
 
-document.getElementById("calcBtn").onclick=function(){
-  document.getElementById("hresult").innerText=calc(
-    "Home",
-    parseList(hxglist.value),
-    parseList(hshots.value),
-    parseList(hsot.value)
-  )
-  document.getElementById("aresult").innerText=calc(
-    "Away",
-    parseList(axglist.value),
-    parseList(ashots.value),
-    parseList(asot.value)
-  )
-}
+function calculateAll(){
+  try{
+    const out =
+      block("HOME",
+        parseList(hxg.value),parseList(hxga.value),
+        parseList(hshots.value),parseList(hsot.value),
+        parseList(hgf.value),parseList(hga.value),
+        Number(herr.value)||0,hpress.value
+      )+"\n"+
+      block("AWAY",
+        parseList(axg.value),parseList(axga.value),
+        parseList(ashots.value),parseList(asot.value),
+        parseList(agf.value),parseList(aga.value),
+        Number(aerr.value)||0,apress.value
+      );
 
-function calcManual(){
-  const gfH=parseList(gfH_list.value)
-  const gaH=parseList(gaH_list.value)
-  const gfA=parseList(gfA_list.value)
-  const gaA=parseList(gaA_list.value)
-
-  if(gfH.length!==5||gaH.length!==5||gfA.length!==5||gaA.length!==5){
-    alert("Isi TEPAT 5 match untuk semua list gol")
-    return
+    document.getElementById("out").innerText=out;
+  }catch(e){
+    alert("Input error: "+e.message);
   }
-
-  const sum=a=>a.reduce((s,v)=>s+v,0)
-  const cs=a=>a.filter(v=>v===0).length/5
-
-  hstat.innerText=
-    "GF "+sum(gfH)+
-    " | GA "+sum(gaH)+
-    " | CS "+cs(gaH).toFixed(2)+
-    " | Errors "+(errH.value||0)
-
-  astat.innerText=
-    "GF "+sum(gfA)+
-    " | GA "+sum(gaA)+
-    " | CS "+cs(gaA).toFixed(2)+
-    " | Errors "+(errA.value||0)
 }
 </script>
 
