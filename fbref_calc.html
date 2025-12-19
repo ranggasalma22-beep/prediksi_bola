@@ -1,178 +1,91 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Football Stats Calculator (All-in-One)</title>
+<meta charset="UTF-8">
+<title>Football Stats Calculator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body{background:#0f172a;color:#e5e7eb;font-family:Arial,Helvetica,sans-serif;max-width:620px;margin:auto;padding:16px}
+body{background:#0f172a;color:#e5e7eb;font-family:Arial;max-width:520px;margin:auto;padding:16px}
 h1{font-size:18px;margin-bottom:12px}
-.box{background:#020617;padding:14px;border-radius:10px;margin-bottom:14px}
-label{font-size:13px;display:block;margin-top:8px}
-textarea,input,select{
-  width:100%;background:#020617;color:#e5e7eb;
-  border:1px solid #334155;border-radius:6px;
-  padding:8px;margin-top:4px
-}
-button{
-  width:100%;padding:12px;background:#16a34a;color:#022c22;
-  border:none;border-radius:10px;font-size:15px;font-weight:bold;cursor:pointer
-}
-.result{margin-top:10px;background:#020617;padding:10px;border-radius:8px;font-size:14px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.note{font-size:12px;opacity:.8;margin-top:10px}
+.section{background:#020617;padding:14px;border-radius:10px;margin-bottom:14px}
+label{display:block;font-size:13px;margin-top:8px}
+textarea,input{width:100%;background:#020617;color:#e5e7eb;border:1px solid #334155;border-radius:6px;padding:8px;margin-top:4px}
+button{width:100%;padding:12px;background:#16a34a;color:#022c22;border:none;border-radius:10px;font-size:15px;font-weight:bold;cursor:pointer}
+.result{margin-top:10px;background:#020617;padding:10px;border-radius:8px;font-family:monospace;font-size:13px}
+small{opacity:.7}
 </style>
 </head>
 
 <body>
 
-<h1>⚽ Football Stats Calculator — All in One</h1>
+<h1>⚽ Football Stats Calculator</h1>
 
-<div class="box">
-<h3>Match Data (per match list)</h3>
+<div class="section">
+<label>xG per match (comma separated)</label>
+<textarea id="xg"></textarea>
 
-<div class="grid">
-<div>
-<h4>HOME</h4>
-<label>xG (comma separated)</label>
-<textarea id="hxg"></textarea>
+<label>xGA per match (comma separated)</label>
+<textarea id="xga"></textarea>
 
-<label>xGA (comma separated)</label>
-<textarea id="hxga"></textarea>
+<label>Shots per match</label>
+<textarea id="shots"></textarea>
 
-<label>Shots</label>
-<textarea id="hshots"></textarea>
+<label>Shots on Target per match</label>
+<textarea id="sot"></textarea>
 
-<label>Shots on Target</label>
-<textarea id="hsot"></textarea>
+<label>Goals Scored per match</label>
+<textarea id="gf"></textarea>
 
-<label>Pressing Style</label>
-<select id="hpress">
-<option value=""></option>
-<option value="high">High</option>
-<option value="mid">Mid</option>
-<option value="low">Low</option>
-</select>
+<label>Goals Conceded per match</label>
+<textarea id="ga"></textarea>
+
+<label>Defensive Errors (total 5 match)</label>
+<input id="err" type="number">
 </div>
 
-<div>
-<h4>AWAY</h4>
-<label>xG (comma separated)</label>
-<textarea id="axg"></textarea>
+<button onclick="calc()">CALCULATE</button>
 
-<label>xGA (comma separated)</label>
-<textarea id="axga"></textarea>
-
-<label>Shots</label>
-<textarea id="ashots"></textarea>
-
-<label>Shots on Target</label>
-<textarea id="asot"></textarea>
-
-<label>Pressing Style</label>
-<select id="apress">
-<option value=""></option>
-<option value="high">High</option>
-<option value="mid">Mid</option>
-<option value="low">Low</option>
-</select>
-</div>
-</div>
-</div>
-
-<div class="box">
-<h3>Manual Match Results (5 Matches)</h3>
-
-<div class="grid">
-<div>
-<h4>HOME</h4>
-<label>Goals For (5 match)</label>
-<textarea id="hgf"></textarea>
-
-<label>Goals Against (5 match)</label>
-<textarea id="hga"></textarea>
-
-<label>Defensive Errors (total)</label>
-<input id="herr" type="number">
-</div>
-
-<div>
-<h4>AWAY</h4>
-<label>Goals For (5 match)</label>
-<textarea id="agf"></textarea>
-
-<label>Goals Against (5 match)</label>
-<textarea id="aga"></textarea>
-
-<label>Defensive Errors (total)</label>
-<input id="aerr" type="number">
-</div>
-</div>
-</div>
-
-<button onclick="calculateAll()">CALCULATE ALL</button>
-
-<div class="box">
-<h3>OUTPUT</h3>
-<div class="result" id="out">-</div>
-</div>
-
-<div class="note">
-• Gunakan 5–10 match untuk xG/xGA/Shots/SOT<br>
-• GF/GA wajib tepat 5 match<br>
-• Tidak ada default & tidak ada auto-boost
-</div>
+<div class="section result" id="out">—</div>
 
 <script>
-const parseList=t=>t.split(',').map(v=>Number(v.trim())).filter(v=>!isNaN(v));
-const avg=a=>a.reduce((s,v)=>s+v,0)/a.length;
-const sum=a=>a.reduce((s,v)=>s+v,0);
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function parseList(t){
+  return t.split(',').map(v=>Number(v.trim())).filter(v=>!isNaN(v))
+}
+function avg(a){return a.reduce((s,v)=>s+v,0)/a.length}
+function sum(a){return a.reduce((s,v)=>s+v,0)}
 
-function block(label,xg,xga,shots,sot,gf,ga,err,press){
-  let o=label+"\n";
-  if(xg.length>=5)o+="xG avg : "+avg(xg).toFixed(2)+"\n";
-  if(xga.length>=5)o+="xGA avg: "+avg(xga).toFixed(2)+"\n";
-  if(shots.length)o+="Shots avg: "+avg(shots).toFixed(1)+"\n";
-  if(sot.length)o+="SOT avg  : "+avg(sot).toFixed(1)+"\n";
-  if(shots.length&&sot.length){
-    let r=avg(sot)/avg(shots);
-    o+="SOT/Shot: "+r.toFixed(2);
-    if(r<0.28||r>0.42)o+=" ⚠️ Volatility";
-    o+="\n";
+function calc(){
+  const xg=parseList(xgEl.value)
+  const xga=parseList(xgaEl.value)
+  const shots=parseList(shotsEl.value)
+  const sot=parseList(sotEl.value)
+  const gf=parseList(gfEl.value)
+  const ga=parseList(gaEl.value)
+  const err=Number(errEl.value)||0
+
+  if([xg,xga,shots,sot,gf,ga].some(a=>a.length!==5)){
+    out.innerText="ERROR: semua list harus tepat 5 match"
+    return
   }
-  if(gf.length===5&&ga.length===5){
-    o+="GF total: "+sum(gf)+"\n";
-    o+="GA total: "+sum(ga)+"\n";
-    o+="CS rate : "+(ga.filter(v=>v===0).length/5).toFixed(2)+"\n";
-  }
-  o+="Errors  : "+(err||0)+"\n";
-  o+="Pressing: "+(press||"-")+"\n";
-  return o;
+
+  let txt=""
+  txt+="xG AVG  : "+avg(xg).toFixed(2)+"\n"
+  txt+="xGA AVG : "+avg(xga).toFixed(2)+"\n"
+  txt+="Shots AVG : "+avg(shots).toFixed(1)+"\n"
+  txt+="SOT AVG   : "+avg(sot).toFixed(1)+"\n\n"
+
+  txt+="GF (5) : "+sum(gf)+"\n"
+  txt+="GA (5) : "+sum(ga)+"\n"
+  txt+="CS Rate: "+(ga.filter(v=>v===0).length/5).toFixed(2)+"\n"
+  txt+="Def Errors: "+err+"\n\n"
+
+  txt+="SOT/Shot Ratio: "+(avg(sot)/avg(shots)).toFixed(2)
+
+  out.innerText=txt
 }
 
-function calculateAll(){
-  try{
-    const out =
-      block("HOME",
-        parseList(hxg.value),parseList(hxga.value),
-        parseList(hshots.value),parseList(hsot.value),
-        parseList(hgf.value),parseList(hga.value),
-        Number(herr.value)||0,hpress.value
-      )+"\n"+
-      block("AWAY",
-        parseList(axg.value),parseList(axga.value),
-        parseList(ashots.value),parseList(asot.value),
-        parseList(agf.value),parseList(aga.value),
-        Number(aerr.value)||0,apress.value
-      );
-
-    document.getElementById("out").innerText=out;
-  }catch(e){
-    alert("Input error: "+e.message);
-  }
-}
+const xgEl=xg, xgaEl=xga, shotsEl=shots, sotEl=sot, gfEl=gf, gaEl=ga, errEl=err
 </script>
 
 </body>
-  </html>
+</html>
