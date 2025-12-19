@@ -2,138 +2,103 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Match Data Calculator</title>
+<title>Auto Match Data Calculator</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body{
-  background:#05070b;
-  color:#eaeaea;
-  font-family:Arial, sans-serif;
-  padding:16px
-}
+body{background:#05070b;color:#eaeaea;font-family:Arial;padding:16px}
 h1,h3{color:#66fcf1}
-.section{
-  background:#0f1420;
-  border:1px solid #333;
-  border-radius:6px;
-  padding:14px;
-  margin-bottom:14px
-}
-label{
-  display:block;
-  margin-top:8px;
-  font-size:13px
-}
-input,textarea{
-  width:100%;
-  padding:8px;
-  background:#1a2030;
-  border:1px solid #555;
-  color:#fff;
-  border-radius:4px;
-  font-size:14px
-}
-button{
-  width:100%;
-  padding:12px;
-  margin-top:14px;
-  background:#66fcf1;
-  border:none;
-  border-radius:6px;
-  font-weight:bold;
-  cursor:pointer
-}
-textarea{
-  height:240px;
-  font-family:monospace;
-  color:#00ff88
-}
-.note{
-  font-size:12px;
-  color:#aaa;
-  margin-top:6px
-}
+.section{background:#0f1420;border:1px solid #333;border-radius:6px;padding:14px;margin-bottom:14px}
+label{display:block;margin-top:8px;font-size:13px}
+textarea,input{width:100%;padding:8px;background:#1a2030;border:1px solid #555;color:#fff;border-radius:4px;font-size:14px}
+button{width:100%;padding:12px;margin-top:14px;background:#66fcf1;border:none;border-radius:6px;font-weight:bold;cursor:pointer}
+textarea{height:90px;font-family:monospace}
+.note{font-size:12px;color:#aaa;margin-top:4px}
+#out{height:260px;color:#00ff88}
 </style>
 </head>
 
 <body>
 
-<h1>Match Data Calculator</h1>
+<h1>Auto Match Data Calculator</h1>
 
 <div class="section">
-<h3>INPUT (Last 5 Matches)</h3>
+<h3>INPUT DATA MENTAH (Last 5 Matches)</h3>
 
-<label>xG Average (5 matches)</label>
-<input id="xg" type="number" step="0.01" placeholder="contoh: 1.12">
+<label>xG (5 match)</label>
+<textarea id="xg" placeholder="1.4,1.0,0.5,1.5,0.2"></textarea>
 
-<label>xGA Average (5 matches)</label>
-<input id="xga" type="number" step="0.01" placeholder="contoh: 0.84">
+<label>xGA (5 match)</label>
+<textarea id="xga" placeholder="0.2,0.7,0.7,0.5,0.5"></textarea>
 
-<label>Goals For — total (5 matches)</label>
-<input id="gf" type="number" placeholder="contoh: 6">
+<label>Goals For (5 match)</label>
+<textarea id="gf" placeholder="2,1,1,0,2"></textarea>
 
-<label>Goals Against per match (5)</label>
-<input id="gaList" placeholder="contoh: 0,1,1,0,0">
-<p class="note">Pisahkan dengan koma. Clean sheet dihitung otomatis.</p>
+<label>Goals Against (5 match)</label>
+<textarea id="ga" placeholder="0,1,1,0,0"></textarea>
 
-<label>Shots on Target / match</label>
-<input id="sot" type="number" step="0.1" placeholder="contoh: 4.2">
+<label>Shots on Target (5 match)</label>
+<textarea id="sot" placeholder="4,3,5,4,5"></textarea>
 
-<label>Defensive Errors — total (5)</label>
-<input id="err" type="number" placeholder="contoh: 2">
+<label>Defensive Errors (5 match)</label>
+<textarea id="err" placeholder="0,1,0,1,0"></textarea>
 
+<p class="note">
+Paste angka apa adanya. Dipisahkan koma.
+</p>
 </div>
 
-<button onclick="calc()">CALCULATE</button>
+<button onclick="calc()">AUTO CALCULATE</button>
 
 <div class="section">
-<h3>OUTPUT (Copy to Engine)</h3>
+<h3>OUTPUT (Siap Tempel ke Engine)</h3>
 <textarea id="out" readonly></textarea>
 </div>
 
 <script>
-function calc(){
-
-  const xg  = Number(document.getElementById("xg").value)  || 0;
-  const xga = Number(document.getElementById("xga").value) || 0;
-  const gf  = Number(document.getElementById("gf").value)  || 0;
-  const sot = Number(document.getElementById("sot").value) || 0;
-  const err = Number(document.getElementById("err").value) || 0;
-
-  // ---- Parse GA list ----
-  const gaInput = document.getElementById("gaList").value;
-  const gaArr = gaInput
+function parseList(id){
+  return document.getElementById(id).value
     .split(",")
-    .map(x => Number(x.trim()))
-    .filter(x => !isNaN(x));
+    .map(x=>Number(x.trim()))
+    .filter(x=>!isNaN(x));
+}
 
-  if(gaArr.length !== 5){
-    alert("Goals Against harus diisi 5 angka (contoh: 0,1,1,0,0)");
+function avg(arr){return arr.reduce((a,b)=>a+b,0)/arr.length;}
+function sum(arr){return arr.reduce((a,b)=>a+b,0);}
+
+function calc(){
+  const xg = parseList("xg");
+  const xga = parseList("xga");
+  const gf = parseList("gf");
+  const ga = parseList("ga");
+  const sot = parseList("sot");
+  const err = parseList("err");
+
+  if([xg,xga,gf,ga,sot,err].some(a=>a.length!==5)){
+    alert("SEMUA input harus 5 angka.");
     return;
   }
 
-  const gaTotal = gaArr.reduce((a,b)=>a+b,0);
-  const csCount = gaArr.filter(x=>x===0).length;
-  const csRate  = csCount / 5;
+  const csCount = ga.filter(x=>x===0).length;
+  const csRate = csCount / 5;
 
   const txt =
 `READY INPUT VALUES
 -------------------
-xG avg (5)        : ${xg.toFixed(2)}
-xGA avg (5)       : ${xga.toFixed(2)}
+xG avg (5)        : ${avg(xg).toFixed(2)}
+xGA avg (5)       : ${avg(xga).toFixed(2)}
 
-Goals For (5)     : ${gf}
-Goals Against (5) : ${gaTotal}
+Goals For (5)     : ${sum(gf)}
+Goals Against (5) : ${sum(ga)}
 
-SOT / match       : ${sot.toFixed(1)}
+SOT / match       : ${avg(sot).toFixed(1)}
 
 Clean Sheets (5)  : ${csCount}
 Clean Sheet Rate  : ${csRate.toFixed(2)}
 
-Defensive Errors  : ${err}
+Defensive Errors  : ${sum(err)}
 
 STATUS : OK ✔
-(Clean Sheet AUTO from GA list)
+(AUTO-CALCULATED)
 `;
 
   document.getElementById("out").value = txt;
@@ -141,4 +106,4 @@ STATUS : OK ✔
 </script>
 
 </body>
-</html>
+  </html>
