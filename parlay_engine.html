@@ -95,6 +95,20 @@ function cleanSheetValidator(hGA,aGA){
 
 function poisson(l,k){let f=1;for(let i=2;i<=k;i++)f*=i;return Math.exp(-l)*Math.pow(l,k)/f;}
 
+// CONDITIONAL LOW BLOCK (situational – vs stronger team / high pressure)
+function conditionalLowBlock(sotAvg,xgAvg,xgGap,matchType){
+  if(sotAvg==null||xgAvg==null) return false;
+  const pressure = (matchType==='knockout' || matchType==='final' || matchType==='big');
+  const qualityGap = xgGap > 0.7;
+  return pressure && qualityGap && sotAvg < 4 && xgAvg > 0.9;
+}
+
+// legacy simple low block removed
+function _deprecated_detectLowBlock(){(sotAvg,xgAvg){
+  if(sotAvg==null||xgAvg==null) return false;
+  return sotAvg<4 && xgAvg>0.9;
+}
+
 function run(){
   const out = $('out');
   try {
@@ -133,6 +147,13 @@ function run(){
  // CS tidak memodifikasi lambda (validator only)
  lamH=clamp(lamH,0.2,4); lamA=clamp(lamA,0.2,4);
  let over25=0,dist=[];
+ const xgGap = Math.abs(hxg.avg - axg.avg);
+ const lowBlockHome = conditionalLowBlock(hSOT? hSOT.avg:null, hxg.avg, xgGap, $('matchType').value);
+ const lowBlockAway = conditionalLowBlock(aSOT? aSOT.avg:null, axg.avg, xgGap, $('matchType').value);
+ const lowBlockDetected = lowBlockHome || lowBlockAway; = detectLowBlock(hSOT? hSOT.avg:null, hxg.avg);
+ const lowBlockAway = detectLowBlock(aSOT? aSOT.avg:null, axg.avg);
+ const lowBlockDetected = lowBlockHome || lowBlockAway;
+
  const csVal = cleanSheetValidator(home.ga, away.ga);
  for(let h=0;h<=5;h++)for(let a=0;a<=5;a++){const p=poisson(lamH,h)*poisson(lamA,a);dist.push({s:`${h}-${a}`,p});if(h+a>2)over25+=p;}
  dist.sort((x,y)=>y.p-x.p);
@@ -141,6 +162,15 @@ function run(){
  `Most Likely Score : ${dist[0].s}\n`+
  `Over 2.5 Prob     : ${(over25*100).toFixed(1)}%
 `+
+ (over25>0.6?`OU Note          : Over condong (tempo & ancaman cukup)
+`:
+ over25<0.45?`OU Note          : Under lebih aman (defense/tempo rendah)
+`:
+ `OU Note          : Zona abu-abu → hati-hati / NO BET
+`)+
+ (lowBlockDetected ? `Low Block       : Terdeteksi → tempo ditekan, risiko Over tinggi
+` : ``)
++
  (over25>0.6?`OU Note          : Over condong (tempo & ancaman cukup)
 `:
  over25<0.45?`OU Note          : Under lebih aman (defense/tempo rendah)
