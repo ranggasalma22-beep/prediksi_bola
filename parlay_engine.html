@@ -1,17 +1,19 @@
 <!DOCTYPE html><html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Neutral Football Engine – Level 2500 (Raw Input)</title>
+<title>Neutral Football Engine – Level 2500 (Home / Away)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body{background:#05070b;color:#eaeaea;font-family:Arial;padding:20px}
-h1,h3{color:#66fcf1}
-.section{background:#0f1420;border:1px solid #333;border-radius:6px;padding:14px;margin-bottom:14px}
-label{display:block;margin-top:8px;font-size:13px}
-textarea,input,select{width:100%;padding:8px;background:#1a2030;border:1px solid #555;color:#fff;border-radius:4px;font-family:monospace}
-button{width:100%;padding:12px;margin-top:16px;background:#66fcf1;border:none;border-radius:6px;font-weight:bold;cursor:pointer}
-textarea{height:90px}
-#out{height:520px;background:#020304;color:#00ff88}
+body{background:#05070b;color:#eaeaea;font-family:Arial;padding:16px}
+h1,h3{color:#66fcf1;margin-top:0}
+.section{background:#0f1420;border:1px solid #333;border-radius:8px;padding:14px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+label{display:block;margin-top:8px;font-size:13px;color:#9ff}
+textarea,select{width:100%;padding:8px;background:#1a2030;border:1px solid #555;color:#fff;border-radius:6px;font-family:monospace;font-size:13px}
+textarea{height:70px}
+button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;font-weight:bold;font-size:15px;cursor:pointer}
+#out{height:420px;background:#020304;color:#00ff88}
+@media(max-width:700px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -36,81 +38,59 @@ textarea{height:90px}
 <option value="final">Final</option>
 </select>
 </div><div class="section">
-<h3>RAW DATA INPUT (Last 5 Matches)</h3>
-<label>xG</label><textarea id="xg"></textarea>
-<label>xGA</label><textarea id="xga"></textarea>
-<label>Goals For</label><textarea id="gf"></textarea>
-<label>Goals Against</label><textarea id="ga"></textarea>
-<label>Shots on Target</label><textarea id="sot"></textarea>
-<label>Defensive Errors</label><textarea id="err"></textarea>
+<h3>RAW DATA INPUT – HOME vs AWAY (Last 5 Matches)</h3>
+<div class="grid">
+<div>
+<h3>HOME TEAM</h3>
+<label>xG</label><textarea id="xgH"></textarea>
+<label>xGA</label><textarea id="xgaH"></textarea>
+<label>Goals For</label><textarea id="gfH"></textarea>
+<label>Goals Against</label><textarea id="gaH"></textarea>
+<label>Defensive Errors</label><textarea id="errH"></textarea>
+</div>
+<div>
+<h3>AWAY TEAM</h3>
+<label>xG</label><textarea id="xgA"></textarea>
+<label>xGA</label><textarea id="xgaA"></textarea>
+<label>Goals For</label><textarea id="gfA"></textarea>
+<label>Goals Against</label><textarea id="gaA"></textarea>
+<label>Defensive Errors</label><textarea id="errA"></textarea>
+</div>
+</div>
 </div><button onclick="run()">ANALYZE</button>
 
 <div class="section">
 <h3>OUTPUT</h3>
 <textarea id="out" readonly></textarea>
 </div><script>
-/* ================= SAFE UTILS ================= */
 const $=id=>document.getElementById(id);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-function parseArr(str){
- if(!str) return [];
- return str.split(',').map(x=>Number(x.trim())).filter(x=>isFinite(x));
-}
-function avg(arr){return arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:null;}
-function std(arr){if(arr.length<2) return 0; const m=avg(arr); return Math.sqrt(arr.reduce((s,x)=>s+(x-m)**2,0)/arr.length);}
+function parseArr(str){return str?str.split(',').map(x=>Number(x.trim())).filter(x=>isFinite(x)):[];}
+function avg(a){return a.length?a.reduce((x,y)=>x+y,0)/a.length:null;}
+function summarize(a){return a.length?{avg:avg(a),n:a.length}:null;}
+function finAdj(xg,gf){if(!xg||!gf)return xg;const r=gf/xg;if(r>1.3)return xg*(0.7+0.3/r);if(r<0.7)return xg*(1+(0.7-r)*0.2);return xg;}
+function poisson(l,k){let f=1;for(let i=2;i<=k;i++)f*=i;return Math.exp(-l)*Math.pow(l,k)/f;}
 
-/* ================= FEATURE EXTRACTION ================= */
-function summarize(arr){return arr.length?{avg:avg(arr),std:std(arr),n:arr.length}:null;}
-
-function finishingAdj(xg,gf){ if(!xg||!gf) return xg; const r=gf/xg; if(r>1.3) return xg*(0.7+0.3/r); if(r<0.7) return xg*(1+(0.7-r)*0.2); return xg; }
-
-function poisson(l,k){ let f=1; for(let i=2;i<=k;i++) f*=i; return Math.exp(-l)*Math.pow(l,k)/f; }
-
-/* ================= PREDICTION ================= */
-function predict(lh,la){ let dist=[]; for(let h=0;h<=5;h++) for(let a=0;a<=5;a++) dist.push({s:`${h}-${a}`,p:poisson(lh,h)*poisson(la,a)});
- dist.sort((x,y)=>y.p-x.p);
- let over25=0; dist.forEach(d=>{const[x,y]=d.s.split('-').map(Number); if(x+y>2) over25+=d.p;});
- return{top:dist.slice(0,5),likely:dist[0].s,over25}; }
-
-/* ================= DECISION 2500 ================= */
-function decision2500(pred,lh,la,quality,imp){ let reasons=[];
- if(quality<0.6) reasons.push('Low data quality');
- if(Math.abs(lh-la)<0.35) reasons.push('Low separation');
- if(imp>=8 && pred.over25>0.58 && pred.over25<0.65) reasons.push('Final marginal goals');
- if(pred.top[0].p<0.14) reasons.push('Flat distribution');
- return reasons.length?{action:'NO BET',reasons}:{action:'ALLOW'}; }
-
-/* ================= MAIN ================= */
-function run(){ const out=$('out'); try{
- const xg=parseArr($('xg').value), xga=parseArr($('xga').value);
- if(xg.length<3||xga.length<3){ out.value='Minimal 3 data xG & xGA diperlukan'; return; }
- const gf=parseArr($('gf').value), ga=parseArr($('ga').value);
- const sot=parseArr($('sot').value), err=parseArr($('err').value);
-
- const sxg=summarize(xg), sxga=summarize(xga);
- const sgf=summarize(gf), sga=summarize(ga);
- const serr=summarize(err);
-
- const quality = clamp((sxg.n/5)*0.4 + (sgf?0.3:0) + (serr?0.3:0),0,1);
-
- let lamH=finishingAdj(sxg.avg, sgf?sgf.avg:null);
- let lamA=finishingAdj(sxga.avg, sga?sga.avg:null);
- if(serr) lamH*=1+(serr.avg/5)*0.25;
+function run(){const out=$('out');try{
+ const home={xg:parseArr(xgH.value),xga:parseArr(xgaH.value),gf:parseArr(gfH.value),ga:parseArr(gaH.value),err:parseArr(errH.value)};
+ const away={xg:parseArr(xgA.value),xga:parseArr(xgaA.value),gf:parseArr(gfA.value),ga:parseArr(gaA.value),err:parseArr(errA.value)};
+ if(home.xg.length<3||away.xg.length<3||home.xga.length<3||away.xga.length<3){out.value='Minimal 3 data xG & xGA untuk HOME dan AWAY';return;}
+ const hxg=summarize(home.xg), axg=summarize(away.xg);
+ const hxga=summarize(home.xga), axga=summarize(away.xga);
+ const hgf=summarize(home.gf), agf=summarize(away.gf);
+ const herr=summarize(home.err), aerr=summarize(away.err);
+ let lamH=finAdj(hxg.avg, hgf?hgf.avg:null);
+ let lamA=finAdj(axg.avg, agf?agf.avg:null);
+ if(aerr) lamH*=1+(aerr.avg/5)*0.25;
+ if(herr) lamA*=1+(herr.avg/5)*0.25;
  lamH=clamp(lamH,0.2,4); lamA=clamp(lamA,0.2,4);
-
- const pred=predict(lamH,lamA);
- const imp=$('matchType').value==='final'?8:$('matchType').value==='knockout'?7:5;
- const dec=decision2500(pred,lamH,lamA,quality,imp);
-
- let txt='DATA QUALITY : '+(quality*100).toFixed(0)+'%\n\n';
- txt+='PREDICTION\n';
- txt+='Lambda        : '+lamH.toFixed(2)+' - '+lamA.toFixed(2)+'\n';
- txt+='Likely Score  : '+pred.likely+'\n';
- txt+='Over 2.5 Prob : '+(pred.over25*100).toFixed(1)+'%\n\n';
- txt+='DECISION SYSTEM (LEVEL 2500)\n';
- if(dec.action==='NO BET'){ txt+='ACTION : NO BET\n'; dec.reasons.forEach(r=>txt+='- '+r+'\n'); out.value=txt; return; }
- txt+='ACTION : '+(pred.over25>0.62?'OVER 2.5':'UNDER 2.5');
- out.value=txt;
- }catch(e){ out.value='ERROR: '+e.message; }}
+ let over25=0,dist=[];
+ for(let h=0;h<=5;h++)for(let a=0;a<=5;a++){const p=poisson(lamH,h)*poisson(lamA,a);dist.push({s:`${h}-${a}`,p});if(h+a>2)over25+=p;}
+ dist.sort((x,y)=>y.p-x.p);
+ out.value=
+ `HOME λ : ${lamH.toFixed(2)}\nAWAY λ : ${lamA.toFixed(2)}\n\n`+
+ `Most Likely Score : ${dist[0].s}\n`+
+ `Over 2.5 Prob     : ${(over25*100).toFixed(1)}%\n`;
+ }catch(e){out.value='ERROR: '+e.message;}}
 </script></body>
 </html>
