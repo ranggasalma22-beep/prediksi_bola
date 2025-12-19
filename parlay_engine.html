@@ -60,7 +60,7 @@ button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;
 </div>
 </div>
 </div>
-</div><button onclick="run()">ANALYZE</button>
+</div><button id="analyzeBtn">ANALYZE</button>
 
 <div class="section">
 <h3>OUTPUT</h3>
@@ -109,6 +109,14 @@ function _deprecated_detectLowBlock(){(sotAvg,xgAvg){
   return sotAvg<4 && xgAvg>0.9;
 }
 
+document.getElementById('analyzeBtn')?.addEventListener('click', run);
+
+function showWarn(msg){
+  const out = $('out');
+  out.value = "⚠️ WARNING / NOTICE
+" + msg;
+}
+
 function run(){
   const out = $('out');
   try {
@@ -129,7 +137,10 @@ function run(){
       err:parseArr(errA.value),
       sot:parseArr(sotA?.value||"")
     };
- if(home.xg.length<3||away.xg.length<3||home.xga.length<3||away.xga.length<3){out.value='Minimal 3 data xG & xGA untuk HOME dan AWAY';return;}
+ if(home.xg.length<3||away.xg.length<3||home.xga.length<3||away.xga.length<3){
+ showWarn('Minimal 3 data xG & xGA untuk HOME dan AWAY');
+ return;
+}
  const hxg=summarize(home.xg), axg=summarize(away.xg);
  const hxga=summarize(home.xga), axga=summarize(away.xga);
  const hgf=summarize(home.gf), agf=summarize(away.gf);
@@ -191,4 +202,4 @@ function run(){
      : ${(over25*100).toFixed(1)}%\n`;
  }catch(e){out.value='ERROR: '+e.message;}}
 </script></body>
-  </html>
+</html>
