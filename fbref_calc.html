@@ -1,174 +1,146 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>FBref Calculator (PSZ v1500 – Full Clean)</title>
-
+<meta charset="UTF-8">
+<title>Match Data Input Calculator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 body{
-  background:#0f172a;
-  color:#e5e7eb;
-  font-family:Arial, Helvetica, sans-serif;
-  max-width:520px;
-  margin:auto;
-  padding:16px;
+  background:#05070b;
+  color:#eaeaea;
+  font-family:Arial;
+  padding:20px
 }
-h1{font-size:18px;margin-bottom:12px;}
-.box{
-  background:#020617;
-  padding:14px;
-  border-radius:10px;
-  margin-bottom:14px;
-}
-label{font-size:13px;display:block;margin-top:8px;}
-textarea{
-  width:100%;
-  background:#020617;
-  color:#e5e7eb;
-  border:1px solid #334155;
+h1,h3{color:#66fcf1}
+.section{
+  background:#0f1420;
+  border:1px solid #333;
   border-radius:6px;
-  padding:8px;
-  margin-top:4px;
-  resize:vertical;
+  padding:14px;
+  margin-bottom:14px
+}
+label{
+  display:block;
+  margin-top:6px;
+  font-size:13px
+}
+input{
+  width:100%;
+  padding:6px;
+  background:#1a2030;
+  border:1px solid #555;
+  color:#fff;
+  border-radius:4px
 }
 button{
   width:100%;
   padding:12px;
-  background:#16a34a;
-  color:#022c22;
+  margin-top:14px;
+  background:#66fcf1;
   border:none;
-  border-radius:10px;
-  font-size:15px;
+  border-radius:6px;
   font-weight:bold;
-  cursor:pointer;
+  cursor:pointer
 }
-.result{
-  margin-top:10px;
-  background:#020617;
-  padding:10px;
-  border-radius:8px;
-  font-size:14px;
-}
-.note{
-  margin-top:10px;
+textarea{
+  width:100%;
+  height:280px;
+  background:#020304;
+  color:#00ff88;
+  font-family:monospace;
   font-size:12px;
-  opacity:0.8;
+  padding:10px;
+  border:1px solid #333;
+  border-radius:5px
+}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:6px
 }
 </style>
 </head>
 
 <body>
-<h1>⚽ FBref Calculator (xG + xGA + CS)</h1>
 
-<!-- HOME -->
-<div class="box">
-<h3>Home Team</h3>
+<h1>Pre-Input Match Calculator</h1>
 
-<label>xG per match</label>
-<textarea id="hxg">1.8,2.1,1.4,1.2,1.6</textarea>
+<div class="section">
+<h3>Per Match Raw Data (Last 5 Matches)</h3>
+<p style="font-size:12px;color:#aaa">
+Isi data mentah tiap match (Home/Away sama saja). Kosong = 0
+</p>
 
-<label>xGA per match</label>
-<textarea id="hxga">0.9,1.1,0.8,1.0,0.7</textarea>
+<div class="grid">
+<strong>xG</strong>
+<strong>xGA</strong>
+<strong>Shots</strong>
+<strong>SOT</strong>
+<strong>Goals</strong>
 
-<label>Clean Sheets (1 = CS, 0 = Conceded)</label>
-<textarea id="hcs">1,0,1,1,0</textarea>
-
-<label>Shots</label>
-<textarea id="hshots">14,15,13,16,12</textarea>
-
-<label>SOT</label>
-<textarea id="hsot">5,6,4,5,5</textarea>
-
-<div class="result" id="hresult">Home: -</div>
+<input id="xg1"><input id="xga1"><input id="sh1"><input id="sot1"><input id="g1">
+<input id="xg2"><input id="xga2"><input id="sh2"><input id="sot2"><input id="g2">
+<input id="xg3"><input id="xga3"><input id="sh3"><input id="sot3"><input id="g3">
+<input id="xg4"><input id="xga4"><input id="sh4"><input id="sot4"><input id="g4">
+<input id="xg5"><input id="xga5"><input id="sh5"><input id="sot5"><input id="g5">
+</div>
 </div>
 
-<!-- AWAY -->
-<div class="box">
-<h3>Away Team</h3>
-
-<label>xG per match</label>
-<textarea id="axg">0.9,1.0,0.8,1.1,0.7</textarea>
-
-<label>xGA per match</label>
-<textarea id="axga">1.6,1.4,1.7,1.5,1.8</textarea>
-
-<label>Clean Sheets (1 = CS, 0 = Conceded)</label>
-<textarea id="acs">0,0,0,1,0</textarea>
-
-<label>Shots</label>
-<textarea id="ashots">9,10,8,11,9</textarea>
-
-<label>SOT</label>
-<textarea id="asot">3,4,2,3,3</textarea>
-
-<div class="result" id="aresult">Away: -</div>
+<div class="section">
+<h3>Goals Against per Match</h3>
+<div class="grid">
+<strong>GA</strong><strong></strong><strong></strong><strong></strong><strong></strong>
+<input id="ga1"><input disabled><input disabled><input disabled><input disabled>
+<input id="ga2"><input disabled><input disabled><input disabled><input disabled>
+<input id="ga3"><input disabled><input disabled><input disabled><input disabled>
+<input id="ga4"><input disabled><input disabled><input disabled><input disabled>
+<input id="ga5"><input disabled><input disabled><input disabled><input disabled>
+</div>
 </div>
 
-<button id="calcBtn">CALCULATE</button>
+<button onclick="calc()">CALCULATE</button>
 
-<div class="note">
-• Gunakan 5–10 match liga<br>
-• CS Rate = jumlah clean sheet / match<br>
-• Tanpa defensive / volatility filter<br>
-• Output clean untuk PSZ v1500+
+<div class="section">
+<h3>OUTPUT (Copy to Main Engine)</h3>
+<textarea id="out" readonly></textarea>
 </div>
 
 <script>
-function clamp(v,min,max){
-  return Math.max(min,Math.min(max,v));
-}
-function parseList(t){
-  return t.split(',').map(v=>parseFloat(v.trim())).filter(v=>!isNaN(v));
-}
-function avg(a){
-  return a.reduce((x,y)=>x+y,0)/a.length;
-}
-function sum(a){
-  return a.reduce((x,y)=>x+y,0);
-}
+const v=id=>Number(document.getElementById(id).value)||0;
 
-function calc(label,xg,xga,cs,shots,sot){
-  if(xg.length<5||xg.length>10){
-    return label+': use 5–10 matches';
+function calc(){
+  let xg=0,xga=0,sh=0,sot=0,gf=0,ga=0,cs=0;
+
+  for(let i=1;i<=5;i++){
+    xg+=v("xg"+i);
+    xga+=v("xga"+i);
+    sh+=v("sh"+i);
+    sot+=v("sot"+i);
+    gf+=v("g"+i);
+    ga+=v("ga"+i);
+    if(v("ga"+i)===0) cs++;
   }
 
-  let axg  = clamp(avg(xg),0.7,2.1);
-  let axga = clamp(avg(xga),0.6,2.2);
-  let csrt = sum(cs)/cs.length*100;
+  const out=
+`CALCULATED INPUT VALUES
+------------------------
+xG (avg 5)        : ${(xg/5).toFixed(2)}
+xGA (avg 5)       : ${(xga/5).toFixed(2)}
 
-  let sh = shots.length?avg(shots):null;
-  let st = sot.length?avg(sot):null;
+Shots / match     : ${(sh/5).toFixed(1)}
+SOT / match       : ${(sot/5).toFixed(1)}
 
-  let out = label+
-    ': xG '+axg.toFixed(2)+
-    ' | xGA '+axga.toFixed(2)+
-    ' | CS '+csrt.toFixed(0)+'%';
+Goals For (5)     : ${gf}
+Goals Against (5) : ${ga}
 
-  if(sh) out+=' | Shots '+sh.toFixed(1);
-  if(st) out+=' | SOT '+st.toFixed(1);
+Clean Sheet Rate  : ${(cs/5).toFixed(2)}
 
-  return out;
+READY FOR ENGINE ✔
+`;
+
+  document.getElementById("out").value=out;
 }
-
-calcBtn.onclick=function(){
-  hresult.innerText=calc(
-    'Home',
-    parseList(hxg.value),
-    parseList(hxga.value),
-    parseList(hcs.value),
-    parseList(hshots.value),
-    parseList(hsot.value)
-  );
-  aresult.innerText=calc(
-    'Away',
-    parseList(axg.value),
-    parseList(axga.value),
-    parseList(acs.value),
-    parseList(ashots.value),
-    parseList(asot.value)
-  );
-};
 </script>
+
 </body>
 </html>
