@@ -19,21 +19,10 @@ button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;
 <body>
 <h1>Neutral Football Analysis Engine</h1><div class="section">
 <h3>Match Info</h3>
-<label>League</label>
-<select id="league">
-<option value="AUTO">AUTO</option>
-<option value="EPL">Premier League</option>
-<option value="LL">La Liga</option>
-<option value="SA">Serie A</option>
-<option value="BL">Bundesliga</option>
-<option value="L1">Ligue 1</option>
-<option value="INT">International</option>
-</select>
 <label>Match Type</label>
 <select id="matchType">
 <option value="league">League</option>
 <option value="big">Big Match</option>
-<option value="cup">Cup</option>
 <option value="knockout">Knockout</option>
 <option value="final">Final</option>
 </select>
@@ -42,12 +31,12 @@ button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;
 <div class="grid">
 <div>
 <h3>HOME TEAM</h3>
-<label>xG</label><textarea id="xgH" placeholder="contoh: 1.4,1.2,0.9,1.6,1.1"></textarea>
+<label>xG</label><textarea id="xgH"></textarea>
 <label>xGA</label><textarea id="xgaH"></textarea>
 <label>Goals For</label><textarea id="gfH"></textarea>
 <label>Goals Against</label><textarea id="gaH"></textarea>
-<label>Shots on Target</label><textarea id="sotH"></textarea><label>Defensive Errors</label><textarea id="errH"></textarea>
-
+<label>Shots on Target</label><textarea id="sotH"></textarea>
+<label>Defensive Errors</label><textarea id="errH"></textarea>
 </div>
 <div>
 <h3>AWAY TEAM</h3>
@@ -55,9 +44,8 @@ button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;
 <label>xGA</label><textarea id="xgaA"></textarea>
 <label>Goals For</label><textarea id="gfA"></textarea>
 <label>Goals Against</label><textarea id="gaA"></textarea>
-<label>Shots on Target</label><textarea id="sotA"></textarea><label>Defensive Errors</label><textarea id="errA"></textarea>
-
-</div>
+<label>Shots on Target</label><textarea id="sotA"></textarea>
+<label>Defensive Errors</label><textarea id="errA"></textarea>
 </div>
 </div>
 </div><button id="analyzeBtn">ANALYZE</button>
@@ -66,140 +54,75 @@ button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;
 <h3>OUTPUT</h3>
 <textarea id="out" readonly></textarea>
 </div><script>
-const $=id=>document.getElementById(id);
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-function parseArr(str){return str?str.split(',').map(x=>Number(x.trim())).filter(x=>isFinite(x)):[];}
+const $ = id => document.getElementById(id);
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+
+function parseArr(str){return str?str.split(',').map(x=>Number(x.trim())).filter(Number.isFinite):[];}
 function avg(a){return a.length?a.reduce((x,y)=>x+y,0)/a.length:null;}
 function summarize(a){return a.length?{avg:avg(a),n:a.length}:null;}
-function finAdj(xg,gf){if(!xg||!gf)return xg;const r=gf/xg;if(r>1.3)return xg*(0.7+0.3/r);if(r<0.7)return xg*(1+(0.7-r)*0.2);return xg;}
-function sotModifier(sotAvg,xgAvg){if(!sotAvg||!xgAvg)return 1;const r=sotAvg/(xgAvg*2.5);return clamp(1+(r-1)*0.12,0.9,1.12);} 
-function finishingProxy(gfAvg,xgAvg){if(!gfAvg||!xgAvg)return 1;const r=gfAvg/xgAvg;if(r>1.3)return 0.92;if(r<0.7)return 0.95;return 1;} 
-// Clean Sheet digunakan SEBAGAI VALIDATOR SAJA (tidak memodifikasi lambda)
-// Clean Sheet AUTO-DETECT dari GA (validator only)
-function detectCleanSheet(gaArr){
-  if(!gaArr || gaArr.length===0) return null;
-  const cs = gaArr.filter(x=>x===0).length;
-  return cs / gaArr.length;
-}
-function cleanSheetValidator(hGA,aGA){
-  const hCS = detectCleanSheet(hGA);
-  const aCS = detectCleanSheet(aGA);
-  if(hCS==null || aCS==null) return null;
-  return {
-    strongDefence: (hCS + aCS) >= 0.8,
-    weakDefence: (hCS + aCS) <= 0.2,
-    hCS, aCS
-  };
-};
-} 
-
 function poisson(l,k){let f=1;for(let i=2;i<=k;i++)f*=i;return Math.exp(-l)*Math.pow(l,k)/f;}
 
-// CONDITIONAL LOW BLOCK (situational – vs stronger team / high pressure)
+function sotModifier(sotAvg,xgAvg){if(!sotAvg||!xgAvg)return 1;const r=sotAvg/(xgAvg*2.5);return clamp(1+(r-1)*0.12,0.9,1.12);} 
+function finishingProxy(gfAvg,xgAvg){if(!gfAvg||!xgAvg)return 1;const r=gfAvg/xgAvg;if(r>1.3)return 0.92;if(r<0.7)return 0.95;return 1;} 
+
+function detectCleanSheet(ga){if(!ga||!ga.length)return null;return ga.filter(x=>x===0).length/ga.length;}
+
 function conditionalLowBlock(sotAvg,xgAvg,xgGap,matchType){
-  if(sotAvg==null||xgAvg==null) return false;
-  const pressure = (matchType==='knockout' || matchType==='final' || matchType==='big');
-  const qualityGap = xgGap > 0.7;
-  return pressure && qualityGap && sotAvg < 4 && xgAvg > 0.9;
+  const pressure = ['big','knockout','final'].includes(matchType);
+  return pressure && xgGap>0.7 && sotAvg!=null && xgAvg!=null && sotAvg<4 && xgAvg>0.9;
 }
 
-// legacy simple low block removed
-function _deprecated_detectLowBlock(){(sotAvg,xgAvg){
-  if(sotAvg==null||xgAvg==null) return false;
-  return sotAvg<4 && xgAvg>0.9;
-}
-
-document.getElementById('analyzeBtn')?.addEventListener('click', run);
-
-function showWarn(msg){
-  const out = $('out');
-  out.value = "⚠️ WARNING / NOTICE
-" + msg;
-}
+function showWarn(msg){$('out').value = '⚠️ WARNING\n'+msg;}
 
 function run(){
-  const out = $('out');
-  try {
-    // === PARSE RAW INPUT ===){const out=$('out');try{
- const home={
-      xg:parseArr(xgH.value),
-      xga:parseArr(xgaH.value),
-      gf:parseArr(gfH.value),
-      ga:parseArr(gaH.value),
-      err:parseArr(errH.value),
-      sot:parseArr(sotH?.value||"")
-    };
- const away={
-      xg:parseArr(xgA.value),
-      xga:parseArr(xgaA.value),
-      gf:parseArr(gfA.value),
-      ga:parseArr(gaA.value),
-      err:parseArr(errA.value),
-      sot:parseArr(sotA?.value||"")
-    };
- if(home.xg.length<3||away.xg.length<3||home.xga.length<3||away.xga.length<3){
- showWarn('Minimal 3 data xG & xGA untuk HOME dan AWAY');
- return;
-}
- const hxg=summarize(home.xg), axg=summarize(away.xg);
- const hxga=summarize(home.xga), axga=summarize(away.xga);
- const hgf=summarize(home.gf), agf=summarize(away.gf);
- const herr=summarize(home.err), aerr=summarize(away.err);
- const hSOT=summarize(home.sot), aSOT=summarize(away.sot);
- // CS di-auto-detect dari GA
- let lamH=finAdj(hxg.avg, hgf?hgf.avg:null);
- let lamA=finAdj(axg.avg, agf?agf.avg:null);
- if(aerr) lamH*=1+(aerr.avg/5)*0.25;
- if(herr) lamA*=1+(herr.avg/5)*0.25;
- if(hSOT) lamH*=sotModifier(hSOT.avg,hxg.avg);
- if(aSOT) lamA*=sotModifier(aSOT.avg,axg.avg);
- if(hgf) lamH*=finishingProxy(hgf.avg,hxg.avg);
- if(agf) lamA*=finishingProxy(agf.avg,axg.avg);
- // CS tidak memodifikasi lambda (validator only)
- lamH=clamp(lamH,0.2,4); lamA=clamp(lamA,0.2,4);
- let over25=0,dist=[];
- const xgGap = Math.abs(hxg.avg - axg.avg);
- const lowBlockHome = conditionalLowBlock(hSOT? hSOT.avg:null, hxg.avg, xgGap, $('matchType').value);
- const lowBlockAway = conditionalLowBlock(aSOT? aSOT.avg:null, axg.avg, xgGap, $('matchType').value);
- const lowBlockDetected = lowBlockHome || lowBlockAway; = detectLowBlock(hSOT? hSOT.avg:null, hxg.avg);
- const lowBlockAway = detectLowBlock(aSOT? aSOT.avg:null, axg.avg);
- const lowBlockDetected = lowBlockHome || lowBlockAway;
+ try{
+  const home={
+    xg:parseArr($('xgH').value),xga:parseArr($('xgaH').value),
+    gf:parseArr($('gfH').value),ga:parseArr($('gaH').value),
+    sot:parseArr($('sotH').value),err:parseArr($('errH').value)
+  };
+  const away={
+    xg:parseArr($('xgA').value),xga:parseArr($('xgaA').value),
+    gf:parseArr($('gfA').value),ga:parseArr($('gaA').value),
+    sot:parseArr($('sotA').value),err:parseArr($('errA').value)
+  };
 
- const csVal = cleanSheetValidator(home.ga, away.ga);
- for(let h=0;h<=5;h++)for(let a=0;a<=5;a++){const p=poisson(lamH,h)*poisson(lamA,a);dist.push({s:`${h}-${a}`,p});if(h+a>2)over25+=p;}
- dist.sort((x,y)=>y.p-x.p);
- out.value=
- `HOME λ : ${lamH.toFixed(2)}\nAWAY λ : ${lamA.toFixed(2)}\n\n`+
- `Most Likely Score : ${dist[0].s}\n`+
- `Over 2.5 Prob     : ${(over25*100).toFixed(1)}%
-`+
- (over25>0.6?`OU Note          : Over condong (tempo & ancaman cukup)
-`:
- over25<0.45?`OU Note          : Under lebih aman (defense/tempo rendah)
-`:
- `OU Note          : Zona abu-abu → hati-hati / NO BET
-`)+
- (lowBlockDetected ? `Low Block       : Terdeteksi → tempo ditekan, risiko Over tinggi
-` : ``)
-+
- (over25>0.6?`OU Note          : Over condong (tempo & ancaman cukup)
-`:
- over25<0.45?`OU Note          : Under lebih aman (defense/tempo rendah)
-`:
- `OU Note          : Zona abu-abu → hati-hati / NO BET
-`)+
- (csVal && csVal.strongDefence ? `CS Validator     : Defence stabil → bias Under / Draw
-` : ``)+
- (csVal && csVal.weakDefence ? `CS Validator     : Defence rapuh → risiko Over
-` : ``)
-+
- (over25>0.6?`OU Note          : Over lebih condong (tempo & ancaman cukup)
-`:
- over25<0.45?`OU Note          : Under lebih aman (defense/tempo rendah)
-`:
- `OU Note          : Zona abu-abu → hati-hati / NO BET
-`)
-     : ${(over25*100).toFixed(1)}%\n`;
- }catch(e){out.value='ERROR: '+e.message;}}
+  if(home.xg.length<3||away.xg.length<3||home.xga.length<3||away.xga.length<3){
+    showWarn('Minimal 3 data xG & xGA untuk HOME dan AWAY');return;
+  }
+
+  const hxg=summarize(home.xg), axg=summarize(away.xg);
+  const hgf=summarize(home.gf), agf=summarize(away.gf);
+  const hSOT=summarize(home.sot), aSOT=summarize(away.sot);
+
+  let lamH=hxg.avg, lamA=axg.avg;
+  if(hgf) lamH*=finishingProxy(hgf.avg,hxg.avg);
+  if(agf) lamA*=finishingProxy(agf.avg,axg.avg);
+  if(hSOT) lamH*=sotModifier(hSOT.avg,hxg.avg);
+  if(aSOT) lamA*=sotModifier(aSOT.avg,axg.avg);
+
+  lamH=clamp(lamH,0.2,4); lamA=clamp(lamA,0.2,4);
+
+  let over25=0,dist=[];
+  for(let h=0;h<=5;h++)for(let a=0;a<=5;a++){const p=poisson(lamH,h)*poisson(lamA,a);dist.push({s:`${h}-${a}`,p});if(h+a>2)over25+=p;}
+  dist.sort((x,y)=>y.p-x.p);
+
+  const xgGap=Math.abs(hxg.avg-axg.avg);
+  const lowBlock = conditionalLowBlock(hSOT?hSOT.avg:null,hxg.avg,xgGap,$('matchType').value)
+                 || conditionalLowBlock(aSOT?aSOT.avg:null,axg.avg,xgGap,$('matchType').value);
+
+  const csH=detectCleanSheet(home.ga), csA=detectCleanSheet(away.ga);
+
+  $('out').value=
+  `HOME λ : ${lamH.toFixed(2)}\nAWAY λ : ${lamA.toFixed(2)}\n\n`+
+  `Most Likely Score : ${dist[0].s}\n`+
+  `Over 2.5 Prob     : ${(over25*100).toFixed(1)}%\n`+
+  (over25>0.6?'OU Note          : Over condong\n':over25<0.45?'OU Note          : Under lebih aman\n':'OU Note          : Zona abu-abu / NO BET\n')+
+  (lowBlock?'Low Block        : Situational – tempo ditekan\n':'')+
+  (csH!=null&&csA!=null?(csH+csA>=0.8?'CS Validator     : Defence stabil\n':csH+csA<=0.2?'CS Validator     : Defence rapuh\n':''):'');
+ }catch(e){$('out').value='ERROR: '+e.message;}
+}
+
+document.getElementById('analyzeBtn').addEventListener('click',run);
 </script></body>
 </html>
