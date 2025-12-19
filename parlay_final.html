@@ -1,23 +1,23 @@
-<!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Neutral Football Analysis Engine</title>
+<title>Neutral Market Analysis Engine v1.0</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 body{background:#05070b;color:#eaeaea;font-family:Arial;padding:20px}
 h1,h3{color:#66fcf1}
 .section{background:#0f1420;border:1px solid #333;border-radius:6px;padding:14px;margin-bottom:14px}
-label{display:block;margin-top:8px;font-size:13px}
+label{display:block;margin-top:6px;font-size:13px}
 input,select{width:100%;padding:6px;background:#1a2030;border:1px solid #555;color:#fff;border-radius:4px}
-button{width:100%;padding:12px;margin-top:16px;background:#66fcf1;border:none;border-radius:6px;font-weight:bold;cursor:pointer}
+button{width:100%;padding:12px;margin-top:14px;background:#66fcf1;border:none;border-radius:6px;font-weight:bold;cursor:pointer}
 textarea{width:100%;height:520px;background:#020304;color:#00ff88;font-family:monospace;font-size:12px;padding:10px;border:1px solid #333;border-radius:5px}
 </style>
 </head>
 
 <body>
 
-<h1>Neutral Market Analysis Engine</h1>
+<h1>Neutral Market Analysis Engine <small>v1.0 FINAL</small></h1>
 
 <div class="section">
 <h3>League & Match Type</h3>
@@ -30,16 +30,11 @@ textarea{width:100%;height:520px;background:#020304;color:#00ff88;font-family:mo
 <option value="BL">Bundesliga</option>
 <option value="L1">Ligue 1</option>
 <option value="MLS">MLS</option>
-<option value="JPN">J-League</option>
-<option value="KOR">K-League</option>
-<option value="INT">International</option>
 </select>
 
 <label>Match Type</label>
 <select id="matchType">
-<option value=""></option>
 <option value="league">League</option>
-<option value="big">Big Match</option>
 <option value="cup">Cup</option>
 <option value="knockout">Knockout</option>
 <option value="final">Final</option>
@@ -55,39 +50,23 @@ textarea{width:100%;height:520px;background:#020304;color:#00ff88;font-family:mo
 
 <div class="section">
 <h3>HOME TEAM</h3>
-<label>xG (5 matches avg)</label><input id="xgH" type="number" step="0.01">
-<label>xGA (5 matches avg)</label><input id="xgaH" type="number" step="0.01">
-<label>Goals For (5 matches)</label><input id="gfH" type="number">
-<label>Goals Against (5 matches)</label><input id="gaH" type="number">
-<label>PPDA (optional)</label><input id="ppdaH" type="number" step="0.1">
-<label>Pressing Style</label>
-<select id="pressH">
-<option value=""></option>
-<option value="high">High</option>
-<option value="mid">Mid</option>
-<option value="low">Low</option>
-</select>
+<label>xG avg (5)</label><input id="xgH" type="number" step="0.01">
+<label>xGA avg (5)</label><input id="xgaH" type="number" step="0.01">
+<label>Goals For (5)</label><input id="gfH" type="number">
+<label>Goals Against (5)</label><input id="gaH" type="number">
 <label>Shots on Target / match</label><input id="sotH" type="number" step="0.1">
-<label>Defensive Errors (5 matches)</label><input id="errH" type="number">
+<label>Defensive Errors (5)</label><input id="errH" type="number">
 <label>Clean Sheet Rate (0–1)</label><input id="csH" type="number" step="0.01">
 </div>
 
 <div class="section">
 <h3>AWAY TEAM</h3>
-<label>xG (5 matches avg)</label><input id="xgA" type="number" step="0.01">
-<label>xGA (5 matches avg)</label><input id="xgaA" type="number" step="0.01">
-<label>Goals For (5 matches)</label><input id="gfA" type="number">
-<label>Goals Against (5 matches)</label><input id="gaA" type="number">
-<label>PPDA (optional)</label><input id="ppdaA" type="number" step="0.1">
-<label>Pressing Style</label>
-<select id="pressA">
-<option value=""></option>
-<option value="high">High</option>
-<option value="mid">Mid</option>
-<option value="low">Low</option>
-</select>
+<label>xG avg (5)</label><input id="xgA" type="number" step="0.01">
+<label>xGA avg (5)</label><input id="xgaA" type="number" step="0.01">
+<label>Goals For (5)</label><input id="gfA" type="number">
+<label>Goals Against (5)</label><input id="gaA" type="number">
 <label>Shots on Target / match</label><input id="sotA" type="number" step="0.1">
-<label>Defensive Errors (5 matches)</label><input id="errA" type="number">
+<label>Defensive Errors (5)</label><input id="errA" type="number">
 <label>Clean Sheet Rate (0–1)</label><input id="csA" type="number" step="0.01">
 </div>
 
@@ -99,44 +78,28 @@ textarea{width:100%;height:520px;background:#020304;color:#00ff88;font-family:mo
 </div>
 
 <script>
-const g=id=>Number(document.getElementById(id).value);
+/* =========================
+   HELPERS
+========================= */
+const g=id=>Number(document.getElementById(id).value)||0;
 const s=id=>document.getElementById(id).value;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
-const LPPDA={EPL:11,LL:12,SA:13,BL:11.5,L1:12.5,MLS:14,JPN:13.5,KOR:14,INT:13};
-
-function estPPDA(ppda,press){
-  if(ppda>0) return ppda;
-  return press==="high"?7:press==="low"?16:12;
-}
-
-function finReg(xg,g){
+/* =========================
+   CORE FUNCTIONS
+========================= */
+function finReg(xg,gpm){
   if(!xg||xg<=0) return xg;
-  const r=g/xg;
+  const r=gpm/xg;
   if(r>1.3) return xg*(0.7+0.3/r);
   if(r<0.7) return xg*(1+(0.7-r)*0.2);
   return xg;
 }
 
-function autoTempo(xgH,xgA,sotH,sotA,ppH,ppA){
-  const xgTot=xgH+xgA;
-  const sotTot=sotH+sotA;
-  const ppInv=1/((ppH+ppA)/2||12);
-  let t=0.4*Math.min(10,xgTot*3)+0.3*Math.min(10,sotTot)+0.3*Math.min(10,ppInv*120);
-  return clamp(t*0.85,2,8);
-}
-
-function autoChaos(errH,errA,gfH,gaH,gfA,gaA,ppH,ppA){
-  const err=errH+errA;
-  const varG=Math.abs(gfH-gaH)+Math.abs(gfA-gaA);
-  let c=Math.min(4,err*0.8)+Math.min(3,varG*0.3)+(ppH<8||ppA<8||ppH>18||ppA>18?1:0);
-  return clamp(c*0.8,2,6);
-}
-
-function autoImportance(type){
-  if(type==="final") return 8;
-  if(type==="knockout") return 7;
-  if(type==="cup") return 6;
+function autoImportance(t){
+  if(t==="final") return 8;
+  if(t==="knockout") return 7;
+  if(t==="cup") return 6;
   return 5;
 }
 
@@ -144,81 +107,135 @@ function DFI(err,chaos,cs){
   return clamp((Math.min(err/5,1))*0.4+(chaos/10)*0.3+(1-cs)*0.3,0,1);
 }
 
-function poisson(l,k){
-  let f=1; for(let i=2;i<=k;i++)f*=i;
-  return Math.exp(-l)*Math.pow(l,k)/f;
+/* =========================
+   TIER 1
+========================= */
+function oaf(oppXGA){
+  if(!oppXGA||oppXGA<=0) return 1;
+  return clamp(1.15-(oppXGA-1.2)*0.25,0.85,1.15);
 }
 
-function confidence(lh,la,chaos){
-  let c=100;
+function trapRisk(lam,cs,chaos){
+  let r=0;
+  if(lam>1.8 && cs<0.35) r++;
+  if(chaos>5) r++;
+  return r;
+}
+
+function confidenceV2(lh,la,chaos,dfiH,dfiA){
+  let c=70;
   const gap=Math.abs(lh-la);
-  if(gap<0.2)c-=25;
-  else if(gap<0.4)c-=15;
-  if(chaos>5)c-=(chaos-5)*5;
+  if(gap>0.8) c+=15;
+  else if(gap>0.4) c+=8;
+  else c-=10;
+  c-=chaos*3;
+  c-=(dfiH+dfiA)*10;
   return clamp(c,0,100);
 }
 
+/* =========================
+   TIER 2
+========================= */
+function drawGravity(lh,la,tempo,chaos){
+  return (Math.abs(lh-la)<0.35 && tempo<5 && chaos<4);
+}
+
+/* =========================
+   TIER 3
+========================= */
+function defensiveFloor(dfiH,dfiA){
+  return (dfiH+dfiA)>1.1;
+}
+
+function tempoMismatch(xg,sot,tempo){
+  return (xg>1.6 && sot<4 && tempo<5);
+}
+
+/* =========================
+   TIER 4
+========================= */
+function betGate(conf,chaos){
+  if(conf<55) return false;
+  if(chaos>6 && conf<70) return false;
+  return true;
+}
+
+function stakeHint(conf,chaos){
+  if(conf>75 && chaos<4) return "NORMAL STAKE";
+  if(conf>65) return "SMALL STAKE";
+  return "MINIMAL / PARLAY ONLY";
+}
+
+/* =========================
+   ENGINE RUN
+========================= */
 function run(){
-  const required=["xgH","xgA"];
-  if(required.some(id=>!g(id))){
-    out.value="";
+  if(!g("xgH")||!g("xgA")){
+    out.value="INPUT xG HOME & AWAY WAJIB";
     return;
   }
 
-  const ppH=estPPDA(g("ppdaH"),s("pressH"));
-  const ppA=estPPDA(g("ppdaA"),s("pressA"));
-
-  const tempoEff=g("tempo")||autoTempo(g("xgH"),g("xgA"),g("sotH"),g("sotA"),ppH,ppA);
-  const chaosEff=g("chaos")||autoChaos(g("errH"),g("errA"),g("gfH"),g("gaH"),g("gfA"),g("gaA"),ppH,ppA);
+  const tempoEff=g("tempo")||5;
+  const chaosEff=g("chaos")||4;
   const impEff=g("importance")||autoImportance(s("matchType"));
 
   const xgH=finReg(g("xgH"),g("gfH")/5);
   const xgA=finReg(g("xgA"),g("gfA")/5);
 
-  let lamH=xgH*(1-(ppA/(LPPDA[s("league")]||13)-1)*0.15);
-  let lamA=xgA*(1-(ppH/(LPPDA[s("league")]||13)-1)*0.15);
-
-  lamH*=1+DFI(g("errA"),chaosEff,g("csA"))*0.25;
-  lamA*=1+DFI(g("errH"),chaosEff,g("csH"))*0.25;
+  let lamH=xgH*oaf(g("xgaA"));
+  let lamA=xgA*oaf(g("xgaH"));
 
   lamH=clamp(lamH,0.2,4);
   lamA=clamp(lamA,0.2,4);
 
-  const conf=confidence(lamH,lamA,chaosEff);
+  const dfiH=DFI(g("errH"),chaosEff,g("csH"));
+  const dfiA=DFI(g("errA"),chaosEff,g("csA"));
+
+  let conf=confidenceV2(lamH,lamA,chaosEff,dfiH,dfiA);
+
+  if(lamH>lamA){
+    if(trapRisk(lamH,g("csH"),chaosEff)>=2) conf-=15;
+  }else{
+    if(trapRisk(lamA,g("csA"),chaosEff)>=2) conf-=15;
+  }
+
+  if(drawGravity(lamH,lamA,tempoEff,chaosEff)) conf-=10;
+  if(defensiveFloor(dfiH,dfiA)) conf-=20;
+
+  if(tempoMismatch(xgH,g("sotH"),tempoEff)||
+     tempoMismatch(xgA,g("sotA"),tempoEff)) conf-=12;
+
+  conf=clamp(conf,0,100);
 
   let txt="";
   txt+="AUTO CONTEXT\n";
-  txt+="Tempo      : "+tempoEff.toFixed(2)+"\n";
-  txt+="Chaos      : "+chaosEff.toFixed(2)+"\n";
-  txt+="Importance : "+impEff.toFixed(2)+"\n\n";
+  txt+="Tempo      : "+tempoEff+"\n";
+  txt+="Chaos      : "+chaosEff+"\n";
+  txt+="Importance : "+impEff+"\n\n";
+  txt+="LAMBDA\n";
+  txt+="Home : "+lamH.toFixed(2)+"\n";
+  txt+="Away : "+lamA.toFixed(2)+"\n\n";
+  txt+="CONFIDENCE : "+conf+" / 100\n";
 
-  txt+="EFFECTIVE LAMBDA\n";
-  txt+="Home : "+lamH.toFixed(3)+"\n";
-  txt+="Away : "+lamA.toFixed(3)+"\n\n";
-  txt+="CONFIDENCE : "+conf+" / 100\n\n";
-
-  if(conf<55){
-    txt+="RECOMMENDATION\nHDP : NO BET\nOVER/UNDER : NO BET";
+  if(!betGate(conf,chaosEff)){
+    txt+="\nFINAL DECISION : PASS (NO BET)";
     out.value=txt;
     return;
   }
 
   const diff=lamH-lamA;
-  const hdp=diff>=0.75?"HOME -0.5":diff>=0.45?"HOME -0.25":diff>-0.45?"HDP 0":diff>-0.75?"AWAY +0.25":"AWAY -0.5";
+  const hdp=diff>=0.75?"HOME -0.5":
+            diff>=0.45?"HOME -0.25":
+            diff>-0.45?"HDP 0":
+            diff>-0.75?"AWAY +0.25":"AWAY -0.5";
 
-  let over25=0;
-  for(let i=0;i<=10;i++)for(let j=0;j<=10;j++){
-    if(i+j>2.5)over25+=poisson(lamH,i)*poisson(lamA,j);
-  }
-  const ou=over25>=0.62?"OVER 2.5":over25>=0.55?"OVER 2.0":"UNDER 2.5";
-
-  txt+="RECOMMENDATION\n";
-  txt+="HDP        : "+hdp+"\n";
-  txt+="OVER/UNDER : "+ou+"\n";
+  txt+="\nRECOMMENDATION\n";
+  txt+="HDP : "+hdp+"\n";
+  txt+="STAKE : "+stakeHint(conf,chaosEff);
 
   out.value=txt;
 }
 </script>
 
 </body>
-</html>
+                             </html>
