@@ -46,9 +46,8 @@ button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;
 <label>xGA</label><textarea id="xgaH"></textarea>
 <label>Goals For</label><textarea id="gfH"></textarea>
 <label>Goals Against</label><textarea id="gaH"></textarea>
-<label>Shots on Target</label><textarea id="sotH"></textarea>
-<label>Clean Sheet (1 / 0)</label><textarea id="csH"></textarea>
-<label>Defensive Errors</label><textarea id="errH"></textarea>
+<label>Shots on Target</label><textarea id="sotH"></textarea><label>Defensive Errors</label><textarea id="errH"></textarea>
+
 </div>
 <div>
 <h3>AWAY TEAM</h3>
@@ -56,9 +55,8 @@ button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;
 <label>xGA</label><textarea id="xgaA"></textarea>
 <label>Goals For</label><textarea id="gfA"></textarea>
 <label>Goals Against</label><textarea id="gaA"></textarea>
-<label>Shots on Target</label><textarea id="sotA"></textarea>
-<label>Clean Sheet (1 / 0)</label><textarea id="csA"></textarea>
-<label>Defensive Errors</label><textarea id="errA"></textarea>
+<label>Shots on Target</label><textarea id="sotA"></textarea><label>Defensive Errors</label><textarea id="errA"></textarea>
+
 </div>
 </div>
 </div>
@@ -76,7 +74,24 @@ function summarize(a){return a.length?{avg:avg(a),n:a.length}:null;}
 function finAdj(xg,gf){if(!xg||!gf)return xg;const r=gf/xg;if(r>1.3)return xg*(0.7+0.3/r);if(r<0.7)return xg*(1+(0.7-r)*0.2);return xg;}
 function sotModifier(sotAvg,xgAvg){if(!sotAvg||!xgAvg)return 1;const r=sotAvg/(xgAvg*2.5);return clamp(1+(r-1)*0.12,0.9,1.12);} 
 function finishingProxy(gfAvg,xgAvg){if(!gfAvg||!xgAvg)return 1;const r=gfAvg/xgAvg;if(r>1.3)return 0.92;if(r<0.7)return 0.95;return 1;} 
-function cleanSheetEffect(csRate){if(csRate==null)return 1;return clamp(1-csRate*0.15,0.85,1);} 
+// Clean Sheet digunakan SEBAGAI VALIDATOR SAJA (tidak memodifikasi lambda)
+// Clean Sheet AUTO-DETECT dari GA (validator only)
+function detectCleanSheet(gaArr){
+  if(!gaArr || gaArr.length===0) return null;
+  const cs = gaArr.filter(x=>x===0).length;
+  return cs / gaArr.length;
+}
+function cleanSheetValidator(hGA,aGA){
+  const hCS = detectCleanSheet(hGA);
+  const aCS = detectCleanSheet(aGA);
+  if(hCS==null || aCS==null) return null;
+  return {
+    strongDefence: (hCS + aCS) >= 0.8,
+    weakDefence: (hCS + aCS) <= 0.2,
+    hCS, aCS
+  };
+};
+} 
 
 function poisson(l,k){let f=1;for(let i=2;i<=k;i++)f*=i;return Math.exp(-l)*Math.pow(l,k)/f;}
 
@@ -106,7 +121,7 @@ function run(){
  const hgf=summarize(home.gf), agf=summarize(away.gf);
  const herr=summarize(home.err), aerr=summarize(away.err);
  const hSOT=summarize(home.sot), aSOT=summarize(away.sot);
- const hCS=summarize(home.cs), aCS=summarize(away.cs);
+ // CS di-auto-detect dari GA
  let lamH=finAdj(hxg.avg, hgf?hgf.avg:null);
  let lamA=finAdj(axg.avg, agf?agf.avg:null);
  if(aerr) lamH*=1+(aerr.avg/5)*0.25;
@@ -115,10 +130,10 @@ function run(){
  if(aSOT) lamA*=sotModifier(aSOT.avg,axg.avg);
  if(hgf) lamH*=finishingProxy(hgf.avg,hxg.avg);
  if(agf) lamA*=finishingProxy(agf.avg,axg.avg);
- if(aCS) lamH*=cleanSheetEffect(aCS.avg);
- if(hCS) lamA*=cleanSheetEffect(hCS.avg);
+ // CS tidak memodifikasi lambda (validator only)
  lamH=clamp(lamH,0.2,4); lamA=clamp(lamA,0.2,4);
  let over25=0,dist=[];
+ const csVal = cleanSheetValidator(home.ga, away.ga);
  for(let h=0;h<=5;h++)for(let a=0;a<=5;a++){const p=poisson(lamH,h)*poisson(lamA,a);dist.push({s:`${h}-${a}`,p});if(h+a>2)over25+=p;}
  dist.sort((x,y)=>y.p-x.p);
  out.value=
@@ -126,6 +141,17 @@ function run(){
  `Most Likely Score : ${dist[0].s}\n`+
  `Over 2.5 Prob     : ${(over25*100).toFixed(1)}%
 `+
+ (over25>0.6?`OU Note          : Over condong (tempo & ancaman cukup)
+`:
+ over25<0.45?`OU Note          : Under lebih aman (defense/tempo rendah)
+`:
+ `OU Note          : Zona abu-abu → hati-hati / NO BET
+`)+
+ (csVal && csVal.strongDefence ? `CS Validator     : Defence stabil → bias Under / Draw
+` : ``)+
+ (csVal && csVal.weakDefence ? `CS Validator     : Defence rapuh → risiko Over
+` : ``)
++
  (over25>0.6?`OU Note          : Over lebih condong (tempo & ancaman cukup)
 `:
  over25<0.45?`OU Note          : Under lebih aman (defense/tempo rendah)
