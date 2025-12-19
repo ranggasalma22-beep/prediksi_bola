@@ -1,15 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Match Data Input Calculator</title>
+<title>Match Data Calculator (Simple)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 body{
   background:#05070b;
   color:#eaeaea;
   font-family:Arial;
-  padding:20px
+  padding:16px
 }
 h1,h3{color:#66fcf1}
 .section{
@@ -21,16 +21,17 @@ h1,h3{color:#66fcf1}
 }
 label{
   display:block;
-  margin-top:6px;
+  margin-top:8px;
   font-size:13px
 }
-input{
+input,textarea{
   width:100%;
-  padding:6px;
+  padding:8px;
   background:#1a2030;
   border:1px solid #555;
   color:#fff;
-  border-radius:4px
+  border-radius:4px;
+  font-size:14px
 }
 button{
   width:100%;
@@ -43,65 +44,56 @@ button{
   cursor:pointer
 }
 textarea{
-  width:100%;
-  height:280px;
-  background:#020304;
-  color:#00ff88;
+  height:220px;
   font-family:monospace;
-  font-size:12px;
-  padding:10px;
-  border:1px solid #333;
-  border-radius:5px
+  color:#00ff88
 }
-.grid{
-  display:grid;
-  grid-template-columns:repeat(5,1fr);
-  gap:6px
+.note{
+  font-size:12px;
+  color:#aaa;
+  margin-top:6px
 }
 </style>
 </head>
 
 <body>
 
-<h1>Pre-Input Match Calculator</h1>
+<h1>Match Data Calculator</h1>
 
 <div class="section">
-<h3>Per Match Raw Data (Last 5 Matches)</h3>
-<p style="font-size:12px;color:#aaa">
-Isi data mentah tiap match (Home/Away sama saja). Kosong = 0
+<h3>INPUT (Last 5 Matches)</h3>
+
+<label>xG Average (5 matches)</label>
+<input id="xg" type="number" step="0.01">
+
+<label>xGA Average (5 matches)</label>
+<input id="xga" type="number" step="0.01">
+
+<label>Goals For (total 5)</label>
+<input id="gf" type="number">
+
+<label>Goals Against (total 5)</label>
+<input id="ga" type="number">
+
+<label>Shots on Target / match</label>
+<input id="sot" type="number" step="0.1">
+
+<label>Clean Sheets (0–5)</label>
+<input id="cs" type="number" min="0" max="5">
+
+<label>Defensive Errors (total 5)</label>
+<input id="err" type="number">
+
+<p class="note">
+Isi langsung dari SofaScore / FotMob.<br>
+Tidak perlu per-match detail.
 </p>
-
-<div class="grid">
-<strong>xG</strong>
-<strong>xGA</strong>
-<strong>Shots</strong>
-<strong>SOT</strong>
-<strong>Goals</strong>
-
-<input id="xg1"><input id="xga1"><input id="sh1"><input id="sot1"><input id="g1">
-<input id="xg2"><input id="xga2"><input id="sh2"><input id="sot2"><input id="g2">
-<input id="xg3"><input id="xga3"><input id="sh3"><input id="sot3"><input id="g3">
-<input id="xg4"><input id="xga4"><input id="sh4"><input id="sot4"><input id="g4">
-<input id="xg5"><input id="xga5"><input id="sh5"><input id="sot5"><input id="g5">
-</div>
-</div>
-
-<div class="section">
-<h3>Goals Against per Match</h3>
-<div class="grid">
-<strong>GA</strong><strong></strong><strong></strong><strong></strong><strong></strong>
-<input id="ga1"><input disabled><input disabled><input disabled><input disabled>
-<input id="ga2"><input disabled><input disabled><input disabled><input disabled>
-<input id="ga3"><input disabled><input disabled><input disabled><input disabled>
-<input id="ga4"><input disabled><input disabled><input disabled><input disabled>
-<input id="ga5"><input disabled><input disabled><input disabled><input disabled>
-</div>
 </div>
 
 <button onclick="calc()">CALCULATE</button>
 
 <div class="section">
-<h3>OUTPUT (Copy to Main Engine)</h3>
+<h3>OUTPUT (Copy to Engine)</h3>
 <textarea id="out" readonly></textarea>
 </div>
 
@@ -109,36 +101,33 @@ Isi data mentah tiap match (Home/Away sama saja). Kosong = 0
 const v=id=>Number(document.getElementById(id).value)||0;
 
 function calc(){
-  let xg=0,xga=0,sh=0,sot=0,gf=0,ga=0,cs=0;
+  const xg  = v("xg");
+  const xga = v("xga");
+  const gf  = v("gf");
+  const ga  = v("ga");
+  const sot = v("sot");
+  const cs  = Math.min(5, Math.max(0, v("cs")));
+  const err = v("err");
 
-  for(let i=1;i<=5;i++){
-    xg+=v("xg"+i);
-    xga+=v("xga"+i);
-    sh+=v("sh"+i);
-    sot+=v("sot"+i);
-    gf+=v("g"+i);
-    ga+=v("ga"+i);
-    if(v("ga"+i)===0) cs++;
-  }
+  const csRate = (cs / 5).toFixed(2);
 
-  const out=
-`CALCULATED INPUT VALUES
-------------------------
-xG (avg 5)        : ${(xg/5).toFixed(2)}
-xGA (avg 5)       : ${(xga/5).toFixed(2)}
-
-Shots / match     : ${(sh/5).toFixed(1)}
-SOT / match       : ${(sot/5).toFixed(1)}
+  const txt =
+`READY INPUT VALUES
+-------------------
+xG avg (5)   : ${xg.toFixed(2)}
+xGA avg (5)  : ${xga.toFixed(2)}
 
 Goals For (5)     : ${gf}
 Goals Against (5) : ${ga}
 
-Clean Sheet Rate  : ${(cs/5).toFixed(2)}
+SOT / match       : ${sot.toFixed(1)}
+Clean Sheet Rate  : ${csRate}
+Defensive Errors  : ${err}
 
-READY FOR ENGINE ✔
+STATUS : OK ✔
 `;
 
-  document.getElementById("out").value=out;
+  document.getElementById("out").value = txt;
 }
 </script>
 
