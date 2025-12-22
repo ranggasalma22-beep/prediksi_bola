@@ -71,9 +71,19 @@ function situationalLowBlock(sotAvg,xgAvg,xgGap,matchType,isAway){
   return pressure && xgGap>0.7 && sotAvg!=null && xgAvg!=null && sotAvg<4 && xgAvg>0.9;
 }
 
-function showWarn(msg){$('out').value='⚠️ WARNING\n'+msg;}
+function showWarn(msg){// CONFIDENCE LOCK CHECK
+  if(confidence < CONFIDENCE_MIN){
+    $('out').value = `CONFIDENCE : ${confidence}%
+STATUS     : NO BET (Confidence < ${CONFIDENCE_MIN})`;
+    return;
+  }
+
+  $('out').value='⚠️ WARNING\n'+msg;}
 
 // ===== MAIN =====
+// CONFIDENCE LOCK
+const CONFIDENCE_MIN = 60; // hard lock
+
 function run(){
  try{
   const home={xg:parseArr($('xgH').value),xga:parseArr($('xgaH').value),gf:parseArr($('gfH').value),ga:parseArr($('gaH').value),sot:parseArr($('sotH').value)};
@@ -94,8 +104,17 @@ function run(){
   lamH=clamp(lamH,0.2,4); lamA=clamp(lamA,0.2,4);
 
   let over25=0,dist=[];
+  let confidence = 0; // confidence score
+
   for(let h=0;h<=5;h++)for(let a=0;a<=5;a++){const p=poisson(lamH,h)*poisson(lamA,a);dist.push({s:`${h}-${a}`,p});if(h+a>2)over25+=p;}
   dist.sort((x,y)=>y.p-x.p);
+
+  // CONFIDENCE CALCULATION (simple & strict)
+  confidence = Math.round(Math.max(
+    over25*100,
+    (1-over25)*100
+  ));
+((x,y)=>y.p-x.p);
 
   const xgGap=Math.abs(hxg.avg-axg.avg);
   const lowBlock = situationalLowBlock(hSOT?hSOT.avg:null,hxg.avg,xgGap,$('matchType').value,false)
