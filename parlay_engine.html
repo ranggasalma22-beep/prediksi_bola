@@ -36,6 +36,7 @@ button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;
 <label>Goals For</label><textarea id="gfH"></textarea>
 <label>Goals Against</label><textarea id="gaH"></textarea>
 <label>Shots on Target</label><textarea id="sotH"></textarea>
+<label>SCA (Shot Creating Actions)</label><textarea id="scaH" placeholder="contoh: 18,22,15,20,19"></textarea>
 </div>
 <div>
 <h3>AWAY TEAM</h3>
@@ -44,6 +45,7 @@ button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;
 <label>Goals For</label><textarea id="gfA"></textarea>
 <label>Goals Against</label><textarea id="gaA"></textarea>
 <label>Shots on Target</label><textarea id="sotA"></textarea>
+<label>SCA (Shot Creating Actions)</label><textarea id="scaA" placeholder="contoh: 17,21,16,18,20"></textarea>
 </div>
 </div>
 </div><button id="analyzeBtn">ANALYZE</button>
@@ -86,14 +88,15 @@ const CONFIDENCE_MIN = 58; // hard lock (adjusted) // hard lock
 
 function run(){
  try{
-  const home={xg:parseArr($('xgH').value),xga:parseArr($('xgaH').value),gf:parseArr($('gfH').value),ga:parseArr($('gaH').value),sot:parseArr($('sotH').value)};
-  const away={xg:parseArr($('xgA').value),xga:parseArr($('xgaA').value),gf:parseArr($('gfA').value),ga:parseArr($('gaA').value),sot:parseArr($('sotA').value)};
+  const home={xg:parseArr($('xgH').value),xga:parseArr($('xgaH').value),gf:parseArr($('gfH').value),ga:parseArr($('gaH').value),sot:parseArr($('sotH').value),sca:parseArr($('scaH').value)};($('xgH').value),xga:parseArr($('xgaH').value),gf:parseArr($('gfH').value),ga:parseArr($('gaH').value),sot:parseArr($('sotH').value)};
+  const away={xg:parseArr($('xgA').value),xga:parseArr($('xgaA').value),gf:parseArr($('gfA').value),ga:parseArr($('gaA').value),sot:parseArr($('sotA').value),sca:parseArr($('scaA').value)};($('xgA').value),xga:parseArr($('xgaA').value),gf:parseArr($('gfA').value),ga:parseArr($('gaA').value),sot:parseArr($('sotA').value)};
 
   if(home.xg.length<3||away.xg.length<3||home.xga.length<3||away.xga.length<3){showWarn('Minimal 3 data xG & xGA untuk HOME dan AWAY');return;}
 
   const hxg=summarize(home.xg), axg=summarize(away.xg);
   const hgf=summarize(home.gf), agf=summarize(away.gf);
   const hSOT=summarize(home.sot), aSOT=summarize(away.sot);
+  const hSCA=summarize(home.sca), aSCA=summarize(away.sca);(home.sot), aSOT=summarize(away.sot);
 
   let lamH=hxg.avg, lamA=axg.avg;
   if(hgf) lamH*=finishingProxy(hgf.avg,hxg.avg);
@@ -120,6 +123,18 @@ function run(){
   const lowBlock = situationalLowBlock(hSOT?hSOT.avg:null,hxg.avg,xgGap,$('matchType').value,false)
                  || situationalLowBlock(aSOT?aSOT.avg:null,axg.avg,xgGap,$('matchType').value,true);
 
+  // ===== SCA VALIDATOR =====
+  let scaNote='';
+  if(hSCA && aSCA){
+    if(hSCA.avg>=15 && aSCA.avg>=15 && hSOT && aSOT && (hSOT.avg+aSOT.avg)>=9){
+      scaNote='SCA Validator    : Tekanan sejalan dengan SoT (valid)
+';
+    }else if(hSCA.avg>=15 && aSCA.avg>=15 && (hSOT.avg+aSOT.avg)<9){
+      scaNote='SCA Validator    : Tekanan tinggi tapi SoT rendah (fake pressure)
+';
+    }
+  }
+
   // ===== HDP CHECK =====
   let hdpLine='HDP Check       : TIDAK DISARANKAN';
   let hdpReason='';
@@ -135,11 +150,13 @@ function run(){
   `Most Likely Score : ${dist[0].s}\n`+
   `Over 2.5 Prob     : ${(over25*100).toFixed(1)}%\n`+
   (over25>0.6?'OU Note          : Over condong\n':over25<0.45?'OU Note          : Under lebih aman\n':'OU Note          : Zona abu-abu / NO BET\n')+
-  (lowBlock?'Low Block        : Situational – tempo ditekan\n':'')+
+  (lowBlock?'Low Block        : Situational – tempo ditekan
+':'')+
+  scaNote        : Situational – tempo ditekan\n':'')+
   hdpLine+'\n'+hdpReason;
  }catch(e){$('out').value='ERROR: '+e.message;}
 }
 
 $('analyzeBtn').addEventListener('click',run);
 </script></body>
-  </html>
+</html>
