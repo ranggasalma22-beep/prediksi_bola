@@ -1,7 +1,7 @@
 <!DOCTYPE html><html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Neutral Football Analysis Engine – Stable</title>
+<title>Neutral Football Analysis Engine – FINAL BUILD</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 body{background:#05070b;color:#eaeaea;font-family:Arial;padding:16px}
@@ -11,13 +11,13 @@ h1,h3{color:#66fcf1;margin-top:0}
 label{display:block;margin-top:8px;font-size:13px;color:#9ff}
 textarea,select{width:100%;padding:8px;background:#1a2030;border:1px solid #555;color:#fff;border-radius:6px;font-family:monospace;font-size:13px}
 textarea{height:64px}
-button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;font-weight:bold;font-size:15px;cursor:pointer}
-#out{height:360px;background:#020304;color:#00ff88}
+button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;font-weight:bold;font-size:15px;cursor:pointer;margin-top:10px}
+#out{height:420px;background:#020304;color:#00ff88}
 @media(max-width:700px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<h1>Neutral Football Analysis Engine</h1><div class="section">
+<h1>Neutral Football Analysis Engine – FINAL</h1><div class="section">
 <h3>Match Info</h3>
 <label>Match Type</label>
 <select id="matchType">
@@ -57,13 +57,13 @@ button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;
 <label>SCA</label><textarea id="scaA"></textarea>
 </div>
 </div>
-</div><button onclick="run()">ANALYZE</button>
+</div><button onclick="run()">ANALYZE</button> <button onclick="exportResult()">EXPORT RESULT</button>
 
 <div class="section">
 <h3>OUTPUT</h3>
 <textarea id="out" readonly></textarea>
 </div><script>
-// ================= CORE UTIL =================
+// ================= CORE =================
 const CONFIDENCE_MIN = 58;
 const $ = id => document.getElementById(id);
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
@@ -72,75 +72,89 @@ const avg = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
 
 function poisson(l,k){let f=1;for(let i=2;i<=k;i++)f*=i;return Math.exp(-l)*Math.pow(l,k)/f;}
 
-function detectLowBlock(sotAvg,xgAvg,matchType){
-  if(sotAvg==null||xgAvg==null) return false;
-  if(matchType==='final'||matchType==='knockout') return sotAvg<4;
-  return sotAvg<3 && xgAvg>0.8;
+function detectLowBlock(sot,xg,type){
+  if(sot==null||xg==null) return false;
+  if(type==='final'||type==='knockout') return sot<4;
+  return sot<3 && xg>0.8;
 }
+
+let lastOutput="";
 
 function run(){
-  const out = $('out');
-  out.value='';
+  const out=$('out'); out.value='';
   try{
-    const home={xg:parseArr(xgH.value),xga:parseArr(xgaH.value),gf:parseArr(gfH.value),ga:parseArr(gaH.value),sot:parseArr(sotH.value),sca:parseArr(scaH.value)};
-    const away={xg:parseArr(xgA.value),xga:parseArr(xgaA.value),gf:parseArr(gfA.value),ga:parseArr(gaA.value),sot:parseArr(sotA.value),sca:parseArr(scaA.value)};
+    const H={xg:parseArr(xgH.value),xga:parseArr(xgaH.value),sot:parseArr(sotH.value),sca:parseArr(scaH.value)};
+    const A={xg:parseArr(xgA.value),xga:parseArr(xgaA.value),sot:parseArr(sotA.value),sca:parseArr(scaA.value)};
+    if(H.xg.length<3||A.xg.length<3||H.xga.length<3||A.xga.length<3){out.value='Minimal 3 data xG & xGA';return;}
 
-    if(home.xg.length<3||away.xg.length<3||home.xga.length<3||away.xga.length<3){
-      out.value='Minimal 3 data xG & xGA HOME dan AWAY'; return;
-    }
+    const hxg=avg(H.xg), axg=avg(A.xg);
+    const hSOT=avg(H.sot), aSOT=avg(A.sot);
 
-    const hxg=avg(home.xg), axg=avg(away.xg);
-    const hSOT=avg(home.sot), aSOT=avg(away.sot);
+    let lH=hxg, lA=axg;
+    if(hSOT) lH*=clamp(1+(hSOT/(hxg*2.5)-1)*0.12,0.9,1.12);
+    if(aSOT) lA*=clamp(1+(aSOT/(axg*2.5)-1)*0.12,0.9,1.12);
+    lH=clamp(lH,0.2,4); lA=clamp(lA,0.2,4);
 
-    let lamH=hxg, lamA=axg;
-    if(hSOT) lamH*=clamp(1+(hSOT/(hxg*2.5)-1)*0.12,0.9,1.12);
-    if(aSOT) lamA*=clamp(1+(aSOT/(axg*2.5)-1)*0.12,0.9,1.12);
-    lamH=clamp(lamH,0.2,4); lamA=clamp(lamA,0.2,4);
-
-    let over25=0; const dist=[];
-    for(let h=0;h<=5;h++)for(let a=0;a<=5;a++){
-      const p=poisson(lamH,h)*poisson(lamA,a);
-      dist.push({s:`${h}-${a}`,p}); if(h+a>2) over25+=p;
-    }
+    const dist=[];
+    for(let h=0;h<=5;h++)for(let a=0;a<=5;a++)dist.push({h,a,p:poisson(lH,h)*poisson(lA,a)});
     dist.sort((x,y)=>y.p-x.p);
 
-    const ouLine=parseFloat($('ouLine').value);
-    let overProb=0;
-    for(const d of dist){
-      const [h,a]=d.s.split('-').map(Number);
-      const total=h+a;
-      if(ouLine===2) overProb+= total>=3?d.p:0;
-      else if(ouLine===2.25) overProb+= total>=3?d.p:(total===2?0.5*d.p:0);
-      else if(ouLine===2.5) overProb+= total>=3?d.p:0;
-      else if(ouLine===2.75) overProb+= total>=4?d.p:(total===3?0.5*d.p:0);
-      else if(ouLine===3) overProb+= total>=4?d.p:0;
+    const ou=parseFloat($('ouLine').value);
+    let over=0;
+    for(const d of dist){const t=d.h+d.a;
+      if(ou===2) over+=t>=3?d.p:0;
+      else if(ou===2.25) over+=t>=3?d.p:(t===2?0.5*d.p:0);
+      else if(ou===2.5) over+=t>=3?d.p:0;
+      else if(ou===2.75) over+=t>=4?d.p:(t===3?0.5*d.p:0);
+      else if(ou===3) over+=t>=4?d.p:0;
     }
-    const underProb=1-overProb;
-    const confidence=Math.round(Math.max(overProb,underProb)*100);(Math.max(over25,under25)*100);
-    if(confidence<CONFIDENCE_MIN){
-      out.value=`CONFIDENCE : ${confidence}%\nSTATUS     : NO BET`;
-      return;
-    }
+    const under=1-over;
+    const conf=Math.round(Math.max(over,under)*100);
+    if(conf<CONFIDENCE_MIN){out.value=`CONFIDENCE ${conf}%\nNO BET`;return;}
 
-    const lowBlock = detectLowBlock(hSOT,hxg,$('matchType').value) || detectLowBlock(aSOT,axg,$('matchType').value);
+    const lowBlock = detectLowBlock(hSOT,hxg,matchType.value)||detectLowBlock(aSOT,axg,matchType.value);
 
+    // BTTS
+    const bttsYes=(1-Math.exp(-lH))*(1-Math.exp(-lA));
+    const bttsCheck=(bttsYes>=0.55&&!lowBlock)?'LAYAK':'NO BET';
+
+    // HDP
+    const gap=lH-lA;
+    let hdp='TIDAK DISARANKAN';
+    if(Math.abs(gap)>=0.6&&!lowBlock) hdp=gap>0?'HOME':'AWAY';
+
+    // SCA validator
     let scaNote='';
-    const hSCA=avg(home.sca), aSCA=avg(away.sca);
+    const hSCA=avg(H.sca), aSCA=avg(A.sca);
     if(hSCA&&aSCA){
-      if(hSCA>=15&&aSCA>=15&&(hSOT+aSOT)>=9) scaNote='SCA : Tekanan sejalan dengan SoT\n';
-      else if(hSCA>=15&&aSCA>=15&&(hSOT+aSOT)<9) scaNote='SCA : Fake pressure (hati-hati)\n';
+      if(hSCA>=15&&aSCA>=15&&(hSOT+aSOT)>=9) scaNote='SCA : Tekanan sejalan\n';
+      else if(hSCA>=15&&aSCA>=15&&(hSOT+aSOT)<9) scaNote='SCA : Fake pressure\n';
     }
 
-    out.value=
-      `HOME λ : ${lamH.toFixed(2)}\n`+
-      `AWAY λ : ${lamA.toFixed(2)}\n\n`+
-      `Most Likely Score : ${dist[0].s}\n`+
-      `Over ${ouLine} Prob     : ${(over25*100).toFixed(1)}%\n`+
-      `Under ${ouLine} Prob    : ${(under25*100).toFixed(1)}%\n`+
-      `Confidence        : ${confidence}%\n`+
-      (lowBlock?`Low Block        : Detected\n`:'')+
-      scaNote;
-  }catch(e){ out.value='ERROR: '+e.message; }
+    lastOutput=
+`HOME λ : ${lH.toFixed(2)}
+AWAY λ : ${lA.toFixed(2)}
+
+Most Likely Score : ${dist[0].h}-${dist[0].a}
+Over ${ou} Prob  : ${(over*100).toFixed(1)}%
+Under ${ou} Prob : ${(under*100).toFixed(1)}%
+Confidence       : ${conf}%
+
+BTTS Check       : ${bttsCheck}
+HDP Condong      : ${hdp}
+${lowBlock?'Low Block        : Detected\n':''}${scaNote}`;
+
+    out.value=lastOutput;
+  }catch(e){out.value='ERROR: '+e.message;}
+}
+
+function exportResult(){
+  if(!lastOutput){alert('Belum ada hasil');return;}
+  const blob=new Blob([lastOutput],{type:'text/plain'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='analysis_result.txt';
+  a.click();
 }
 </script></body>
-                                      </html>
+  </html>
