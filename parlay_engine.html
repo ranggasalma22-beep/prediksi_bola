@@ -1,7 +1,8 @@
-<!DOCTYPE html><html lang="id">
+<!DOCTYPE html>
+<html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Neutral Football Analysis Engine – FINAL BUILD</title>
+<title>Neutral Football Analysis Engine – FINAL</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 body{background:#05070b;color:#eaeaea;font-family:Arial;padding:16px}
@@ -16,27 +17,32 @@ button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;
 @media(max-width:700px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
+
 <body>
-<h1>Neutral Football Analysis Engine – FINAL</h1><div class="section">
+<h1>Neutral Football Analysis Engine</h1>
+
+<div class="section">
 <h3>Match Info</h3>
 <label>Match Type</label>
 <select id="matchType">
-<option value="league">League</option>
-<option value="big">Big Match</option>
-<option value="cup">Cup</option>
-<option value="knockout">Knockout</option>
-<option value="final">Final</option>
+  <option value="league">League</option>
+  <option value="big">Big Match</option>
+  <option value="knockout">Knockout</option>
+  <option value="final">Final</option>
 </select>
+
 <label>OU Line</label>
 <select id="ouLine">
-<option value="2">2.0</option>
-<option value="2.25">2.25</option>
-<option value="2.5" selected>2.5</option>
-<option value="2.75">2.75</option>
-<option value="3">3.0</option>
+  <option value="2">2.0</option>
+  <option value="2.25">2.25</option>
+  <option value="2.5" selected>2.5</option>
+  <option value="2.75">2.75</option>
+  <option value="3">3.0</option>
 </select>
-</div><div class="section">
-<h3>RAW DATA INPUT – HOME vs AWAY (Last 5 Matches)</h3>
+</div>
+
+<div class="section">
+<h3>RAW DATA INPUT – HOME vs AWAY (Last Matches)</h3>
 <div class="grid">
 <div>
 <h3>HOME</h3>
@@ -45,7 +51,6 @@ button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;
 <label>Goals For</label><textarea id="gfH"></textarea>
 <label>Goals Against</label><textarea id="gaH"></textarea>
 <label>Shots on Target</label><textarea id="sotH"></textarea>
-<label>SCA</label><textarea id="scaH"></textarea>
 </div>
 <div>
 <h3>AWAY</h3>
@@ -54,17 +59,19 @@ button{width:100%;padding:14px;background:#66fcf1;border:none;border-radius:8px;
 <label>Goals For</label><textarea id="gfA"></textarea>
 <label>Goals Against</label><textarea id="gaA"></textarea>
 <label>Shots on Target</label><textarea id="sotA"></textarea>
-<label>SCA</label><textarea id="scaA"></textarea>
 </div>
 </div>
-</div><button onclick="run()">ANALYZE</button> <button onclick="exportResult()">EXPORT RESULT</button>
+</div>
+
+<button onclick="run()">ANALYZE</button>
 
 <div class="section">
 <h3>OUTPUT</h3>
 <textarea id="out" readonly></textarea>
 </div>
-  <script>
-// ===== Utilities =====
+
+<script>
+// ===== UTILITIES =====
 const $ = id => document.getElementById(id);
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 
@@ -79,7 +86,7 @@ function poisson(l,k){
   return Math.exp(-l)*Math.pow(l,k)/f;
 }
 
-// ===== Modifiers =====
+// ===== MODIFIERS =====
 function sotModifier(sotAvg,xgAvg){
   if(!sotAvg||!xgAvg) return 1;
   const r = sotAvg/(xgAvg*2.5);
@@ -93,17 +100,13 @@ function finishingProxy(gfAvg,xgAvg){
   return 1;
 }
 
-// ===== Situational Checks =====
-function detectCleanSheet(ga){
-  if(!ga||!ga.length) return null;
-  return ga.filter(x=>x===0).length/ga.length;
-}
+// ===== SITUATIONAL =====
 function situationalLowBlock(sotAvg,xgAvg,xgGap,matchType,isAway){
   const pressure = ['big','knockout','final'].includes(matchType) || isAway;
   return pressure && xgGap>0.7 && sotAvg!=null && xgAvg!=null && sotAvg<4 && xgAvg>0.9;
 }
 
-// ===== Constants =====
+// ===== CONSTANT =====
 const CONFIDENCE_MIN = 58;
 
 // ===== MAIN ENGINE =====
@@ -142,28 +145,27 @@ function run(){
   lamH=clamp(lamH,0.2,4);
   lamA=clamp(lamA,0.2,4);
 
-  let over25=0, dist=[];
+  const ouLine = Number($('ouLine').value);
+  let overProb=0, dist=[];
   const MAX_GOAL = ['big','knockout','final'].includes($('matchType').value) ? 6 : 5;
 
   for(let h=0;h<=MAX_GOAL;h++){
     for(let a=0;a<=MAX_GOAL;a++){
       const p=poisson(lamH,h)*poisson(lamA,a);
       dist.push({s:`${h}-${a}`,p});
-      if(h+a>2) over25+=p;
+      if(h+a>ouLine) overProb+=p;
     }
   }
 
   dist.sort((x,y)=>y.p-x.p);
 
   const confidence = Math.round(Math.max(
-    over25*100,
-    (1-over25)*100
+    overProb*100,
+    (1-overProb)*100
   ));
 
-  // ===== HARD CONFIDENCE LOCK =====
   if(confidence < CONFIDENCE_MIN){
-    $('out').value=
-    `CONFIDENCE : ${confidence}%\nSTATUS     : NO BET (LOCKED)`;
+    $('out').value=`CONFIDENCE : ${confidence}%\nSTATUS     : NO BET (LOCKED)`;
     return;
   }
 
@@ -172,22 +174,20 @@ function run(){
     situationalLowBlock(hSOT?hSOT.avg:null,hxg.avg,xgGap,$('matchType').value,false) ||
     situationalLowBlock(aSOT?aSOT.avg:null,axg.avg,xgGap,$('matchType').value,true);
 
-  // ===== HDP CHECK =====
   let hdpLine='HDP Check       : TIDAK DISARANKAN';
   let hdpReason='';
   const lamGap=Math.abs(lamH-lamA);
   if(lamGap>=0.6 && !lowBlock && !['0-0','1-1'].includes(dist[0].s)){
-    const side=lamH>lamA?'HOME':'AWAY';
     hdpLine='HDP Check       : COCOK';
-    hdpReason=`HDP Condong     : ${side}`;
+    hdpReason=`HDP Condong     : ${lamH>lamA?'HOME':'AWAY'}`;
   }
 
   $('out').value=
   `HOME λ : ${lamH.toFixed(2)}\nAWAY λ : ${lamA.toFixed(2)}\n\n`+
   `Most Likely Score : ${dist[0].s}\n`+
-  `Over 2.5 Prob     : ${(over25*100).toFixed(1)}%\n`+
-  (over25>0.6?'OU Note          : Over condong\n':
-   over25<0.45?'OU Note          : Under lebih aman\n':
+  `Over ${ouLine} Prob     : ${(overProb*100).toFixed(1)}%\n`+
+  (overProb>0.6?'OU Note          : Over condong\n':
+   overProb<0.45?'OU Note          : Under lebih aman\n':
    'OU Note          : Zona abu-abu / NO BET\n')+
   (lowBlock?'Low Block        : Situational – tempo ditekan\n':'')+
   hdpLine+'\n'+hdpReason;
@@ -196,8 +196,6 @@ function run(){
   $('out').value='ERROR: '+e.message;
  }
 }
-
-$('analyzeBtn').addEventListener('click',run);
-  </script>
+</script>
 </body>
-  </html>
+</html>
