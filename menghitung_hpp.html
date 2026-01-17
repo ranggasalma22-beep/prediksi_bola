@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HPP Penjualan</title>
+
+<style>
+body {margin:0;font-family:Arial;background:#f2f2f2;}
+header {background:#1976d2;color:#fff;padding:15px;text-align:center;font-size:18px;}
+.container {padding:15px;}
+.card {background:#fff;padding:15px;margin-bottom:15px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.1);}
+h3{margin-top:0;}
+table{width:100%;border-collapse:collapse;}
+th,td{border:1px solid #ccc;padding:5px;font-size:13px;text-align:center;}
+input,select{width:100%;border:none;border-bottom:1px solid #aaa;text-align:center;font-size:14px;}
+button{background:#1976d2;color:white;border:none;padding:10px;border-radius:8px;margin-top:10px;width:100%;font-size:15px;}
+button.red{background:#d32f2f;}
+.result{background:#e8f5e9;padding:10px;border-radius:8px;font-size:14px;}
+@media print{
+button{display:none;}
+body{background:white;}
+.card{box-shadow:none;}
+}
+</style>
+</head>
+
+<body>
+<header>Kalkulator HPP Penjualan</header>
+<div class="container">
+
+<!-- KONVERSI GRAM ↔ KG -->
+<div class="card">
+<h3>Konversi Gram ↔ Kilogram</h3>
+Harga per Kg (Rp)
+<input type="number" id="hargaPerKg">
+Pemakaian
+<input type="number" id="nilaiGramKg">
+<select id="satuanGramKg">
+<option value="gram">Gram</option>
+<option value="kg">Kilogram</option>
+</select>
+<button onclick="hitungGramKg()">Hitung</button>
+<div class="result" id="hasilGramKg"></div>
+</div>
+
+<!-- KONVERSI ML ↔ LITER -->
+<div class="card">
+<h3>Konversi ml ↔ Liter</h3>
+Harga per Liter (Rp)
+<input type="number" id="hargaPerLiter">
+Pemakaian
+<input type="number" id="nilaiMlLiter">
+<select id="satuanMlLiter">
+<option value="ml">ml</option>
+<option value="liter">Liter</option>
+</select>
+<button onclick="hitungMlLiter()">Hitung</button>
+<div class="result" id="hasilMlLiter"></div>
+</div>
+
+<!-- KONVERSI PCS ↔ PACK -->
+<div class="card">
+<h3>Konversi pcs ↔ Pack / Dus</h3>
+Harga 1 Pack/Dus (Rp)
+<input type="number" id="hargaPack">
+Isi Pack/Dus (pcs)
+<input type="number" id="isiPack">
+Pemakaian (pcs)
+<input type="number" id="nilaiPcs">
+<button onclick="hitungPcsPack()">Hitung</button>
+<div class="result" id="hasilPcsPack"></div>
+</div>
+
+<!-- KALKULATOR HARGA SATUAN -->
+<div class="card">
+<h3>Kalkulator Harga Satuan</h3>
+Total Harga Beli
+<input type="number" id="totalBeli">
+Isi Kemasan
+<input type="number" id="isiKemasan">
+<button onclick="hitungSatuan()">Hitung</button>
+<div class="result" id="hasilSatuan"></div>
+</div>
+
+<!-- BAHAN BAKU -->
+<div class="card">
+<h3>Bahan Baku</h3>
+<table id="bahanTable">
+<tr><th>Nama</th><th>Qty</th><th>Harga Satuan</th><th>Total</th><th></th></tr>
+</table>
+<button onclick="tambahBahan()">+ Tambah Bahan</button>
+</div>
+
+<!-- OPERASIONAL -->
+<div class="card">
+<h3>Biaya Operasional</h3>
+<table id="operasionalTable">
+<tr><th>Nama</th><th>Nominal</th><th></th></tr>
+</table>
+<button onclick="tambahOperasional()">+ Tambah Operasional</button>
+</div>
+
+<!-- PRODUKSI -->
+<div class="card">
+<h3>Produksi & Penjualan</h3>
+Jumlah Produksi
+<input type="number" id="jumlahProduksi">
+Harga Jual per Unit
+<input type="number" id="hargaJual">
+</div>
+
+<button onclick="hitung()">Hitung HPP</button>
+<button onclick="cetakPDF()">Cetak Laporan PDF</button>
+<button class="red" onclick="resetData()">Reset Data</button>
+
+<div class="card result" id="hasil"></div>
+
+</div>
+
+<script>
+// ===== KONVERSI =====
+function hitungGramKg(){
+ let hargaKg=parseFloat(hargaPerKg.value)||0;
+ let nilai=parseFloat(nilaiGramKg.value)||0;
+ let satuan=satuanGramKg.value;
+ let hargaGram=hargaKg/1000;
+ let biaya=(satuan==="gram")?nilai*hargaGram:nilai*hargaKg;
+ hasilGramKg.innerHTML=`Hasil: Rp ${biaya.toLocaleString()}`;
+}
+
+function hitungMlLiter(){
+ let hargaLiter=parseFloat(hargaPerLiter.value)||0;
+ let nilai=parseFloat(nilaiMlLiter.value)||0;
+ let satuan=satuanMlLiter.value;
+ let hargaMl=hargaLiter/1000;
+ let biaya=(satuan==="ml")?nilai*hargaMl:nilai*hargaLiter;
+ hasilMlLiter.innerHTML=`Hasil: Rp ${biaya.toLocaleString()}`;
+}
+
+function hitungPcsPack(){
+ let harga=parseFloat(hargaPack.value)||0;
+ let isi=parseFloat(isiPack.value)||1;
+ let pcs=parseFloat(nilaiPcs.value)||0;
+ let hargaPcs=harga/isi;
+ let biaya=pcs*hargaPcs;
+ hasilPcsPack.innerHTML=`Hasil: Rp ${biaya.toLocaleString()}`;
+}
+
+function hitungSatuan(){
+ let total=parseFloat(totalBeli.value)||0;
+ let isi=parseFloat(isiKemasan.value)||1;
+ let satuan=total/isi;
+ hasilSatuan.innerHTML=`Harga Satuan: Rp ${satuan.toLocaleString()}`;
+}
+
+// ===== AUTO LOAD =====
+window.onload=function(){
+ let data=JSON.parse(localStorage.getItem("hppFinalData"));
+ if(data){
+  data.bahan.forEach(b=>tambahBahan(b.nama,b.qty,b.harga));
+  data.operasional.forEach(o=>tambahOperasional(o.nama,o.nominal));
+  jumlahProduksi.value=data.jumlahProduksi;
+  hargaJual.value=data.hargaJual;
+ }
+}
+
+// ===== SAVE =====
+function simpan(){
+ let bahan=[];
+ document.querySelectorAll("#bahanTable tr").forEach((r,i)=>{
+  if(i>0){
+   bahan.push({
+    nama:r.cells[0].querySelector("input").value,
+    qty:r.cells[1].querySelector("input").value,
+    harga:r.cells[2].querySelector("input").value
+   });
+  }
+ });
+ let operasional=[];
+ document.querySelectorAll("#operasionalTable tr").forEach((r,i)=>{
+  if(i>0){
+   operasional.push({
+    nama:r.cells[0].querySelector("input").value,
+    nominal:r.cells[1].querySelector("input").value
+   });
+  }
+ });
+ localStorage.setItem("hppFinalData",JSON.stringify({
+  bahan,operasional,
+  jumlahProduksi:jumlahProduksi.value,
+  hargaJual:hargaJual.value
+ }));
+}
+
+// ===== ADD ROW =====
+function tambahBahan(nama="",qty=0,harga=0){
+ let row=bahanTable.insertRow(-1);
+ row.innerHTML=`
+ <td><input value="${nama}" oninput="simpan()"></td>
+ <td><input type="number" value="${qty}" oninput="updateTotal(this);simpan()"></td>
+ <td><input type="number" value="${harga}" oninput="updateTotal(this);simpan()"></td>
+ <td class="total">0</td>
+ <td onclick="hapus(this)">❌</td>`;
+ updateTotal(row.cells[1].querySelector("input"));
+}
+
+function tambahOperasional(nama="",nominal=0){
+ let row=operasionalTable.insertRow(-1);
+ row.innerHTML=`
+ <td><input value="${nama}" oninput="simpan()"></td>
+ <td><input type="number" value="${nominal}" oninput="simpan()"></td>
+ <td onclick="hapus(this)">❌</td>`;
+}
+
+function hapus(el){el.parentNode.remove();simpan();}
+
+// ===== HITUNG =====
+function updateTotal(el){
+ let row=el.parentNode.parentNode;
+ let qty=row.cells[1].querySelector("input").value;
+ let harga=row.cells[2].querySelector("input").value;
+ row.cells[3].innerText=qty*harga;
+}
+
+function hitung(){
+ let totalBahan=0;
+ document.querySelectorAll(".total").forEach(t=>totalBahan+=parseFloat(t.innerText)||0);
+ let totalOps=0;
+ document.querySelectorAll("#operasionalTable tr").forEach((r,i)=>{
+  if(i>0) totalOps+=parseFloat(r.cells[1].querySelector("input").value)||0;
+ });
+ let produksi=parseFloat(jumlahProduksi.value)||1;
+ let harga=parseFloat(hargaJual.value)||0;
+ let totalBiaya=totalBahan+totalOps;
+ let hpp=totalBiaya/produksi;
+ let labaUnit=harga-hpp;
+ let totalLaba=labaUnit*produksi;
+ let omzet=harga*produksi;
+ let bep=labaUnit>0?Math.ceil(totalOps/labaUnit):0;
+
+ hasil.innerHTML=`
+ <b>Total Biaya Produksi:</b> Rp ${totalBiaya.toLocaleString()}<br>
+ <b>HPP per Unit:</b> Rp ${hpp.toLocaleString()}<br>
+ <b>Harga Jual:</b> Rp ${harga.toLocaleString()}<br>
+ <b>Laba per Unit:</b> Rp ${labaUnit.toLocaleString()}<br>
+ <b>Total Laba:</b> Rp ${totalLaba.toLocaleString()}<br>
+ <b>Omzet:</b> Rp ${omzet.toLocaleString()}<br>
+ <b>BEP:</b> ${bep} Unit
+ `;
+ simpan();
+}
+
+// ===== PRINT =====
+function cetakPDF(){hitung();window.print();}
+
+// ===== RESET =====
+function resetData(){
+ if(confirm("Hapus semua data?")){
+  localStorage.removeItem("hppFinalData");
+  location.reload();
+ }
+}
+</script>
+
+</body>
+</html>
