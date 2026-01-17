@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HPP Penjualan Otomatis</title>
+
+<style>
+body {margin:0;font-family:Arial;background:#f2f2f2;}
+header {background:#1976d2;color:#fff;padding:15px;text-align:center;font-size:18px;}
+.container {padding:15px;}
+.card {background:#fff;padding:15px;margin-bottom:15px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.1);}
+h3{margin-top:0;}
+table{width:100%;border-collapse:collapse;}
+th,td{border:1px solid #ccc;padding:5px;font-size:13px;text-align:center;}
+input{width:100%;border:none;border-bottom:1px solid #aaa;text-align:center;font-size:14px;}
+button{background:#1976d2;color:white;border:none;padding:10px;border-radius:8px;margin-top:5px;width:100%;font-size:14px;}
+button.red{background:#d32f2f;}
+.result{background:#e8f5e9;padding:10px;border-radius:8px;font-size:14px;}
+@media print{
+button{display:none;}
+body{background:white;}
+.card{box-shadow:none;}
+}
+</style>
+</head>
+
+<body>
+<header>Kalkulator HPP Penjualan</header>
+<div class="container">
+
+<!-- BAHAN BAKU -->
+<div class="card">
+<h3>Bahan Baku (Harga Satuan Otomatis)</h3>
+<table id="bahanTable">
+<tr>
+<th>Nama</th>
+<th>Qty Pakai</th>
+<th>Total Beli Kemasan</th>
+<th>Isi Kemasan</th>
+<th>Harga Satuan</th>
+<th>Total</th>
+<th></th>
+</tr>
+</table>
+<button onclick="tambahBahan()">+ Tambah Bahan</button>
+</div>
+
+<!-- OPERASIONAL -->
+<div class="card">
+<h3>Biaya Operasional</h3>
+<table id="operasionalTable">
+<tr><th>Nama</th><th>Nominal</th><th></th></tr>
+</table>
+<button onclick="tambahOperasional()">+ Tambah Operasional</button>
+</div>
+
+<!-- PRODUKSI -->
+<div class="card">
+<h3>Produksi & Penjualan</h3>
+Jumlah Produksi
+<input type="number" id="jumlahProduksi">
+Harga Jual per Unit
+<input type="number" id="hargaJual">
+</div>
+
+<button onclick="hitung()">Hitung HPP</button>
+<button onclick="cetakPDF()">Cetak Laporan PDF</button>
+<button class="red" onclick="resetData()">Reset Semua Data</button>
+
+<div class="card result" id="hasil"></div>
+
+<!-- RIWAYAT -->
+<div class="card">
+<h3>Riwayat Laporan</h3>
+
+Filter Tanggal:
+<input type="date" id="filterTanggal">
+<button onclick="filterRiwayat()">Terapkan Filter</button>
+<button onclick="tampilRiwayat()">Tampilkan Semua</button>
+<br><br>
+
+<div id="riwayatLaporan"></div>
+<button class="red" onclick="hapusRiwayat()">Hapus Riwayat</button>
+</div>
+
+</div>
+
+<script>
+// ================= LOAD DATA =================
+window.onload = function(){
+    let data = JSON.parse(localStorage.getItem("hppAutoData"));
+    if(data){
+        data.bahan.forEach(b=>tambahBahan(b.nama,b.qty,b.totalBeli,b.isi));
+        data.operasional.forEach(o=>tambahOperasional(o.nama,o.nominal));
+        document.getElementById("jumlahProduksi").value = data.jumlahProduksi;
+        document.getElementById("hargaJual").value = data.hargaJual;
+    }
+    tampilRiwayat();
+};
+
+// ================= SAVE INPUT =================
+function simpan(){
+    let bahan=[];
+    document.querySelectorAll("#bahanTable tr").forEach((r,i)=>{
+        if(i>0){
+            bahan.push({
+                nama:r.cells[0].querySelector("input").value,
+                qty:r.cells[1].querySelector("input").value,
+                totalBeli:r.cells[2].querySelector("input").value,
+                isi:r.cells[3].querySelector("input").value
+            });
+        }
+    });
+
+    let operasional=[];
+    document.querySelectorAll("#operasionalTable tr").forEach((r,i)=>{
+        if(i>0){
+            operasional.push({
+                nama:r.cells[0].querySelector("input").value,
+                nominal:r.cells[1].querySelector("input").value
+            });
+        }
+    });
+
+    localStorage.setItem("hppAutoData", JSON.stringify({
+        bahan,operasional,
+        jumlahProduksi:jumlahProduksi.value,
+        hargaJual:hargaJual.value
+    }));
+}
+
+// ================= ROW BAHAN =================
+function tambahBahan(nama="",qty=0,totalBeli=0,isi=1){
+    let table=document.getElementById("bahanTable");
+    let row=table.insertRow(-1);
+    row.innerHTML=`
+      <td><input value="${nama}" oninput="simpan()"></td>
+      <td><input type="number" value="${qty}" oninput="updateBahan(this);simpan()"></td>
+      <td><input type="number" value="${totalBeli}" oninput="updateBahan(this);simpan()"></td>
+      <td><input type="number" value="${isi}" oninput="updateBahan(this);simpan()"></td>
+      <td class="hargaSatuan">0</td>
+      <td class="totalBahan">0</td>
+      <td onclick="hapusRow(this)">❌</td>
+    `;
+    updateBahan(row.cells[1].querySelector("input"));
+}
+
+function updateBahan(el){
+    let row = el.parentNode.parentNode;
+    let qty = parseFloat(row.cells[1].querySelector("input").value)||0;
+    let totalBeli = parseFloat(row.cells[2].querySelector("input").value)||0;
+    let isi = parseFloat(row.cells[3].querySelector("input").value)||1;
+
+    let hargaSatuan = totalBeli / isi;
+    let total = hargaSatuan * qty;
+
+    row.cells[4].innerText = Math.round(hargaSatuan).toLocaleString();
+    row.cells[5].innerText = Math.round(total).toLocaleString();
+}
+
+// ================= OPERASIONAL =================
+function tambahOperasional(nama="",nominal=0){
+    let table=document.getElementById("operasionalTable");
+    let row=table.insertRow(-1);
+    row.innerHTML=`
+      <td><input value="${nama}" oninput="simpan()"></td>
+      <td><input type="number" value="${nominal}" oninput="simpan()"></td>
+      <td onclick="hapusRow(this)">❌</td>
+    `;
+}
+
+function hapusRow(el){
+    el.parentNode.remove();
+    simpan();
+}
+
+// ================= HITUNG HPP =================
+function hitung(){
+    let totalBahan=0;
+    document.querySelectorAll(".totalBahan").forEach(t=>{
+        totalBahan += parseFloat(t.innerText.replace(/,/g,''))||0;
+    });
+
+    let totalOps=0;
+    document.querySelectorAll("#operasionalTable tr").forEach((r,i)=>{
+        if(i>0){
+            totalOps += parseFloat(r.cells[1].querySelector("input").value)||0;
+        }
+    });
+
+    let produksi = parseFloat(jumlahProduksi.value)||1;
+    let harga = parseFloat(hargaJual.value)||0;
+
+    let totalBiaya = totalBahan + totalOps;
+    let hpp = totalBiaya / produksi;
+    let labaUnit = harga - hpp;
+    let totalLaba = labaUnit * produksi;
+    let omzet = harga * produksi;
+    let bep = labaUnit>0 ? Math.ceil(totalOps / labaUnit) : 0;
+
+    document.getElementById("hasil").innerHTML = `
+      <b>Total Biaya Produksi:</b> Rp ${Math.round(totalBiaya).toLocaleString()}<br>
+      <b>HPP per Unit:</b> Rp ${Math.round(hpp).toLocaleString()}<br>
+      <b>Harga Jual:</b> Rp ${Math.round(harga).toLocaleString()}<br>
+      <b>Laba per Unit:</b> Rp ${Math.round(labaUnit).toLocaleString()}<br>
+      <b>Total Laba:</b> Rp ${Math.round(totalLaba).toLocaleString()}<br>
+      <b>Omzet:</b> Rp ${Math.round(omzet).toLocaleString()}<br>
+      <b>BEP:</b> ${bep} Unit
+    `;
+
+    simpan();
+    simpanLaporan(totalBiaya,hpp,harga,labaUnit,totalLaba,omzet,bep);
+}
+
+// ================= SIMPAN LAPORAN =================
+function simpanLaporan(totalBiaya,hpp,harga,labaUnit,totalLaba,omzet,bep){
+    let riwayat = JSON.parse(localStorage.getItem("hppRiwayat")) || [];
+    let now = new Date();
+    let tanggal = now.toLocaleDateString("id-ID");
+    let jam = now.toLocaleTimeString("id-ID");
+
+    riwayat.unshift({
+        tanggal: tanggal+" "+jam,
+        totalBiaya, hpp, harga, labaUnit, totalLaba, omzet, bep
+    });
+
+    localStorage.setItem("hppRiwayat", JSON.stringify(riwayat));
+    tampilRiwayat();
+}
+
+// ================= TAMPIL RIWAYAT =================
+function tampilRiwayat(){
+    let riwayat = JSON.parse(localStorage.getItem("hppRiwayat")) || [];
+    tampilRiwayatCustom(riwayat);
+}
+
+function tampilRiwayatCustom(data){
+    let html="";
+    if(data.length===0){
+        html="Belum ada laporan tersimpan.";
+    }else{
+        data.forEach(r=>{
+            html+=`
+            <div style="border-bottom:1px solid #ccc;padding:8px">
+            <b>${r.tanggal}</b><br>
+            Total Biaya: Rp ${Math.round(r.totalBiaya).toLocaleString()}<br>
+            HPP/unit: Rp ${Math.round(r.hpp).toLocaleString()}<br>
+            Harga Jual: Rp ${Math.round(r.harga).toLocaleString()}<br>
+            Laba/unit: Rp ${Math.round(r.labaUnit).toLocaleString()}<br>
+            Total Laba: Rp ${Math.round(r.totalLaba).toLocaleString()}<br>
+            Omzet: Rp ${Math.round(r.omzet).toLocaleString()}<br>
+            BEP: ${r.bep} Unit
+            </div>`;
+        });
+    }
+    document.getElementById("riwayatLaporan").innerHTML=html;
+}
+
+// ================= FILTER =================
+function filterRiwayat(){
+    let riwayat = JSON.parse(localStorage.getItem("hppRiwayat")) || [];
+    let tanggalFilter = document.getElementById("filterTanggal").value;
+    if(!tanggalFilter){ alert("Pilih tanggal dulu"); return; }
+
+    let tgl = new Date(tanggalFilter).toLocaleDateString("id-ID");
+    let hasil = riwayat.filter(r => r.tanggal.includes(tgl));
+    tampilRiwayatCustom(hasil);
+}
+
+// ================= HAPUS RIWAYAT =================
+function hapusRiwayat(){
+    if(confirm("Hapus semua riwayat laporan?")){
+        localStorage.removeItem("hppRiwayat");
+        tampilRiwayat();
+    }
+}
+
+// ================= PRINT =================
+function cetakPDF(){
+    window.print();
+}
+
+// ================= RESET =================
+function resetData(){
+    if(confirm("Hapus semua data bahan & operasional?")){
+        localStorage.removeItem("hppAutoData");
+        location.reload();
+    }
+}
+</script>
+
+</body>
+</html>
